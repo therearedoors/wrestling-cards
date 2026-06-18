@@ -1,0 +1,27 @@
+<%- include('../include/header') %>
+<div class="container"></div>
+<%- include('../include/partials/responseMessage') %>
+<form action="/api/register" method="POST" class="flex-center-column auth-form">
+    <h1 class="flex-center-row">Register<img src="/assets/icons/user-plus.svg" alt="User"></h1>
+    <div class="input-group">
+        <label>Username</label>
+        <input type="text" name="username" id="username" placeholder="Enter your username" required>
+    </div>
+    <div class="input-group">
+        <label>Email</label>
+        <input type="email" name="email" id="email" placeholder="Enter your email" required>
+    </div>
+    <div class="input-group">
+        <label>Password</label>
+        <input type="password" name="password" id="password" placeholder="Enter your password" required>
+    </div>
+     <div class="input-group">
+        <label>Confirm Password</label>
+        <input type="password" name="confirmPassword" id="confirmPassword" placeholder="Confirm your password" required>
+    </div>
+    <a href="/login" class="redirect-link">Already have an account?</a>
+    <button type="submit" name="submit">Submit</button>
+</form>
+
+<script src="/js/responseMessage.js"></script>
+<%- include('../include/footer') %>
