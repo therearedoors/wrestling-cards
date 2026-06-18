@@ -1,0 +1,102 @@
+<%- include('../../include/header') %>
+<link rel="stylesheet" href="/css/games/rawdeal.css">
+
+<div class="rd-container">
+    <header class="rd-header">
+        <h1 class="rd-title">Raw Deal Goldfish</h1>
+        <p class="rd-subtitle">Premiere Edition — practice your arsenal against a passive opponent</p>
+    </header>
+
+    <section id="rd-setup" class="rd-setup">
+        <div class="rd-setup-card">
+            <h2>Choose Your Superstar</h2>
+            <label for="rd-deck-select">Starter Deck</label>
+            <select id="rd-deck-select" class="rd-select">
+                <option value="rock">The Rock</option>
+                <option value="austin">"Stone Cold" Steve Austin</option>
+            </select>
+            <p class="rd-setup-note">
+                You'll face the rival starter deck. The opponent won't play cards — overturn reversals from their Arsenal still work.
+            </p>
+            <button id="rd-start-btn" class="rd-btn rd-btn--primary">Start Match</button>
+        </div>
+    </section>
+
+    <section id="rd-game" class="rd-game hidden">
+        <div id="rd-board" class="rd-board">
+            <div class="rd-status-bar">
+                <span id="rd-phase" class="rd-phase">Main Step</span>
+                <span id="rd-turn" class="rd-turn">Turn 1</span>
+                <button id="rd-end-turn" class="rd-btn rd-btn--secondary">End Turn</button>
+            </div>
+
+            <div class="rd-opponent-zone">
+                <div class="rd-superstar-bar rd-superstar-bar--opponent">
+                    <span id="rd-opponent-superstar">Opponent</span>
+                    <span class="rd-arsenal-label">Arsenal: <strong id="rd-opponent-arsenal-count">0</strong></span>
+                </div>
+                <div class="rd-piles">
+                    <div class="rd-pile" id="rd-opponent-arsenal" title="Opponent Arsenal">
+                        <span class="rd-pile__label">Arsenal</span>
+                        <div class="rd-pile__stack"></div>
+                    </div>
+                    <div class="rd-pile" id="rd-opponent-ringside" title="Opponent Ringside">
+                        <span class="rd-pile__label">Ringside</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rd-ring-zone">
+                <h3 class="rd-zone-title">Your Ring</h3>
+                <div class="rd-ring-areas">
+                    <div class="rd-ring-area rd-ring-area--maneuvers">
+                        <span class="rd-ring-area__label">Maneuvers</span>
+                        <div id="rd-player-maneuvers" class="rd-ring-area__cards"></div>
+                    </div>
+                    <div class="rd-ring-area rd-ring-area--reversals">
+                        <span class="rd-ring-area__label">Reversals (+ Fortitude)</span>
+                        <div id="rd-player-reversals" class="rd-ring-area__cards"></div>
+                    </div>
+                    <div class="rd-ring-area rd-ring-area--actions">
+                        <span class="rd-ring-area__label">Actions</span>
+                        <div id="rd-player-actions" class="rd-ring-area__cards"></div>
+                    </div>
+                </div>
+                <div class="rd-player-stats">
+                    <span id="rd-player-superstar" class="rd-player-name">You</span>
+                    <span class="rd-fortitude">Fortitude: <strong id="rd-player-fortitude">0</strong></span>
+                    <span class="rd-arsenal-label">Arsenal: <strong id="rd-player-arsenal-count">0</strong></span>
+                </div>
+                <div class="rd-piles rd-piles--player">
+                    <div class="rd-pile" id="rd-player-ringside" title="Your Ringside">
+                        <span class="rd-pile__label">Your Ringside</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rd-hand-zone">
+                <h3 class="rd-zone-title">Your Hand</h3>
+                <div id="rd-player-hand" class="rd-hand"></div>
+            </div>
+
+            <div id="rd-log" class="rd-log"></div>
+
+            <div id="rd-game-over" class="rd-game-over hidden">
+                <h2 id="rd-game-over-message">PINFALL!</h2>
+                <button id="rd-restart" class="rd-btn rd-btn--primary">New Match</button>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script src="/js/games/rawdeal/data/cards.js"></script>
+<script src="/js/games/rawdeal/data/decks.js"></script>
+<script src="/js/games/rawdeal/engine/constants.js"></script>
+<script src="/js/games/rawdeal/engine/stateMachine.js"></script>
+<script src="/js/games/rawdeal/engine/gameEngine.js"></script>
+<script src="/js/games/rawdeal/ui/cardRenderer.js"></script>
+<script src="/js/games/rawdeal/ui/animations.js"></script>
+<script src="/js/games/rawdeal/ui/board.js"></script>
+<script src="/js/games/rawdeal/goldfish.js"></script>
+
+<%- include('../../include/footer') %>

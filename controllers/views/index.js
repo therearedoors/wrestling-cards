@@ -32,4 +32,11 @@ exports.getRoomPage = (req, res) => {
     }
 
     res.render("room", {authorized: true});
-} 
+}
+
+exports.getRawDealGoldfishPage = (req, res) => {
+    if (!req.cookies.token) {
+        return res.redirect('/login');
+    }
+    res.render('games/rawdeal/goldfish', { authorized: true });
+}
