@@ -208,11 +208,7 @@ window.RawDeal.Board = class Board {
   }
 
   _cardCost(player, card) {
-    let cost = card.fortitude || 0;
-    if (card.type === 'action' && player.deckId === 'rock') {
-      cost = Math.max(0, cost - 1);
-    }
-    return cost;
+    return card.fortitude || 0;
   }
 
   _renderRing(container, cards) {

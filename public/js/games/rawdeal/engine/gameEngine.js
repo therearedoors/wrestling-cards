@@ -142,7 +142,10 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       if (phase === PHASES.DRAW) {
-        this._drawCard(active);
+        const drawCount = active.superstar.id === 'mankind' ? 2 : 1;
+        for (let d = 0; d < drawCount; d++) {
+          this._drawCard(active);
+        }
         this.stateMachine.transition(EVENTS.DRAW_DONE);
         continue;
       }
@@ -179,11 +182,7 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _effectiveFortitudeCost(player, card) {
-    let cost = card.fortitude || 0;
-    if (card.type === 'action' && player.deckId === 'rock') {
-      cost = Math.max(0, cost - 1);
-    }
-    return cost;
+    return card.fortitude || 0;
   }
 
   canPlayCard(playerIndex, instanceId) {
@@ -215,8 +214,8 @@ window.RawDeal.GameEngine = class GameEngine {
       player.fortitude = this._calcFortitude(player);
 
       let damage = card.damage || 0;
-      if (card.subtype === 'strike' && player.deckId === 'austin') {
-        damage += 1;
+      if (opponent.superstar.id === 'mankind' && damage > 0) {
+        damage = Math.max(0, damage - 1);
       }
       damage += this.nextManeuverBonus[0];
       this.nextManeuverBonus[0] = 0;
@@ -265,6 +264,15 @@ window.RawDeal.GameEngine = class GameEngine {
     } else if (card.effect === 'nextManeuverBonus') {
       const idx = player.isHuman ? 0 : 1;
       this.nextManeuverBonus[idx] += card.effectValue || 0;
+    } else if (card.effect === 'smackdownHotel') {
+      this._drawCard(player);
+      const idx = player.isHuman ? 0 : 1;
+      this.nextManeuverBonus[idx] += 6;
+    } else if (card.effect === 'iAmTheGame') {
+      const idx = player.isHuman ? 0 : 1;
+      this.nextManeuverBonus[idx] += 3;
+      this._drawCard(player);
+      this._drawCard(player);
     }
   }
 
@@ -309,8 +317,19 @@ window.RawDeal.GameEngine = class GameEngine {
     if (card.reverses.includes('low-damage') && (maneuver.damage || 0) <= (card.maxDamage || 5)) {
       return true;
     }
-    if (maneuver.subtype && card.reverses.includes(maneuver.subtype)) {
+    const subtype = maneuver.subtype || '';
+    if (subtype && card.reverses.includes(subtype)) {
       return true;
+    }
+    if (card.reverses.includes('strike') && subtype === 'strike') return true;
+    if (card.reverses.includes('grapple') && subtype === 'grapple') return true;
+    if (card.reverses.includes('submission') && subtype === 'submission') return true;
+    if (
+      card.reverses.includes('strike') &&
+      card.reverses.includes('grapple') &&
+      card.reverses.includes('submission')
+    ) {
+      return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
     }
     return false;
   }
