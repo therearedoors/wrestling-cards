@@ -53,7 +53,11 @@
       engine.reset();
     };
 
-    const opponentDeck = playerDeckId === 'rock' ? 'austin' : 'rock';
+    const map = window.RawDeal.OPPONENT_MAP || {};
+    const opponentDeck =
+      map[playerDeckId] ||
+      window.RawDeal.DECKS[playerDeckId]?.defaultOpponent ||
+      'austin';
     engine.startGame(playerDeckId, opponentDeck);
 
     setupScreen.classList.add('hidden');
