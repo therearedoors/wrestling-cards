@@ -18,13 +18,23 @@
 
     engine = new window.RawDeal.GameEngine({
       onStateChange: (state) => board.render(state),
-      onDamageStep: async ({ card }) => {
+      onDamageStep: async ({ card, maneuver, reversed, onReveal }) => {
         await window.RawDeal.Animations.flipArsenalToRingside(
           card,
           board.getOpponentArsenalEl(),
-          board.getOpponentRingsideEl()
+          board.getOpponentRingsideEl(),
+          {
+            onReveal: () => {
+              onReveal();
+              if (reversed) {
+                board.showReversalNotice(maneuver, card);
+              } else {
+                window.RawDeal.Animations.pulseEl(board.getOpponentRingsideEl());
+              }
+            },
+            isReversal: reversed,
+          }
         );
-        window.RawDeal.Animations.pulseEl(board.getOpponentRingsideEl());
       },
     });
 
