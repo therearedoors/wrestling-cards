@@ -1,0 +1,1299 @@
+Card List for World Wrestling Federation Collectible Card Game RAW DEAL
+6.03
+F = Fortitude Value		D = Damage Value		SV = Stun Value
+Unique = 1 Card allowed in deck
+Setup = Any number of these cards allowed in deck.
+Max number of copies per card in 60-card deck is three.
+-------------------------------------------------------------------
+ MANEUVER: Strike
+-------------------------------------------------------------------
+Commons (7) 
+
+1/150
+Chop
+Strike / Action
+As an action, you may discard this card to draw 1 card. Doing this will not cause any damage to opponent.
+F: 0	D: 2
+“That’s gonna leave a mark!” – Jim Ross
+ 
+2/150
+Punch
+Strike
+F: 0	D: 3
+“Pow! Right in the kisser!” – Jerry “The King” Lawler
+ 
+3/150
+Head Butt
+Strike
+When successfully played, discard 1 card of your choice from your hand.
+F: 0	D: 4
+“That’s using his head” – Jerry “The King” Lawler
+
+4/150
+Roundhouse Punch
+Strike
+F: 2	D: 4
+“He’s rearing back and gonna unload another shot!” – Kevin Kelly
+ 
+5/150
+Haymaker
+Strike
+When successfully played, all Strike maneuvers are +1D for the rest of this turn.
+F: 3	D: 4
+“One right after another, that’ll put him away!” – Michael Cole
+
+6/150
+Back Body Drop
+Strike
+The card titled Irish Whip must be played before playing this card.
+When successfully played, you may either draw 2 cards, or force opponent to discard 2 cards.
+SV: 1
+F: 5	D: 7
+“Amazing elevation, on that one!” – Jim Ross
+
+7/150
+Big Boot
+Strike
+F: 6	D: 6
+“That knocked a few teeth loose!” – Jim Ross
+
+Uncommons (8)
+
+8/150
+Shoulder Block
+Strike / Reversal: Special
+May only reverse a maneuver played after the card titled Irish Whip.
+F: 0	D: 3
+“It’s like hittin’ a brick wall!” – Jim Ross
+
+9/150
+Kick
+Strike
+When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile.
+F: 0	D: 5
+“He took a big chance on that one and it paid off!” – Jerry “The King” Lawler
+
+10/150
+Cross Body Block
+Strike / Reversal: Special
+The card titled Irish Whip must be played before playing this card.
+May only reverse a maneuver played after the card titled Irish Whip.
+F: 0	D: 7
+“That maneuver just jarred the whole ring, good God!” – Jim Ross
+
+11/150
+Cheap Shot From the Corner
+Strike: Heel (TAG TEAM ONLY SYMBOL)
+To play this card you must be an “inactive” player of your team. After your “active” partner has successfully played a maneuver of 5D or greater, you can play this card as the very next card against his opponent. Opponent may attempt to reverse the maneuver as usual.
+F: 2	D: 8
+“I didn’t see anything, what are you talking about?” – Jerry “The King” Lawler
+
+12/150
+Ensugiri
+Strike / Reversal: Special
+May only reverse the maneuver titled Kick.
+F: 2	D: 4
+“Easy for you to say …” – Jim Ross
+
+13/150
+Running Elbow Smash
+Strike
+When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile.
+F: 2 D: 6
+“He's like a runaway freight train!” – Jim Ross
+
+14/150
+Drop Kick
+Strike / Reversal: Special
+May only reverse the maneuver titled Drop Kick.
+F: 6	D: 6
+“Picture–perfect!” – Jim Ross
+
+15/150
+Discus Punch
+Strike
+Reversals to this maneuver are +2D.
+F: 7	D: 9
+“Ow! Is that legal?” – Jerry “The King” Lawler
+
+ 
+Rares (6)
+ 
+16/150
+Superkick
+Strike
+When successfully played, +5D if played after a 5D or greater maneuver.
+SV: 1
+F:0	D: 5
+“What precision! A devastating strike!” – Jim Ross
+ 
+17/150
+Spinning Heel Kick
+Strike
+When successfully played, opponent must discard 1 card.
+F: 2	D: 5
+“Amazing athleticism being shown here tonight!” – Michael Cole
+
+18/150
+Spear
+Strike / Reversal: Special
+May only reverse a maneuver played after the card titled Irish Whip.
+F: 4	D: 5
+“How can a human body take that kind of punishment?” – Jim Ross
+
+19/150
+Clothesline
+Strike
+When successfully played, if your next card played this turn is a maneuver it is +2D.
+SV: 1
+F: 8	D: 7
+“Get out the neck brace!” – Jerry “The King” Lawler
+
+20/150
+Chair Shot
+Strike: Foreign Object: Heel
+SV: 1
+F: 10	D: 10
+“That’s solid steel, folks. There ain’t no give!” – Jim Ross
+
+21/150
+Hurricanrana
+Strike
+SV: 1
+F: 11	D: 10
+“Oh, what a maneuver!” – Michael Cole 
+-------------------------------------------------------------------
+ MANEUVER: Grapple
+-------------------------------------------------------------------
+Commons (8)
+
+22/150
+Arm Bar Takedown
+Grapple / Action
+As an action, you may discard this card to draw 1 card. Doing this will not cause any damage to opponent.
+F: 0	D: 2
+“Great use of leverage!” – Kevin Kelly
+
+23/150
+Hip Toss
+Grapple
+F: 0	D: 3
+“Up and over!” – Kevin Kelly
+
+24/150
+Arm Drag
+Grapple
+When successfully played, discard 1 card of your choice from your hand.
+F: 0	D: 4
+“Textbook maneuver for any wrestler.” – Jim Ross
+
+25/150
+Russian Leg Sweep
+Grapple
+F: 2	D: 4
+“Nobody does it better in the business.” – Jim Ross
+
+26/150
+Snap Mare
+Grapple
+When successfully played, if your next card played this turn is a Strike maneuver it is +2D.
+F: 3	D: 4
+“You know he’s setting him up for something …” – Kevin Kelly
+
+27/150
+Gut Buster
+Grapple
+F: 4	D: 5
+“He’s lucky he didn’t lose his lunch!” – Jerry “The King” Lawler
+28/150
+Body Slam
+Grapple
+SV: 1
+F: 7	D: 6
+“That might look easy, but he just lifted a 300lbs. man!” – Michael Cole
+
+29/150
+Back Breaker
+Grapple
+F: 8	D: 7
+“A chiropractor’s dream!” – Jerry “The King” Lawler
+
+Uncommons (11)
+
+30/150
+Double Leg Takedown
+Grapple
+When successfully played, you may draw 1 card.
+F: 0	D: 3
+“Flat on your back, that’ll slow you down. Ha!” – Jerry “The King” Lawler
+
+31/150
+Fireman’s Carry
+Grapple
+When successfully played, you may look at your opponent’s hand.
+F: 0	D: 3
+“Up … Down … Can’t he make up his mind?” – Jerry “The King” Lawler
+
+32/150
+Headlock Takedown
+Grapple
+When successfully played, opponent must draw 1 card.
+F: 0	D: 5
+“Great amateur move!” – Jim Ross
+
+33/150
+Belly to Belly Suplex
+Grapple / Reversal: Special
+May only reverse the maneuver titled Belly to Belly Suplex.
+F: 4	D: 5
+“Who’s gonna hit it? Anyone’s guess!” – Jim Ross
+
+34/150
+Atomic Facebuster
+Grapple
+F: 4	D: 6
+“Great innovation, on that move!” – Kevin Kelly
+
+35/150
+Atomic Drop
+Grapple
+When successfully played, if your next card played this turn is a maneuver it is +2D.
+F: 5	D: 6
+“That’ll rattle your cage!” – Jim Ross
+
+36/150
+Inverse Atomic Drop
+Grapple
+SV: 1
+F: 6	D: 5
+“He’ll be singing soprano for a week!” – Jerry “The King” Lawler
+
+37/150
+Vertical Suplex
+Grapple / Reversal: Special
+May only reverse the maneuver titled Vertical Suplex.
+F: 6	D: 6
+“They’re both gonna have to reach down deep to pull this one off!” – Jim Ross
+
+38/150
+Belly to Back Suplex
+Grapple / Reversal: Special
+May only reverse the maneuver titled Belly to Back Suplex.
+F: 8	D: 7
+“Oh, that’s like getting a piano slammed over your head!” – Jerry “The King” Lawler
+
+39/150
+Pump Handle Slam
+Grapple
+When successfully played, opponent must discard 2 cards.
+F: 10	D: 7
+“I haven’t been in such a compromising situation, since …” – Jerry “The King” Lawler
+
+40/150
+Reverse DDT
+Grapple
+When successfully played, you may draw 1 card.
+F: 12	D: 9
+“Great twist to a classic maneuver!” – Kevin Kelly
+
+Rares (8)
+
+41/150
+Samoan Drop
+Grapple
+When successfully played, opponent must discard 1 card.
+F: 0	D: 4
+“Can you hear the air rushing out of him?” – Michael Cole
+
+42/150
+Sit Out Powerbomb
+Grapple
+F: 3	D: 6
+“Dropped him like a load of bricks, flat on his back!” – Jim Ross
+
+43/150
+Bulldog
+Grapple
+When successfully played, discard 1 card of your choice from your hand. Look at opponent’s hand, then choose and discard 1 card from his hand.
+F: 8	D: 8
+“That’s a good way to break a nose!” – Jim Ross
+
+44/150
+Fisherman’s Suplex
+Grapple
+When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. You may draw 1 card.
+F: 10	D: 10
+“He’s locked and loaded!” – Jim Ross
+
+45/150
+DDT
+Grapple
+When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. Opponent must discard 2 cards.
+SV: 1
+F: 11	D: 9
+“This one never gets old …” – Jim Ross
+
+46/150
+Power Slam
+Grapple
+When successfully played, opponent must discard 1 card.
+SV: 1
+F: 13	D: 10
+“That’ll knock the wind out of your sails!” – Michael Cole
+
+47/150
+Powerbomb
+Grapple
+When successfully played, you may draw 1 card. Add +1D for every maneuver with the word “slam” in its title in your Ring area.
+SV: 2
+F: 18	D: 12
+“What goes up, must come down – only harder!” – Jerry “The King” Lawler
+
+48/150
+Press Slam
+Grapple
+When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. Opponent must discard 2 cards.
+SV: 2
+F: 24	D: 15
+“What an awesome display of strength!” – Jim Ross
+
+-------------------------------------------------------------------
+ MANEUVER: Submission
+-------------------------------------------------------------------
+Commons (8)
+
+49/150
+Collar & Elbow Lockup
+Submission / Action
+As an action, you may discard this card to draw 1 card. Doing this will not cause any damage to opponent.
+F: 0	D: 1
+“And we’ve got a lockup to begin things off …” – Michael Cole
+
+50/150
+Wrist Lock
+Submission
+F: 0	D: 2
+“That is certainly more painful than it looks!” – Kevin Kelly
+
+
+51/150
+Arm Bar
+Submission
+When successfully played, discard 1 card of your choice from your hand.
+F: 0	D: 3
+“He’s wearing the man down with that simple maneuver.” – Jim Ross
+
+52/150
+Chin Lock
+Submission
+F: 2	D: 3
+“His eyes are about to pop outta his head!” – Jerry “The King” Lawler
+
+53/150
+Bear Hug
+Submission
+When successfully played, opponent must discard 1 card.
+F: 4	D: 3
+“Just like a big ol’ grizzly!” – Jim Ross
+
+54/150
+Full Nelson
+Submission
+When successfully played, look through your Arsenal for the card titled Maintain Hold and place that card in your hand, then shuffle your Arsenal.
+F: 6	D: 3
+“It’s gonna take a whole lot to pry apart them fingers!” – Jim Ross
+
+55/150
+Choke Hold
+Submission: Heel
+When successfully played, opponent must discard 1 card.
+F: 6	D: 5
+“Hey, ref, stop him, that’s an illegal hold!” – Jim Ross
+
+56/150
+Step Over Toe Hold
+Submission
+F: 8	D: 6
+“The ankle wasn’t made to bend that way, folks!” – Jim Ross
+
+Uncommons (5)
+57/150
+Ankle Lock
+Submission
+When successfully played, opponent must discard 1 card.
+F: 0	D: 2
+“He’s gonna tap! He’s done!” – Jim Ross
+
+58/150
+Standing Side Headlock
+Submission
+When successfully played, opponent must draw 1 card.
+F: 0	D: 4
+“Slapped that one on tight and synching it up!” – Jim Ross
+
+59/150
+Cobra Clutch
+Submission
+When successfully played, look through your Arsenal for the card titled Maintain Hold and place that card in your hand, then shuffle your Arsenal.
+F: 4	D: 3
+“Few have ever seen a victory after this move …” – Jim Ross
+
+60/150
+Bow & Arrow
+Submission
+F: 6	D: 6
+“No way, this move is impossible to lock in … Amazing he got it!” – Michael Cole
+
+61/150
+Chicken Wing
+Submission
+When successfully played, shuffle 2 cards from your Ringside pile into your Arsenal.
+F: 12	D: 7
+“Do you like them regular, crispy, or broken?” – Jerry “The King” Lawler
+
+Rares (7)
+
+62/150
+Sleeper
+Submission
+When successfully played, look through your Arsenal for the card titled Maintain Hold and place that card in your hand, then shuffle your Arsenal.
+F: 4	D: 5
+“Nighty night!” – Jerry “The King” Lawler
+
+63/150
+Camel Clutch
+Submission
+When successfully played, look through your Arsenal for the card titled Maintain Hold and place that card in your hand, then shuffle your Arsenal.
+F: 7	D: 6
+“He’s leaning back, way back and applying the pressure.” – Jim Ross
+
+64/150
+Boston Crab
+Submission
+When successfully played, opponent must discard 1 card.
+F: 10	D: 8
+“He’s making a pretzel out there … of his opponent!” – Jerry “The King” Lawler
+
+65/150
+Guillotine Stretch
+Submission
+When successfully played, opponent must discard 1 card and you may draw 1 card.
+F: 12	D: 8
+“I don’t envy that man, he’ll never stand straight again.” – Jim Ross
+
+66/150
+Abdominal Stretch
+Submission
+When successfully played, you may discard 3 cards, search through your Arsenal and put 1 card into your hand, then shuffle your Arsenal.
+F: 13	D: 6
+“This will certainly swing the tide of the match in a hurry.” – Jim Ross
+
+67/150
+Torture Rack
+Submission
+When successfully played, opponent must discard 1 card.
+SV: 1
+F: 13	D: 9
+“Once this is synched in, it’s all over …” – Jim Ross
+
+68/150
+Figure Four Leg Lock
+Submission
+When successfully played, opponent must discard 1 card.
+SV: 1
+F: 19	D: 12
+“The pressure on your knee with this is unbearable – I know!” – Jim Ross
+
+-------------------------------------------------------------------
+ MANEUVERS: High Risk
+-------------------------------------------------------------------
+Rare (1)
+
+69/150
+Combination Attack
+High Risk      (TAG TEAM ONLY SYMBOL)
+Play only after a 4D or greater maneuver. A single “inactive” team partner may discard any maneuver of 6D or less from his hand and add the D value of that maneuver to the D value of this maneuver. Read as 10 when in your Ring area.
+SV: 1
+F: 14	D: 10 +
+“Amazing teamwork!” – Jim Ross
+
+-------------------------------------------------------------------
+ REVERSALS
+-------------------------------------------------------------------
+Commons (4)
+
+70/150
+Step Aside
+Reversal: Strike
+Reverse any Strike maneuver and end your opponent’s turn.
+F: 0	D: 0
+“I thought he had him!” – Jerry “The King” Lawler
+
+71/150
+Escape Move
+Reversal: Grapple
+Reverse any Grapple maneuver and end your opponent’s turn.
+F: 0	D: 0
+“Nice Greco–Roman style counter!” – Jim Ross
+
+72/150
+Break the Hold
+Reversal: Submission
+Reverse any Submission maneuver and end your opponent’s turn.
+F: 0	D: 0
+“He’s gonna get outta it! He’s reaching for the side rope.” – Jim Ross
+
+73/150
+Trip
+Reversal: Strike/Grapple/High Risk: Special    (TAG TEAM ONLY SYMBOL)
+If played from your hand and if you are an “inactive” player of your team; reverses any Strike, Grapple, or High Risk maneuver and end your opponent’s turn. Play proceeds with your partner’s turn.
+F: 6	D: 0
+“Nice trip, see you next fall! Ha!” – Jerry “The King” Lawler
+
+Uncommons (4)
+
+74/150
+Rolling Takedown
+Reversal: Grapple: Special
+Can only reverse a Grapple that does 7D or less. End your opponent’s turn.
+# = D of maneuver card being reversed. Read as 0 when in your Ring area.
+F: 1	D: #
+“Great move, using his opponent’s momentum against him!” – Jim Ross
+
+75/150
+Knee to the Gut
+Reversal: Strike: Special
+Can only reverse a Strike that does 7D or less. End your opponent’s turn.
+# = D of maneuver card being reversed. Read as 0 when in your Ring area.
+F: 1	D: #
+“That would’ve stopped an elephant!” – Jerry “The King” Lawler
+
+76/150
+Elbow to the Face
+Reversal: Special
+May reverse any maneuver that does 7D or less. End your opponent’s turn.
+F: 0	D: 2
+“Hard shot right to the nose, that will stop most anything.” – Jim Ross
+
+77/150
+Clean Break
+Reversal: Special: Face
+If played from your hand, may reverse the card titled Jockeying for Position. Opponent must discard 4 cards. End your opponent’s turn. Draw 1 card.
+F: 0	D: 0
+“Looks like he’s had enough, maybe not?” – Jim Ross
+
+Rares (4)
+
+78/150
+Partner Interference
+Reversal: Special: Heel    (TAG TEAM ONLY SYMBOL)
+If played from your hand and if you are an “inactive” player of your team; reverses any maneuver. End your opponent’s turn. Play proceeds with your partner’s turn.
+F: 5	D: 1
+“Huh? What? No, I didn’t see anything, Ross!” – Jerry “The King” Lawler
+
+79/150
+Manager Interferes
+Reversal: Special: Heel
+Reverse any maneuver and end your opponent’s turn.
+If played from your hand draw 1 card.
+F: 10	D: 1
+“Why is she at ringside! She’s up to no good!” – Jim Ross
+
+80/150
+Disqualification!
+Reversal: Special: Face
+Reverse any HEEL maneuver or reversal card if that opponent has 5 or more HEEL cards in his Ring area. Opponent is Disqualified and you win the game.
+This effect happens even if the card titled Disqualification is placed into your Ringside pile while applying damage from a HEEL maneuver or reversal card.
+F: 10	D: 0
+“It’s about time!” – Jim Ross
+
+81/150
+No Chance in Hell
+Reversal: Action
+Reverse any ACTION card being played by your opponent from his hand.
+It is unsuccessful, goes to his Ringside pile, has no effect and ends his turn.
+F: 12	D: 0
+“Pack your bags, You’re Fired!” – Vincent K. McMahon
+
+-------------------------------------------------------------------
+ ACTIONS
+-------------------------------------------------------------------
+Commons (8)
+
+82/150
+Hmmm
+Action
+Look at the top 5 cards of your Arsenal. You may either arrange them in any order or shuffle your Arsenal.
+F: 0	D: 0
+“What's he up to?” – Jim Ross
+
+83/150
+Don’t Think Too Hard
+Action
+Look at the top 5 cards of an opponent’s Arsenal. You may either arrange them in any order or make him shuffle his Arsenal.
+F: 0	D: 0
+“The lights are on but nobody’s home. Ha!” – Jerry “The King” Lawler
+
+84/150
+Tag in Partner
+Action    (TAG TEAM ONLY SYMBOL)
+As the “active” legal player of your team you may “tag” in a partner. You may draw 1 card. Your partner is now the “active” legal player and may begin his turn.
+F: 0	D: 0
+“There’s the hot tag!” – Kevin Kelly
+
+85/150
+Whaddya Got?
+Action
+Look at opponent’s hand.
+F: 2	D: 0
+“You wonder who’s holding all the cards in this match …” – Jim Ross
+
+86/150
+Not Yet
+Action
+Take a card in your hand, shuffle it into your Arsenal, then draw 2 cards.
+F: 4	D: 0
+“Just a minute there, jabroni.” – The Rock
+87/150
+Jockeying for Position
+Action: Set-up / Reversal: Special
+As an action, if your next card played is a Grapple maneuver, declare whether it will be +4D or your opponent’s reversal to it will be +8F.
+As a reversal, may only reverse the card titled Jockeying for Position. If so, you end opponent’s turn; and if your next card played on your turn is a Grapple maneuver, declare whether it will be +4D or your opponent’s reversal to it will be +8F.
+F: 4	D: 0
+“Who’s in control in there?” – Jerry “The King” Lawler
+
+88/150
+Irish Whip
+Action: Set-up / Reversal: Special
+As an action, if your next card played is a Strike maneuver it is +5D.
+As a reversal, may only reverse the card titled Irish Whip. If so, you end opponent’s turn; and if your next card played on your turn is a Strike maneuver it is +5D.
+F: 5	D: 0
+“Whips him to the ropes, setting him up for his …” – Jim Ross
+
+89/150
+Flash in the Pan
+Action: Face
+Draw 1 card.
+Look at opponent’s hand, and then make him discard all HEEL cards.
+F: 6	D: 0
+“We’ve got enough heels in this business!” – Jim Ross
+
+90/150
+View of Villainy
+Action: Heel
+Draw 1 card.
+Look at opponent’s hand, and then make him discard all FACE cards.
+F: 6	D: 0
+“Get rid of them! Get rid of them all!” – Jerry “The King” Lawler
+
+Uncommons (8)
+91/150
+Shake It Off
+Action
+Playable only if your Fortitude Rating is less than your opponent’s Fortitude Rating. Remove any 1 card in opponent’s Ring area with a D value less than or equal to your total Fortitude Rating and place it into his Ringside pile.
+F: 2	D: 0
+“Looks as though that didn’t phase him a bit.” – Jim Ross
+
+92/150
+Offer Handshake
+Action: Face
+Draw up to 3 cards, then discard 1 card.
+F: 2	D: 0
+“I’m putting my hand out, son, shake It.” – Stone Cold Steve Austin
+
+93/150
+Roll Out of the Ring
+Action
+Discard up to 2 cards from your hand to your Ringside pile. Return an equal number of cards of your choice to your hand from your Ringside pile.
+F: 2	D: 0
+“Looks like he’s outta there, needs time for a breather!” – Jim Ross
+
+94/150
+Distract the Ref
+Action: Heel
+Draw 1 card.
+Look at opponent's hand. If he has any cards titled Disqualification! he must discard them.
+F: 2	D: 0
+“Looks like the Ref has more important things to tend to over there!” – Jerry “The King” Lawler
+
+95/150
+Recovery
+Action
+Shuffle any 2 cards from your Ringside pile back into your Arsenal. Then draw 1 card.
+F: 4	D: 0
+“Looks like he’s getting his second wind. And it ain’t smelling so good!” – Jerry “The King” Lawler
+
+96/150
+Spit At Opponent
+Action: Heel
+You discard 1 card. Your opponent discards 4 cards.
+F: 4	D: 0
+“How disgraceful!” – Jim Ross
+97/150
+Double Team
+Action    (TAG TEAM ONLY SYMBOL)
+To play this card, you must be the “active” legal player of your team. If your previously played card was a successfully played maneuver, a tag team partner may now play a single maneuver against your “active” opponent at a bonus +5D. Opponent may attempt to reverse the maneuver as usual.
+F: 6	D: 0
+“Hey, ref, open your eyes!” – Jim Ross
+
+98/150
+Get Crowd Support
+Action: Face
+Draw 1 card.
+Your next maneuver this turn is +4D and opponent’s reversals are +12F.
+F: 10	D: 0
+“He’s rallying them behind him!” – Jim Ross
+
+Rares (10)
+
+99/150
+Comeback!
+Action
+Discard 3 cards of your choice from your hand. All players compare their current Fortitude Rating. The player(s) with a higher Fortitude Rating must remove maneuver and/or reversal cards from their Ring area, putting them into his Ringside pile, until that player’s Fortitude Rating is less than or equal to the others.
+F: 0	D: 0
+“Wait a minute!?!” – Jim Ross
+
+100/150
+Ego Boost
+Action
+Your next card played is -5F.
+If opponent forces you to discard a card from your hand, you may choose to discard this card from your hand and then draw up to 2 cards.
+F: 0	D: 0
+“Pure adrenaline, that’s what he’s on, pure adrenaline!” – Jim Ross
+101/150
+Deluding Yourself
+Action: Heel
+Draw 4 cards.
+At end of turn, discard your hand.
+F: 8	D: 0
+“And the proud will be humbled, King!” – Jim Ross
+
+102/150
+Stagger
+Action
+Play after a successfully played maneuver. If your next card played this turn is a maneuver of 7D or less your opponent can not reverse it.
+F: 3	D: 0
+“He’s nearly done. He’s just got to put his man away!” – Jim Ross
+
+103/150
+Diversion
+Action
+Your next maneuver may not be reversed.
+F: 17	D: 0
+“What the heck is going on here, that’s grounds for disqualification!” – Jim Ross
+
+104/150
+Marking Out
+Action: Face
+Choose one: Look through your Arsenal and put 1 card in your hand, shuffle it and end your turn; or go through opponent’s Arsenal and put any 3 cards into his Ringside pile, then shuffle his Arsenal.
+F: 13	D: 0
+“The fans are going nuts!” – Jim Ross
+
+105/150
+Puppies! Puppies!
+Action
+Shuffle up to 5 cards from your Ringside pile into your Arsenal. Then draw 2 cards.
+F: 14	D: 0
+“Puppies! Puppies! Oops … my attention was elsewhere JR, what just happened?” – Jerry “The King” Lawler
+106/150
+Shane O'Mac
+Action
+While this card is in your Ring area, at the start of your turn, before your draw segment, opponent must take the top card from his Arsenal and place it into his Ringside pile.
+F: 15	D: 0
+“It’s like the Mean Streets of Greenwich, everyday somebody’s gotta pay.” – Pete Gas & Rodney
+
+107/150
+Maintain Hold
+Action
+Play after a successful Submission maneuver not reversed and end your turn. You and your opponent may not play maneuvers or actions until your opponent reverses the maintained Submission. On your turn, during the main segment, the Submission does its damage, along with any other abilities on the card. If a reversal is played by your opponent or is revealed while applying damage, both Maintain Hold and the Submission maneuver remain in your Ring area, but you may no longer use the ability of this Maintain Hold card.
+F: 10	D: 0
+“How long can he keep this up?” – Jim Ross
+
+108/150
+Pat & Gerry
+Action: Face
+Opponent skips his next turn.
+F: 18	D: 0
+“These two are a couple of idiots!” – Jerry “The King” Lawler
+
+-----------------------------------------------------------------------
+SPECIAL FOIL & COLLATION ASSORTED CARDS
+Unique = One card allowed in deck
+SV = Star Value (variable mechanics)
+-------------------------------------------------------------------
+Two ultra-rare STONE COLD STEVE AUSTIN cards:
+
+109/150
+Stone Cold Stunner
+Trademark Finisher   (Maneuver Card)
+-6F on this card if played after the maneuver titled Kick.
+Unique
+SV: 3
+F: 30	D: 25
+“Stunner, Stunner, Stunner!!! The Rattlesnake strikes again!” – Jim Ross
+
+110/150
+Open Up a Can of Whoop–A%$
+Action
+Your next maneuver this turn is +6D, and your opponent's reversal to it is +20F.
+Draw a card.
+Unique
+F: 2	D: 0
+“Austin is on the loose!” – Jim Ross
+
+Two ultra-rare UNDERTAKER cards:
+
+111/150
+Undertaker’s Tombstone Piledriver
+Trademark Finisher / Action   (Maneuver)
+As an action, you may discard this card to draw 1 card. Doing this will not cause any damage to opponent.
+Unique
+SV: 3
+F: 30	D: 25
+“Rest … in … Peace.” – The Undertaker
+
+112/150
+Power of Darkness
+Action
++5D to all your maneuvers and +20F to all of opponent’s reversals for the rest of this turn.
+Unique
+F: 12	D: 0
+“My God, the lights have gone out in the arena!” – Jim Ross
+
+Two ultra-rare MANKIND cards:
+
+113/150
+Mandible Claw
+Trademark Finisher   (Maneuver)
+-6F on this card if Mr. Socko card is in your Ring area.
+You may play the card titled Maintain Hold after this card as if it were a Submission maneuver.
+Unique
+SV: 3
+F: 30	D: 20
+“Right in his mouth! That filthy, stinking sock!” – Jerry “The King” Lawler
+114/150
+Mr. Socko
+Action
+Take 1 card from either your Arsenal or Ringside pile and place it into your hand, then shuffle your Arsenal.
+While Mr. Socko is in your Ring area, all your maneuvers are +1D.
+Unique
+F: 20	D: 0
+“I’ve got two words for you … Sock O!” – Mankind
+
+Two ultra-rare HHH cards:
+
+115/150
+Pedigree
+Trademark Finisher / Reversal: Special   (Maneuver)
+When successfully played, +2D if played after a Strike maneuver.
+May only reverse the maneuver titled Back Body Drop.
+Unique
+SV: 3
+F: 30	D: 25
+“It’s over! You don’t get up from that!” – Jim Ross
+
+116/150
+Chyna Interferes
+Reversal: Special
+Reverses any maneuver and ends your opponent’s turn.
+If played from your hand, draw 2 cards.
+Unique
+ F: 5	D: 3
+“Another low blow by the Ninth Wonder of the World.” – Jim Ross
+
+Two ultra-rare THE ROCK cards:
+
+117/150
+The People’s Eyebrow
+Action
+Take any 2 cards from your Ringside pile and put them into your hand. Then take any 2 cards from your Ringside pile and shuffle them back into your Arsenal.
+Unique
+F: 7	D: 0
+“… do you smell what The Rock is cookin’” – The Rock
+
+118/150
+The People’s Elbow
+Trademark Finisher / Action   (Maneuver)
+As a maneuver, this card can only be played if the card titled Rock Bottom is in your Ring area.
+As an action, place this card back in your Arsenal, shuffle, then draw 2 cards.
+Doing this will not cause any damage to opponent.
+Unique
+SV: 3
+F: 0	D: 10
+“It’s over, jabroni, the People know it!” – The Rock
+
+Two ultra-rare KANE cards:
+
+119/150
+Kane’s Tombstone Piledriver
+Trademark Finisher   (Maneuver)
+-6F on this card if played after the card titled Kane’s Choke Slam.
+Unique
+SV: 3
+F: 30	D: 25
+“The Big Red Machine plants another one!” – Jim Ross
+
+120/150
+Hellfire & Brimstone
+Action
+All players discard all cards from their hands. Your opponent places the top 5 cards of his Arsenal into his Ringside pile.
+Unique
+F: 6	D: 0
+“Oh my! Oh my! Oh my!” – Jim Ross
+
+Two ultra-rare CHRIS JERICHO cards:
+
+121/150
+Walls of Jericho
+Trademark Finisher   (Maneuver)
+You may play the card titled Maintain Hold after this card as if it were a Submission maneuver.
+Unique
+SV: 3
+F: 30	D: 20
+“Jericho is about to score another victory ... a–gain!” – Jim Ross
+
+122/150
+Ayatollah of Rock ’n’ Roll–a
+Action
+Look at your opponent’s hand. For the rest of this turn, your opponent’s reversals revealed from his Arsenal while applying damage may not reverse your maneuvers.
+Unique
+F: 12	D: 0
+“Jericho is synonymous with charisma and personality!” – Jim Ross
+
+-------------------------------------------------------------------
+STARTER DECK EXCLUSIVES:
+----------------------------------------------------------------
+Four exclusive cards in Stone Cold Steve Austin starter deck:
+
+123/150
+STONE COLD STEVE AUSTIN (logo & signature)
+(Superstar Card)
+Starting Hand Size: 7
+Star Value: 5
+Superstar Ability:
+Once during your turn, you may draw a card, but you must then take a card from your hand and place it on the bottom of your Arsenal.
+
+124/150
+Austin Elbow Smash
+High Risk   (Maneuver)
+May not be reversed.
+Can only be played after a maneuver that does 5D or greater.
+Unique
+F: 8	D: 10
+“Measured perfectly by the Rattlesnake!” – Jim Ross
+
+125/150
+Lou Thesz Press
+Reversal: Special
+If played from your hand, may reverse a maneuver played after the card titled Irish Whip. End your opponent’s turn. You may draw 1 card.
+Unique
+F: 0	D: 15
+“Off the ropes and – wait! – Austin springs off them!” – Jim Ross
+
+126/150
+Double Digits
+Reversal: Special
+Reverse any Strike, Grapple or Submission maneuver. End your opponent’s turn.
+If played from your hand, opponent must discard 2 cards, then take the top 2 cards from his Arsenal and put them into his Ringside pile. 
+Unique
+F: 0	D: 0
+“Who does he think he is?!? He’s out of control!” – Jerry “The King” Lawler
+
+-------------------------------------------------------------------
+Four exclusive in The Undertaker starter deck:
+
+127/150
+THE UNDERTAKER (logo & signature)
+(Superstar card)
+Starting Hand Size: 6
+Star Value: 4
+Superstar Ability:
+Once during your turn, you may discard 2 cards to the Ringside pile and take 1 card from the Ringside pile and place it into your hand.
+
+128/150
+Undertaker’s Chokeslam
+Grapple   (Maneuver)
+Unique
+SV: 2
+F: 15	D: 15
+“I’ve never seen anyone lifted that high before!” – Jerry “The King” Lawler
+
+129/150
+Undertaker’s Flying Clothesline
+High Risk   (Maneuver)
+Can only be played after a 5D or greater maneuver.
+Reversals to this maneuver are +6D.
+Unique
+SV: 2
+F: 10	D: 18
+“Great agility for the big man!” – Jim Ross
+130/150
+Undertaker Sits Up!
+Reversal: Special
+Reverse any maneuver and end your opponent's turn.
+If played from your hand, take the top 4 cards from your Arsenal and put them in your Ringside pile. Opponent must discard 1 card; next turn, all your maneuvers are +2D, and all opponent’s reversals are +25F.
+Unique
+F: 15	D: 0
+“Don’t bury him yet!” – Jim Ross 
+-------------------------------------------------------------------
+Four exclusive in Mankind starter deck:
+131/150
+MANKIND (logo & signature)
+(Superstar Card)
+Starting Hand Size: 2
+Star Value: 4
+Superstar Ability:
+You must always draw 2 cards, if possible, during your draw segment. All damage from opponent is at -1D.
+
+132/150
+Have a Nice Day!
+Reversal: Special
+Reverse any Strike, Grapple or Submission maneuver. End your opponent’s turn.
+If played from your hand, opponent discards all cards in his hand.
+Unique
+F: 5	D: 0
+“Have a Nice Day!” – Mankind
+
+133/150
+Double Arm DDT
+Maneuver: Grapple / Reversal: Special
+May only reverse the maneuver titled Back Body Drop.
+Unique
+SV: 2
+F: 15	D: 15
+“Just seeing that move makes my neck ache!” – Jerry “The King” Lawler
+
+134/150
+Tree of Woe
+Maneuver: Grapple
+May not be reversed.
+When successfully played, opponent must discard 2 cards.
+Unique
+F: 18	D: 10
+ “No one escapes that!” – Michael Cole -------------------------------------------------------------------
+Four exclusive in HHH starter deck:
+
+135/150
+HHH (logo & signature)
+(Superstar Card)
+Starting Hand Size: 10
+Star Value: 3
+Superstar Ability:
+None, isn't the starting hand size enough!
+He is “The Game” after all!
+
+136/150
+Leaping Knee to the Face
+Strike   (Maneuver)
+May not be reversed.
+You must play the card titled Irish Whip before playing this card.
+When successfully played, opponent discards 1 card.
+Unique
+F: 8	D: 10
+“A devastating display of ring generalship!” – Jim Ross
+
+137/150
+Facebuster
+Reversal: Special
+If played from your hand, may reverse a maneuver played after the card titled Irish Whip. End your opponent’s turn. You may draw 2 cards.
+Unique
+F: 0	D: 10
+“HHH’s man has him – no – wait! – The Game is a Master!” – Jim Ross
+
+138/150
+I Am the Game.
+Action
+All your maneuvers are +3D for the rest of this turn.
+Draw 2 cards, or force opponent to discard 2 cards.
+Unique
+F: 3	D: 0
+“He’s either the Federation’s biggest egomaniac ... or he’s right.” – Jim Ross -------------------------------------------------------------------
+Four exclusive in The Rock starter deck:
+
+139/150
+THE ROCK (logo & signature)
+(Superstar Card)
+Starting Hand Size: 5
+Star Value: 5
+Superstar Ability:
+At the start of your turn, before your draw segment, you may take 1 card from your Ringside pile and place it on the bottom of your Arsenal.
+
+140/150
+Smackdown Hotel
+Action
+Draw 1 card. Look at your opponent’s hand.
+Your next maneuver this turn is +6D.
+Unique
+F: 0	D: 0
+“… jabronies check in but they don’t check out!” – The Rock
+
+141/150
+Take That Move, Shine It Up Real Nice, Turn That Sumb*tch Sideways, and Stick It Straight Up Your Roody Poo Candy A%$!
+Reversal: Special
+Reverse any Strike, Grapple or Submission maneuver. End your opponent’s turn.
+If played from your hand, shuffle up to 5 cards from your Ringside pile into your Arsenal.
+Unique
+F: 4	D: 0
+“This ain’t sing along with The Great One!” – The Rock
+
+142/150
+Rock Bottom
+Grapple / Reversal: Special   (Maneuver)
+When successfully played, look through your Ringside pile and Arsenal for the card titled The People’s Elbow and place that card in your hand, then shuffle your Arsenal.
+May only reverse a Grapple maneuver, but you must first discard 1 card.
+Unique
+SV: 2
+F: 30	D: 20
+“Rock Bottom! Rock Bottom! It’s over!” – Jim Ross
+------------------------------------------------------------------
+Four exclusive in Kane starter deck:
+
+143/150
+KANE (logo & signature)
+(Superstar Card)
+Starting Hand Size: 7
+Star Value: 2
+Superstar Ability:
+At the start of your turn, before your draw segment, opponent must take the top card from his Arsenal and place it into his Ringside pile.
+
+144/150
+Kane’s Chokeslam
+Grapple   (Maneuver)
+Unique
+SV: 2
+F: 12	D: 12
+“He’s got him by the throat – what strength!” – Jim Ross
+
+145/150
+Kane’s Flying Clothesline
+High Risk   (Maneuver)
+Can only be played after a 4D or greater maneuver.
+Reversals to this maneuver are +6D.
+Unique
+SV: 2
+F: 8	D: 16
+“That Big Red Retard is crazy!” – Jerry “The King” Lawler
+
+146/150
+Kane’s Return!
+Reversal: Special
+Reverse any maneuver and end your opponent’s turn.
+If played from your hand, take the top 4 cards from your Arsenal and put them in your Ringside pile; next turn, all your maneuvers are +2D, and all opponents reversals are +15F.
+Unique
+F: 10	D: 0
+“Wait a minute … He’s back!” – Jim Ross
+-------------------------------------------------------------------
+Four exclusive in Chris Jericho starter deck:
+
+147/150
+CHRIS JERICHO (logo & signature)
+(Superstar Card)
+Starting Hand Size: 7
+Star Value: 3
+Superstar Ability:
+Once during your turn, you may discard a card from your hand to force your opponent to discard a card from his hand.
+
+148/150
+Lionsault
+High Risk (Maneuver)
+Can only be played after a 4D or greater maneuver.
+When successfully played, opponent must discard 1 card.
+Unique
+SV: 2
+F: 6	D: 12
+“His man is down, Jericho runs, jumps, springboards – Oh my!” – Jim Ross
+
+149/150
+Y2J
+Action
+Draw up to 5 Cards or force opponent to discard up to 5 cards.
+Unique
+F: 5	D: 0
+“Jericho is the man for this Millennium. He is holding all the cards!” – Jim Ross
+
+150/150
+Don’t You Never … EVER!
+Reversal: Special
+Reverse any Strike, Grapple or Submission maneuver. End your opponent’s turn. 
+If played from your hand, opponent must discard 2 cards and all your maneuvers next turn are +2D.
+Unique
+F: 2	D: 0
+“The Jerichoholics all stand to their feet …” – Chris Jericho
+-----------------------------------------------------------------------------------------------------
+Promotional Cards
+-----------------------------------------------------------------------------------------------------
+(1) Special Exclusive Card for InQuest Magazine:
+
+1/PR
+Piledriver
+Grapple   (Maneuver)
+When successfully played, opponent must discard 1 card.
+SV: 1
+F: 17	D: 12
+“Good God, I can’t look at this! He’s finished.” – Jim Ross
+-----------------------------------------------------------------------------------
+(2) Collector's Tin Boxed Set Exclusive Bonus Cards:
+
+• The Rock Boxed Set Deck/Tin:
+
+2/PR
+Do You Smell What The Rock is Cookin’?
+Action
+Your next CARD can not be reversed. Draw 1 card.
+Unique
+F: 7	D: 0
+“The People’s Champion is serving up something!” – Jim Ross
+
+• The Stone Cold Steve Austin Deck/Tin:
+
+3/PR
+Rattlesnake Rulz
+Action
+Your next CARD can not be reversed. Draw 1 card.
+Unique
+F: 7	D: 0 
+“Never trust a rattlesnake, never!” – Jim Ross
+-----------------------------------------------------------------------------------
+(2) Mass Market Retailers Boxed Set Exclusive Bonus Cards:
+
+• The Rock Boxed Set Deck:
+
+4/PR
+Patented Rock Footstomp
+Strike   (Maneuver)
+When successfully played, you may draw 1 card or shuffle 1 card from your Ringside pile back into your Arsenal.
+F: 5	D: 5
+“The Chosen One knows how to lay the Smackdown!” – Jim Ross
+
+• The Stone Cold Steve Austin Deck:
+
+5/PR
+Patented Austin Kick to the Gut
+Strike   (Maneuver)
+When successfully played, you may draw 1 card. Your next maneuver played is -6F.
+F: 3	D: 4
+“The 3:16 Express is gearing up!” – Jim Ross
+
+------------------------------------------------------------------------
+(3) Tournament Prize Foil Stamped Title Belt Cards:
+
+REVISED - ZEV to configure for distributions at his tournaments.
+
+1/TR
+World Wrestling Federation Heavyweight Title Belt
+Play at the beginning of the match; reveal with your Superstar player card.
+Your Star Value is +3
+Unique
+
+2/TR
+World Wrestling Federation Intercontinental Title Belt
+Play at the beginning of the match; reveal with your Superstar player card.
+Your Star Value is +2
+Unique
+
+3/TR
+World Wrestling Federation European Title Belt
+Play at the beginning of the match; reveal with your Superstar player card.
+Your Star Value is +1
+Unique
+
