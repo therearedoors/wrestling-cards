@@ -10,8 +10,11 @@
   let engine = null;
   let board = null;
 
+  const previewRoot = document.getElementById('rd-card-preview');
+  const cardPreview = previewRoot ? new window.RawDeal.CardPreview(previewRoot) : null;
+
   function initGame(playerDeckId) {
-    board = new window.RawDeal.Board(boardRoot);
+    board = new window.RawDeal.Board(boardRoot, cardPreview);
 
     engine = new window.RawDeal.GameEngine({
       onStateChange: (state) => board.render(state),
