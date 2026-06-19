@@ -104,8 +104,7 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _calcFortitude(player) {
-    // Superstar Value provides base Fortitude each refresh (goldfish simplification).
-    let total = player.superstar.superstarValue || 0;
+    let total = 0;
     for (const card of [...player.ring.maneuvers, ...player.ring.reversals]) {
       total += card.fortitude || 0;
     }
