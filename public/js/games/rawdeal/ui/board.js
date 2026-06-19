@@ -26,6 +26,7 @@ window.RawDeal.Board = class Board {
       gameOverMessage: rootEl.querySelector('#rd-game-over-message'),
       restartBtn: rootEl.querySelector('#rd-restart'),
       log: rootEl.querySelector('#rd-log'),
+      handScroll: rootEl.querySelector('#rd-hand-scroll'),
     };
     this.onPlayCard = null;
     this.onEndTurn = null;
@@ -45,6 +46,8 @@ window.RawDeal.Board = class Board {
       this._hoveredCardEl = null;
       if (this.cardPreview) this.cardPreview.clear();
     });
+
+    window.addEventListener('resize', () => this._updateHandScroll());
   }
 
   _onCardHover(e) {
@@ -163,6 +166,17 @@ window.RawDeal.Board = class Board {
       }
       container.appendChild(el);
     }
+
+    this._updateHandScroll();
+  }
+
+  _updateHandScroll() {
+    const scrollEl = this.els.handScroll;
+    if (!scrollEl) return;
+    requestAnimationFrame(() => {
+      const overflows = scrollEl.scrollWidth > scrollEl.clientWidth + 1;
+      scrollEl.classList.toggle('rd-hand-scroll--overflow', overflows);
+    });
   }
 
   _cardCost(player, card) {

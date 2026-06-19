@@ -294,20 +294,63 @@ body:has(.rd-page) {
   border-radius: 8px;
   padding: 6px 12px;
   flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.rd-hand {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 8px;
-  justify-content: center;
+.rd-hand-scroll {
+  position: relative;
+  width: 100%;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 4px 0;
-  min-height: 0;
+  scrollbar-gutter: stable;
+  padding: 6px 0 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(241, 196, 15, 0.45) rgba(0, 0, 0, 0.2);
+}
+
+.rd-hand-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.rd-hand-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.rd-hand-scroll::-webkit-scrollbar-thumb {
+  background: rgba(241, 196, 15, 0.45);
+  border-radius: 4px;
+}
+
+.rd-hand-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(241, 196, 15, 0.7);
+}
+
+.rd-hand-scroll--overflow {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent 100%
+  );
+}
+
+.rd-hand {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: max-content;
+  min-width: 100%;
+  justify-content: flex-start;
+  padding: 8px 4px 2px;
+  box-sizing: border-box;
 }
 
 /* --- Cards --- */
