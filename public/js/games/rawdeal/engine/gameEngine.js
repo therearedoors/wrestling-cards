@@ -106,9 +106,13 @@ window.RawDeal.GameEngine = class GameEngine {
   _calcFortitude(player) {
     let total = 0;
     for (const card of [...player.ring.maneuvers, ...player.ring.reversals]) {
-      total += card.fortitude || 0;
+      total += card.damage || 0;
     }
     return total;
+  }
+
+  _syncFortitude(player) {
+    player.fortitude = this._calcFortitude(player);
   }
 
   _drawCard(player) {
@@ -135,7 +139,7 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       if (phase === PHASES.REFRESH) {
-        active.fortitude = this._calcFortitude(active);
+        this._syncFortitude(active);
         this.stateMachine.transition(EVENTS.REFRESH_DONE);
         continue;
       }
@@ -190,8 +194,6 @@ window.RawDeal.GameEngine = class GameEngine {
     const player = this.players[0];
     const card = player.hand.find((c) => c.instanceId === instanceId);
     if (!card) return false;
-    if (card.type === 'reversal') return false;
-
     const cost = this._effectiveFortitudeCost(player, card);
     return player.fortitude >= cost;
   }
@@ -208,9 +210,10 @@ window.RawDeal.GameEngine = class GameEngine {
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD);
     this._notify();
 
-    if (card.type === 'maneuver') {
-      player.ring.maneuvers.push(card);
-      player.fortitude = this._calcFortitude(player);
+    if (card.type === 'maneuver' || card.type === 'reversal') {
+      const ringArea = card.type === 'reversal' ? player.ring.reversals : player.ring.maneuvers;
+      ringArea.push(card);
+      this._syncFortitude(player);
 
       let damage = card.damage || 0;
       if (opponent.superstar.id === 'mankind' && damage > 0) {
