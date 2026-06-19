@@ -5,7 +5,6 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.CARDS = {
-  // --- Superstars ---
   'the-rock': {
     id: 'the-rock',
     name: 'The Rock',
@@ -13,6 +12,7 @@ window.RawDeal.CARDS = {
     handSize: 6,
     superstarValue: 7,
     ability: 'Know Your Role — Your Actions get -1 Fortitude (min 0).',
+    flavor: 'If you smell what The Rock is cookin\'…',
     set: 'premiere',
   },
   'stone-cold': {
@@ -22,10 +22,10 @@ window.RawDeal.CARDS = {
     handSize: 7,
     superstarValue: 8,
     ability: 'Austin 3:16 — Your Strikes get +1 Damage.',
+    flavor: 'And that\'s the bottom line, \'cause Stone Cold said so!',
     set: 'premiere',
   },
 
-  // --- Rock maneuvers ---
   'rock-bottom': {
     id: 'rock-bottom',
     name: 'Rock Bottom',
@@ -34,6 +34,7 @@ window.RawDeal.CARDS = {
     fortitude: 10,
     damage: 12,
     text: 'Trademark Finisher. The Rock only.',
+    flavor: 'The most electrifying move in sports entertainment.',
     superstar: 'rock',
     set: 'premiere',
   },
@@ -45,6 +46,7 @@ window.RawDeal.CARDS = {
     fortitude: 8,
     damage: 8,
     text: 'Trademark. The Rock only.',
+    flavor: 'Millions upon millions of Rock fans chant his name as he drops the elbow.',
     superstar: 'rock',
     set: 'premiere',
   },
@@ -56,6 +58,7 @@ window.RawDeal.CARDS = {
     fortitude: 6,
     damage: 5,
     text: 'Throw.',
+    flavor: 'A devastating power move that rattles the spine.',
     set: 'premiere',
   },
   'samoan-drop': {
@@ -66,6 +69,7 @@ window.RawDeal.CARDS = {
     fortitude: 4,
     damage: 4,
     text: 'Grapple.',
+    flavor: 'Lifted high and dropped hard across the shoulder.',
     set: 'premiere',
   },
   'side-buster': {
@@ -76,6 +80,7 @@ window.RawDeal.CARDS = {
     fortitude: 3,
     damage: 3,
     text: 'Grapple.',
+    flavor: 'A quick takedown that shifts the momentum.',
     set: 'premiere',
   },
   'shoulder-block': {
@@ -86,6 +91,7 @@ window.RawDeal.CARDS = {
     fortitude: 0,
     damage: 2,
     text: 'Strike.',
+    flavor: 'A fundamental collision that wears the opponent down.',
     set: 'premiere',
   },
   'floatover-ddt': {
@@ -96,6 +102,7 @@ window.RawDeal.CARDS = {
     fortitude: 5,
     damage: 5,
     text: 'Grapple.',
+    flavor: 'The opponent swings wild — and eats canvas.',
     set: 'premiere',
   },
   'corporate-elbow': {
@@ -106,10 +113,10 @@ window.RawDeal.CARDS = {
     fortitude: 2,
     damage: 3,
     text: 'Strike.',
+    flavor: 'The People\'s Champion delivers a stiff shot to the jaw.',
     set: 'premiere',
   },
 
-  // --- Rock actions ---
   'know-your-role': {
     id: 'know-your-role',
     name: 'Know Your Role',
@@ -117,6 +124,7 @@ window.RawDeal.CARDS = {
     fortitude: 2,
     damage: 0,
     text: 'Draw 2 cards.',
+    flavor: 'Shut your mouth and know your role!',
     effect: 'draw',
     effectValue: 2,
     superstar: 'rock',
@@ -129,6 +137,7 @@ window.RawDeal.CARDS = {
     fortitude: 3,
     damage: 0,
     text: 'Your next Maneuver gets +3 Damage.',
+    flavor: 'Millions of fans rise to their feet as the Great One takes control.',
     effect: 'nextManeuverBonus',
     effectValue: 3,
     superstar: 'rock',
@@ -141,13 +150,13 @@ window.RawDeal.CARDS = {
     fortitude: 0,
     damage: 0,
     text: 'Draw 1 card.',
+    flavor: 'The eyebrow rises. The crowd erupts.',
     effect: 'draw',
     effectValue: 1,
     superstar: 'rock',
     set: 'premiere',
   },
 
-  // --- Austin maneuvers ---
   'stone-cold-stunner': {
     id: 'stone-cold-stunner',
     name: 'Stone Cold Stunner',
@@ -156,6 +165,7 @@ window.RawDeal.CARDS = {
     fortitude: 10,
     damage: 12,
     text: 'Trademark Finisher. Stone Cold only.',
+    flavor: 'Kick to the gut — stunner! The crowd goes absolutely nuts.',
     superstar: 'austin',
     set: 'premiere',
   },
@@ -167,6 +177,7 @@ window.RawDeal.CARDS = {
     fortitude: 5,
     damage: 5,
     text: 'Grapple.',
+    flavor: 'A classic cover-up that smothers the opponent.',
     set: 'premiere',
   },
   'mud-hole-stomp': {
@@ -177,6 +188,7 @@ window.RawDeal.CARDS = {
     fortitude: 3,
     damage: 4,
     text: 'Strike.',
+    flavor: 'Ain\'t nobody gonna kick your ass like I can kick your ass.',
     set: 'premiere',
   },
   'flying-forearm': {
@@ -187,6 +199,7 @@ window.RawDeal.CARDS = {
     fortitude: 4,
     damage: 4,
     text: 'Strike.',
+    flavor: 'The Rattlesnake springs off the ropes with reckless abandon.',
     set: 'premiere',
   },
   'clothesline': {
@@ -197,6 +210,7 @@ window.RawDeal.CARDS = {
     fortitude: 2,
     damage: 3,
     text: 'Strike.',
+    flavor: 'A stiff rope-aided shot that levels the competition.',
     set: 'premiere',
   },
   'atomic-drop': {
@@ -207,6 +221,7 @@ window.RawDeal.CARDS = {
     fortitude: 3,
     damage: 3,
     text: 'Grapple.',
+    flavor: 'Dropped tailbone-first onto the knee. Ouch.',
     set: 'premiere',
   },
   'bulldog': {
@@ -217,10 +232,10 @@ window.RawDeal.CARDS = {
     fortitude: 5,
     damage: 5,
     text: 'Grapple.',
+    flavor: 'Grabbed by the trunks and driven face-first into the mat.',
     set: 'premiere',
   },
 
-  // --- Austin actions ---
   'austin-316': {
     id: 'austin-316',
     name: 'Austin 3:16',
@@ -228,6 +243,7 @@ window.RawDeal.CARDS = {
     fortitude: 2,
     damage: 0,
     text: 'Draw 2 cards.',
+    flavor: 'Austin 3:16 says I just whipped your ass!',
     effect: 'draw',
     effectValue: 2,
     superstar: 'austin',
@@ -240,6 +256,7 @@ window.RawDeal.CARDS = {
     fortitude: 0,
     damage: 0,
     text: 'Draw 1 card.',
+    flavor: 'Stone Cold flips off the authority — and the crowd loves it.',
     effect: 'draw',
     effectValue: 1,
     superstar: 'austin',
@@ -252,13 +269,13 @@ window.RawDeal.CARDS = {
     fortitude: 3,
     damage: 0,
     text: 'Your next Maneuver gets +3 Damage.',
+    flavor: 'A celebration that ends with a broken beer mug and a broken opponent.',
     effect: 'nextManeuverBonus',
     effectValue: 3,
     superstar: 'austin',
     set: 'premiere',
   },
 
-  // --- Shared reversals (mostly in arsenal for overturn) ---
   'block': {
     id: 'block',
     name: 'Block',
@@ -266,6 +283,7 @@ window.RawDeal.CARDS = {
     fortitude: 0,
     damage: 0,
     text: 'Reversal: Strike.',
+    flavor: 'Hands up — the blow never lands clean.',
     reverses: ['strike'],
     set: 'premiere',
   },
@@ -276,6 +294,7 @@ window.RawDeal.CARDS = {
     fortitude: 0,
     damage: 0,
     text: 'Reversal: Strike.',
+    flavor: 'A quick lean and the strike finds nothing but air.',
     reverses: ['strike'],
     set: 'premiere',
   },
@@ -286,6 +305,7 @@ window.RawDeal.CARDS = {
     fortitude: 0,
     damage: 0,
     text: 'Reversal: Grapple.',
+    flavor: 'Slip the hold before it ever locks in.',
     reverses: ['grapple'],
     set: 'premiere',
   },
@@ -296,6 +316,7 @@ window.RawDeal.CARDS = {
     fortitude: 2,
     damage: 0,
     text: 'Reversal: Hold or Submission.',
+    flavor: 'Reach the ropes — or power out on sheer will.',
     reverses: ['hold', 'submission'],
     set: 'premiere',
   },
@@ -306,6 +327,7 @@ window.RawDeal.CARDS = {
     fortitude: 3,
     damage: 0,
     text: 'Reversal: any Maneuver with 5 or less Damage.',
+    flavor: 'Athleticism turns offense into a highlight-reel counter.',
     reverses: ['low-damage'],
     maxDamage: 5,
     set: 'premiere',

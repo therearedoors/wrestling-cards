@@ -1,8 +1,11 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.Board = class Board {
-  constructor(rootEl) {
+  constructor(rootEl, cardPreview) {
     this.root = rootEl;
+    this.cardPreview = cardPreview;
+    this._state = null;
+    this._hoveredCardEl = null;
     this.els = {
       phase: rootEl.querySelector('#rd-phase'),
       turn: rootEl.querySelector('#rd-turn'),
@@ -23,6 +26,7 @@ window.RawDeal.Board = class Board {
       gameOverMessage: rootEl.querySelector('#rd-game-over-message'),
       restartBtn: rootEl.querySelector('#rd-restart'),
       log: rootEl.querySelector('#rd-log'),
+      handScroll: rootEl.querySelector('#rd-hand-scroll'),
     };
     this.onPlayCard = null;
     this.onEndTurn = null;
@@ -35,9 +39,55 @@ window.RawDeal.Board = class Board {
     this.els.restartBtn.addEventListener('click', () => {
       if (this.onRestart) this.onRestart();
     });
+
+    const hoverZone = rootEl.closest('.rd-play-layout') || rootEl;
+    hoverZone.addEventListener('mouseover', (e) => this._onCardHover(e));
+    hoverZone.addEventListener('mouseleave', () => {
+      this._hoveredCardEl = null;
+      if (this.cardPreview) this.cardPreview.clear();
+    });
+
+    window.addEventListener('resize', () => this._updateHandScroll());
+  }
+
+  _onCardHover(e) {
+    const cardEl = e.target.closest('.rd-card[data-card-id]');
+    if (!cardEl || cardEl.classList.contains('rd-card--preview')) return;
+    if (!this.root.contains(cardEl)) return;
+    if (cardEl === this._hoveredCardEl) return;
+
+    this._hoveredCardEl = cardEl;
+    const card = this._resolveCard(cardEl);
+    if (card && this.cardPreview) this.cardPreview.show(card);
+  }
+
+  _resolveCard(cardEl) {
+    const instanceId = cardEl.dataset.instanceId;
+    const cardId = cardEl.dataset.cardId;
+    if (!this._state) return window.RawDeal.CARDS[cardId] || null;
+
+    const { players } = this._state;
+    if (instanceId) {
+      for (const player of players) {
+        if (!player) continue;
+        const pools = [
+          player.hand,
+          player.ring.maneuvers,
+          player.ring.actions,
+          player.ring.reversals,
+          player.ringside,
+        ];
+        for (const pool of pools) {
+          const found = pool.find((c) => c.instanceId === instanceId);
+          if (found) return found;
+        }
+      }
+    }
+    return window.RawDeal.CARDS[cardId] || null;
   }
 
   render(state) {
+    this._state = state;
     const player = state.players[0];
     const opponent = state.players[1];
     if (!player || !opponent) return;
@@ -116,6 +166,17 @@ window.RawDeal.Board = class Board {
       }
       container.appendChild(el);
     }
+
+    this._updateHandScroll();
+  }
+
+  _updateHandScroll() {
+    const scrollEl = this.els.handScroll;
+    if (!scrollEl) return;
+    requestAnimationFrame(() => {
+      const overflows = scrollEl.scrollWidth > scrollEl.clientWidth + 1;
+      scrollEl.classList.toggle('rd-hand-scroll--overflow', overflows);
+    });
   }
 
   _cardCost(player, card) {
@@ -128,14 +189,14 @@ window.RawDeal.Board = class Board {
 
   _renderRing(container, cards) {
     window.RawDeal.CardRenderer.clearContainer(container);
-    for (const card of cards.slice(-6)) {
+    for (const card of cards.slice(-8)) {
       container.appendChild(window.RawDeal.CardRenderer.createCardEl(card, { small: true }));
     }
   }
 
   _renderRingside(container, cards) {
     window.RawDeal.CardRenderer.clearContainer(container);
-    for (const card of cards.slice(-5)) {
+    for (const card of cards.slice(-6)) {
       container.appendChild(window.RawDeal.CardRenderer.createCardEl(card, { small: true }));
     }
   }
@@ -145,7 +206,7 @@ window.RawDeal.Board = class Board {
     entry.className = 'rd-log__entry';
     entry.textContent = message;
     this.els.log.prepend(entry);
-    while (this.els.log.children.length > 8) {
+    while (this.els.log.children.length > 4) {
       this.els.log.removeChild(this.els.log.lastChild);
     }
   }

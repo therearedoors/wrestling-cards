@@ -2,12 +2,14 @@ window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.CardRenderer = {
   createCardEl(card, options = {}) {
-    const { clickable = false, faceDown = false, small = false, onClick } = options;
+    const { clickable = false, faceDown = false, small = false, preview = false, onClick } = options;
     const el = document.createElement('div');
     el.className = 'rd-card';
     if (small) el.classList.add('rd-card--small');
+    if (preview) el.classList.add('rd-card--preview');
     if (faceDown) el.classList.add('rd-card--face-down');
     if (clickable) el.classList.add('rd-card--clickable');
+    if (!faceDown && !preview) el.classList.add('rd-card--hoverable');
     el.dataset.instanceId = card.instanceId || '';
     el.dataset.cardId = card.id || '';
 
