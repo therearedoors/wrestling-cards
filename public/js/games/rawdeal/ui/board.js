@@ -27,11 +27,14 @@ window.RawDeal.Board = class Board {
       restartBtn: rootEl.querySelector('#rd-restart'),
       log: rootEl.querySelector('#rd-log'),
       handScroll: rootEl.querySelector('#rd-hand-scroll'),
+      reversalBanner: rootEl.querySelector('#rd-reversal-banner'),
+      reversalBannerText: rootEl.querySelector('#rd-reversal-banner-text'),
     };
     this.onPlayCard = null;
     this.onEndTurn = null;
     this.onRestart = null;
     this._lastLogLength = 0;
+    this._reversalBannerTimer = null;
 
     this.els.endTurnBtn.addEventListener('click', () => {
       if (this.onEndTurn) this.onEndTurn();
@@ -116,9 +119,34 @@ window.RawDeal.Board = class Board {
 
     if (state.damageLog.length > this._lastLogLength) {
       const last = state.damageLog[state.damageLog.length - 1];
-      this._appendLog(`${last.card} — ${last.damage} damage (${last.result})`);
+      this._appendLog(this._formatDamageLog(last));
       this._lastLogLength = state.damageLog.length;
     }
+  }
+
+  _formatDamageLog(entry) {
+    if (entry.result === 'reversed') {
+      return `${entry.card} REVERSED by ${entry.reversedBy}!`;
+    }
+    if (entry.result === 'pinfall') {
+      return `${entry.card} — PINFALL! (${entry.cardsOverturned} cards overturned)`;
+    }
+    return `${entry.card} — ${entry.damage} damage, ${entry.cardsOverturned} overturned`;
+  }
+
+  showReversalNotice(maneuver, reversalCard) {
+    if (!this.els.reversalBanner) return;
+
+    const text = `${maneuver.name} was reversed by ${reversalCard.name}!`;
+    this.els.reversalBannerText.textContent = text;
+    this.els.reversalBanner.classList.remove('hidden');
+    this.els.reversalBanner.classList.add('rd-reversal-banner--active');
+
+    clearTimeout(this._reversalBannerTimer);
+    this._reversalBannerTimer = setTimeout(() => {
+      this.els.reversalBanner.classList.remove('rd-reversal-banner--active');
+      this.els.reversalBanner.classList.add('hidden');
+    }, 3500);
   }
 
   _formatPhase(phase) {

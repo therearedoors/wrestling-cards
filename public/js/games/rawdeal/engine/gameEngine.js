@@ -222,13 +222,28 @@ window.RawDeal.GameEngine = class GameEngine {
       this.nextManeuverBonus[0] = 0;
 
       if (damage > 0) {
-        const result = await this._resolveDamage(opponent, card, damage);
-        this.damageLog.push({ card: card.name, damage, result });
-        if (result === 'pinfall') {
+        const damageResult = await this._resolveDamage(opponent, card, damage);
+        this.damageLog.push({
+          card: card.name,
+          damage,
+          result: damageResult.result,
+          reversedBy: damageResult.reversedBy?.name || null,
+          cardsOverturned: damageResult.cardsOverturned,
+        });
+
+        if (damageResult.result === 'pinfall') {
           this.winner = 0;
           this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
           this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
           this._notify();
+          return true;
+        }
+
+        if (damageResult.result === 'reversed') {
+          this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
+          this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
+          this._notify();
+          await this._runAutoPhases();
           return true;
         }
       }
@@ -254,29 +269,37 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async _resolveDamage(opponent, maneuver, damage) {
+    let cardsOverturned = 0;
+
     for (let i = 0; i < damage; i++) {
       if (opponent.arsenal.length === 0) {
-        return 'pinfall';
+        return { result: 'pinfall', cardsOverturned };
       }
 
-      const overturned = opponent.arsenal[opponent.arsenal.length - 1];
-      const stepResult = await this.onDamageStep({
+      const overturned = opponent.arsenal.pop();
+      cardsOverturned += 1;
+      this._notify();
+
+      const reversed = this._reversalStops(overturned, maneuver);
+
+      await this.onDamageStep({
         card: overturned,
         step: i + 1,
         total: damage,
         maneuver,
+        reversed,
+        onReveal: () => {
+          opponent.ringside.push(overturned);
+          this._notify();
+        },
       });
 
-      opponent.arsenal.pop();
-      opponent.ringside.push(overturned);
-
-      if (this._reversalStops(overturned, maneuver)) {
-        return 'reversed';
+      if (reversed) {
+        return { result: 'reversed', reversedBy: overturned, cardsOverturned };
       }
-
-      if (stepResult === 'abort') return 'reversed';
     }
-    return 'hit';
+
+    return { result: 'hit', cardsOverturned };
   }
 
   _reversalStops(card, maneuver) {
