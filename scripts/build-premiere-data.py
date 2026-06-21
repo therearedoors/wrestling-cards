@@ -448,6 +448,20 @@ def infer_effect(types_list, rules, name):
         return effect
     if 'when successfully played' in blob and 'discard 1 card of your choice from your hand' in blob:
         return {'effect': 'discardFromHand', 'effectValue': 1}
+    for subtype in ('strike', 'grapple', 'submission'):
+        m = re.search(
+            rf'when successfully played.*all {subtype} maneuvers are \+(\d+)d for the rest of this turn',
+            blob,
+        )
+        if m:
+            return {
+                'effect': 'turnSubtypeDamageBonus',
+                'effectSubtype': subtype,
+                'effectValue': int(m.group(1)),
+            }
+    m = re.search(r'all your maneuvers are \+(\d+)d for the rest of this turn', blob)
+    if m:
+        return {'effect': 'turnDamageBonus', 'effectValue': int(m.group(1))}
     if 'action' in types_list:
         if 'draw 2' in blob or 'draw up to 2' in blob:
             return {'effect': 'draw', 'effectValue': 2}
@@ -483,7 +497,7 @@ def emit_cards(cards):
         parts = [f"  '{card['id']}': {{"]
         for key in ['id', 'num', 'name', 'types', 'subtype', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
-                    'unique', 'hybrid', 'reverses', 'effect', 'effectValue', 'actionEffect',
+                    'unique', 'hybrid', 'reverses', 'effect', 'effectValue', 'effectSubtype', 'actionEffect',
                     'actionEffectValue', 'alsoDraw', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]

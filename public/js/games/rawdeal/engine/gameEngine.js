@@ -16,6 +16,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.winner = null;
     this.winReason = null;
     this.nextManeuverBonus = [0, 0];
+    this.turnDamageBonus = [this._emptyTurnDamageBonus(), this._emptyTurnDamageBonus()];
     this.damageLog = [];
     this.actionLog = [];
     this.abilityFlow = null;
@@ -29,6 +30,34 @@ window.RawDeal.GameEngine = class GameEngine {
 
   _notify() {
     this.onStateChange(this.getPublicState());
+  }
+
+  _emptyTurnDamageBonus() {
+    return { all: 0, strike: 0, grapple: 0, submission: 0 };
+  }
+
+  _playerIndex(player) {
+    return player.isHuman ? 0 : 1;
+  }
+
+  _addTurnDamageBonus(player, { all = 0, subtype, value = 0, sourceName }) {
+    const idx = this._playerIndex(player);
+    const bonuses = this.turnDamageBonus[idx];
+
+    if (all) {
+      bonuses.all += all;
+      this.actionLog.push({
+        message: `${sourceName}: all maneuvers +${all}D for the rest of this turn.`,
+      });
+    }
+
+    if (subtype && value) {
+      bonuses[subtype] = (bonuses[subtype] || 0) + value;
+      const label = subtype.charAt(0).toUpperCase() + subtype.slice(1);
+      this.actionLog.push({
+        message: `${sourceName}: ${label} maneuvers +${value}D for the rest of this turn.`,
+      });
+    }
   }
 
   getPublicState() {
@@ -226,6 +255,7 @@ window.RawDeal.GameEngine = class GameEngine {
           this.cardEffectFlow = null;
           this.pendingManeuverResolution = null;
         }
+        this.turnDamageBonus[this.stateMachine.activePlayer] = this._emptyTurnDamageBonus();
         this._syncFortitude(active);
         this.stateMachine.transition(EVENTS.REFRESH_DONE);
         continue;
@@ -370,13 +400,32 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _calcManeuverDamage(player, opponent, played) {
+    const idx = this._playerIndex(player);
     let damage = played.damage || 0;
     if (opponent.superstar.id === 'mankind' && damage > 0) {
       damage = Math.max(0, damage - 1);
     }
-    damage += this.nextManeuverBonus[0];
-    this.nextManeuverBonus[0] = 0;
+    damage += this.nextManeuverBonus[idx];
+    this.nextManeuverBonus[idx] = 0;
+
+    const turnBonus = this.turnDamageBonus[idx];
+    damage += turnBonus.all || 0;
+    const subtype = played.subtype;
+    if (subtype && turnBonus[subtype]) {
+      damage += turnBonus[subtype];
+    }
+
     return damage;
+  }
+
+  _grantOnSuccessManeuverEffects(player, played) {
+    if (played.effect === 'turnSubtypeDamageBonus') {
+      this._addTurnDamageBonus(player, {
+        subtype: played.effectSubtype,
+        value: played.effectValue || 1,
+        sourceName: played.name,
+      });
+    }
   }
 
   _beginPreDamageDiscardPrompt(player, card) {
@@ -428,6 +477,8 @@ window.RawDeal.GameEngine = class GameEngine {
         return true;
       }
     }
+
+    this._grantOnSuccessManeuverEffects(player, played);
 
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
@@ -536,6 +587,11 @@ window.RawDeal.GameEngine = class GameEngine {
       this.nextManeuverBonus[idx] += 3;
       this._drawCard(player);
       this._drawCard(player);
+    } else if (card.effect === 'turnDamageBonus') {
+      this._addTurnDamageBonus(player, {
+        all: card.effectValue || 0,
+        sourceName: card.name,
+      });
     }
   }
 
