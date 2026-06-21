@@ -75,6 +75,24 @@ body:has(.rd-page) {
   color: #1c2942;
 }
 
+.rd-btn--ability {
+  background: #7d3c98;
+  color: white;
+  font-size: 0.8rem;
+  padding: 8px 14px;
+}
+
+.rd-ability-prompt {
+  background: rgba(125, 60, 152, 0.35);
+  border: 1px solid rgba(125, 60, 152, 0.7);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f5e6ff;
+  flex-shrink: 0;
+}
+
 /* Game shell: board + preview panel */
 
 .rd-game {
@@ -465,6 +483,23 @@ body:has(.rd-page) {
 
 .rd-card--unaffordable {
   opacity: 0.5;
+}
+
+.rd-card--ability-target {
+  cursor: pointer;
+  outline: 2px solid #bb8fce;
+  outline-offset: 2px;
+}
+
+.rd-card--ability-target:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(125, 60, 152, 0.45);
+}
+
+.rd-card--selected {
+  outline: 2px solid #f1c40f;
+  outline-offset: 2px;
+  transform: translateY(-4px);
 }
 
 .rd-card--flying {
