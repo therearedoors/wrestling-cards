@@ -386,7 +386,7 @@ window.RawDeal.GameEngine = class GameEngine {
       cardsOverturned += 1;
       this._notify();
 
-      const reversed = this._reversalStops(overturned, maneuver);
+      const reversed = this._reversalStops(overturned, maneuver, opponent);
 
       await this.onDamageStep({
         card: overturned,
@@ -408,9 +408,13 @@ window.RawDeal.GameEngine = class GameEngine {
     return { result: 'hit', cardsOverturned };
   }
 
-  _reversalStops(card, maneuver) {
-    if (card.type !== 'reversal') return false;
-    if (!card.reverses) return false;
+  _reversalStops(card, maneuver, opponent) {
+    const canReverseFromArsenal =
+      card.type === 'reversal' || (card.reverses && card.reverses.length > 0);
+    if (!canReverseFromArsenal || !card.reverses) return false;
+
+    const reversalCost = card.fortitude || 0;
+    if (opponent.fortitude < reversalCost) return false;
 
     if (card.reverses.includes('low-damage') && (maneuver.damage || 0) <= (card.maxDamage || 5)) {
       return true;
