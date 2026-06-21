@@ -168,6 +168,7 @@ window.RawDeal.DECKS = {
     defaultOpponent: 'kane',
     arsenal: buildDeck({
       'atomic-drop': 3,
+      'back-body-drop': 3,
       'belly-to-back-suplex': 1,
       'belly-to-belly-suplex': 2,
       'body-slam': 2,
@@ -180,7 +181,6 @@ window.RawDeal.DECKS = {
       'double-leg-takedown': 2,
       'escape-move': 2,
       'facebuster': 1,
-      'gut-buster': 3,
       'head-butt': 3,
       'headlock-takedown': 2,
       'i-am-the-game': 1,

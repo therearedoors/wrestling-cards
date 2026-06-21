@@ -813,3 +813,54 @@ body:has(.rd-page) {
   font-size: 2.2rem;
   color: #f1c40f;
 }
+
+.rd-choice-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rd-choice-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 18, 30, 0.72);
+}
+
+.rd-choice-modal__panel {
+  position: relative;
+  background: var(--main-color-darker);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 24px 28px;
+  max-width: 420px;
+  width: calc(100% - 32px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.rd-choice-modal__message {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-bottom: 20px;
+}
+
+.rd-choice-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.rd-choice-modal__btn {
+  min-width: 140px;
+}
+
+.rd-card--blocked {
+  opacity: 0.5;
+  filter: grayscale(0.35);
+  cursor: not-allowed;
+}

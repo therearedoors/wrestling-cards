@@ -103,14 +103,14 @@ DECK_DEFS = {
             'leaping-knee-to-the-face': 1, 'facebuster': 1, 'i-am-the-game': 1,
             'pedigree': 1, 'chyna-interferes': 1,
             'head-butt': 3, 'roundhouse-punch': 3, 'clothesline': 2,
-            'spinebuster-equivalent': 0,  # placeholder remove
+            'back-body-drop': 3,
             'atomic-drop': 3, 'belly-to-belly-suplex': 2,
             'pump-handle-slam': 1, 'body-slam': 2,
             'ddt': 2, 'irish-whip': 3, 'jockeying-for-position': 2,
             'whaddya-got': 3, 'diversion': 1, 'stagger': 2,
             'step-aside': 3, 'knee-to-the-gut': 3, 'escape-move': 2,
             'view-of-villainy': 2, 'spit-at-opponent': 2,
-            'distract-the-ref': 2, 'gut-buster': 3,
+            'distract-the-ref': 2
         },
     },
     'kane': {
@@ -328,6 +328,9 @@ def parse_cards(text: str):
         action_effect = infer_action_effect(rules)
         if action_effect:
             entry.update(action_effect)
+        requires = infer_requires_played(rules)
+        if requires:
+            entry.update(requires)
 
         cards[card_id] = entry
 
@@ -391,6 +394,19 @@ def infer_action_effect(rules):
     blob = rules.lower()
     if 'as an action' in blob and 'discard this card to draw 1' in blob:
         return {'actionEffect': 'discardToDraw', 'actionEffectValue': 1}
+    m = re.search(r'next card played(?: on your turn)? is a strike maneuver it is \+(\d+)d', blob)
+    if m:
+        return {'actionEffect': 'nextStrikeBonus', 'actionEffectValue': int(m.group(1))}
+    return None
+
+
+def infer_requires_played(rules):
+    blob = rules.lower()
+    if (
+        'irish whip must be played before' in blob
+        or 'must play the card titled irish whip before' in blob
+    ):
+        return {'requiresPlayed': 'irish-whip'}
     return None
 
 
@@ -455,6 +471,11 @@ def infer_effect(types_list, rules, name):
         return effect
     if 'when successfully played' in blob and 'discard 1 card of your choice from your hand' in blob:
         return {'effect': 'discardFromHand', 'effectValue': 1}
+    if 'maneuver' in types_list and (
+        'draw 2 cards, or force opponent to discard 2' in blob
+        or 'either draw 2 cards, or force opponent to discard 2' in blob
+    ):
+        return {'effect': 'drawOrOpponentDiscard', 'effectValue': 2}
     for subtype in ('strike', 'grapple', 'submission'):
         m = re.search(
             rf'when successfully played.*all {subtype} maneuvers are \+(\d+)d for the rest of this turn',
@@ -504,7 +525,7 @@ def emit_cards(cards):
         parts = [f"  '{card['id']}': {{"]
         for key in ['id', 'num', 'name', 'types', 'subtype', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
-                    'unique', 'hybrid', 'reverses', 'effect', 'effectValue', 'effectSubtype', 'actionEffect',
+                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'effect', 'effectValue', 'effectSubtype', 'actionEffect',
                     'actionEffectValue', 'alsoDraw', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]

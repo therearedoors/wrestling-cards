@@ -40,6 +40,13 @@ window.RawDeal.CardUtils = {
     return this.hasType(card, playAs);
   },
 
+  meetsPlayRequirement(player, card, playAs = 'maneuver') {
+    if (playAs !== 'maneuver' || !card.requiresPlayed) return true;
+    const state = player.turnState || {};
+    if (card.requiresPlayed === 'irish-whip') return !!state.irishWhipPlayed;
+    return true;
+  },
+
   /** Fortitude required to play from hand. Hybrid discard-to-draw actions cost 0. */
   playFortitudeCost(card, playAs = 'maneuver') {
     if (playAs === 'action' && this.isHybrid(card) && card.actionEffect === 'discardToDraw') {

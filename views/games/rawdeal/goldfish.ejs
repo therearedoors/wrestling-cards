@@ -101,6 +101,14 @@
                     </div>
                 </div>
 
+                <div id="rd-choice-modal" class="rd-choice-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rd-choice-modal-message">
+                    <div class="rd-choice-modal__backdrop"></div>
+                    <div class="rd-choice-modal__panel">
+                        <p id="rd-choice-modal-message" class="rd-choice-modal__message" data-rd-choice-message></p>
+                        <div class="rd-choice-modal__actions" data-rd-choice-actions></div>
+                    </div>
+                </div>
+
                 <div id="rd-game-over" class="rd-game-over hidden">
                     <h2 id="rd-game-over-message">PINFALL!</h2>
                     <button id="rd-restart" class="rd-btn rd-btn--primary">New Match</button>
@@ -139,6 +147,7 @@
 <script src="/js/games/rawdeal/ui/cardRenderer.js"></script>
 <script src="/js/games/rawdeal/ui/cardPreview.js"></script>
 <script src="/js/games/rawdeal/ui/animations.js"></script>
+<script src="/js/games/rawdeal/ui/choiceModal.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
 <script src="/js/games/rawdeal/goldfish.js"></script>
 
