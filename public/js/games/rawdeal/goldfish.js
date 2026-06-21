@@ -36,15 +36,36 @@
           }
         );
       },
+      onArsenalToRingside: async ({ card, onReveal }) => {
+        await window.RawDeal.Animations.flipArsenalToRingside(
+          card,
+          board.getPlayerArsenalEl(),
+          board.getPlayerRingsideEl(),
+          {
+            onReveal: () => {
+              onReveal();
+              window.RawDeal.Animations.pulseEl(board.getPlayerRingsideEl());
+            },
+          }
+        );
+      },
     });
 
-    board.onPlayCard = async (instanceId) => {
-      if (!engine.canPlayCard(0, instanceId)) return;
-      await engine.playCard(instanceId);
+    board.onPlayCard = async (instanceId, playAs) => {
+      if (!engine.canPlayCard(0, instanceId, playAs)) return;
+      await engine.playCard(instanceId, playAs);
     };
 
     board.onEndTurn = async () => {
       await engine.endTurn();
+    };
+
+    board.onUseSuperstarAbility = () => {
+      engine.beginSuperstarAbility(0);
+    };
+
+    board.onAbilitySelect = (instanceId) => {
+      engine.selectForAbility(instanceId);
     };
 
     board.onRestart = () => {

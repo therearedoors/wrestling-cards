@@ -28,8 +28,13 @@
                 <div class="rd-status-bar">
                     <span id="rd-phase" class="rd-phase">Main Step</span>
                     <span id="rd-turn" class="rd-turn">Turn 1</span>
+                    <button id="rd-superstar-ability" class="rd-btn rd-btn--ability hidden" type="button" title="">Superstar Ability</button>
                     <div id="rd-log" class="rd-log"></div>
                     <button id="rd-end-turn" class="rd-btn rd-btn--secondary">End Turn</button>
+                </div>
+
+                <div id="rd-ability-prompt" class="rd-ability-prompt hidden" aria-live="polite">
+                    <span id="rd-ability-prompt-text"></span>
                 </div>
 
                 <div id="rd-reversal-banner" class="rd-reversal-banner hidden" aria-live="polite">
@@ -78,6 +83,10 @@
                             </div>
                         </div>
                         <div class="rd-piles rd-piles--player">
+                            <div class="rd-pile rd-pile--compact" id="rd-player-arsenal" title="Your Arsenal">
+                                <span class="rd-pile__label">Your Arsenal</span>
+                                <div class="rd-pile__stack"></div>
+                            </div>
                             <div class="rd-pile rd-pile--compact" id="rd-player-ringside" title="Your Ringside">
                                 <span class="rd-pile__label">Your Ringside</span>
                             </div>
@@ -124,6 +133,7 @@
 <script src="/js/games/rawdeal/data/cards.js"></script>
 <script src="/js/games/rawdeal/data/decks.js"></script>
 <script src="/js/games/rawdeal/engine/constants.js"></script>
+<script src="/js/games/rawdeal/engine/cardUtils.js"></script>
 <script src="/js/games/rawdeal/engine/stateMachine.js"></script>
 <script src="/js/games/rawdeal/engine/gameEngine.js"></script>
 <script src="/js/games/rawdeal/ui/cardRenderer.js"></script>
