@@ -4,6 +4,8 @@ window.RawDeal.GameEngine = class GameEngine {
   constructor(options = {}) {
     this.onStateChange = options.onStateChange || (() => {});
     this.onDamageStep = options.onDamageStep || (async () => {});
+    this.onArsenalToRingside =
+      options.onArsenalToRingside || (async ({ onReveal }) => { if (onReveal) onReveal(); });
     this.stateMachine = new window.RawDeal.StateMachine();
     this.stateMachine.onTransition(() => this._notify());
     this.reset();
@@ -272,6 +274,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const ringArea = card.type === 'reversal' ? player.ring.reversals : player.ring.maneuvers;
       ringArea.push(card);
       this._syncFortitude(player);
+      await this._resolveOnPlayManeuverEffects(player, card);
 
       let damage = card.damage || 0;
       if (opponent.superstar.id === 'mankind' && damage > 0) {
@@ -314,6 +317,41 @@ window.RawDeal.GameEngine = class GameEngine {
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
     return true;
+  }
+
+  _hasTopArsenalToRingside(card) {
+    if (card.effect === 'topArsenalToRingside') return true;
+    const text = (card.text || '').toLowerCase();
+    return text.includes('take the top card of your arsenal and put it into your ringside pile');
+  }
+
+  async _resolveOnPlayManeuverEffects(player, card) {
+    if (!this._hasTopArsenalToRingside(card)) return;
+    await this._topArsenalToRingside(player, card);
+  }
+
+  async _topArsenalToRingside(player, sourceCard) {
+    if (player.arsenal.length === 0) return;
+
+    const top = player.arsenal.pop();
+    this._notify();
+
+    await this.onArsenalToRingside({
+      card: top,
+      sourceManeuver: sourceCard,
+      onReveal: () => {
+        player.ringside.push(top);
+        this.actionLog.push({
+          message: `${sourceCard.name}: put ${top.name} from Arsenal into Ringside.`,
+        });
+        this._notify();
+      },
+    });
+
+    if (sourceCard.alsoDraw) {
+      this._drawCard(player);
+      this._notify();
+    }
   }
 
   _resolveAction(player, card) {

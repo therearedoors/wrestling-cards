@@ -110,6 +110,7 @@ window.RawDeal.CARDS = {
     damage: 5,
     text: "Strike When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile.",
     flavor: "",
+    effect: "topArsenalToRingside",
     set: "premiere",
   },
   'cross-body-block': {
@@ -149,6 +150,7 @@ window.RawDeal.CARDS = {
     damage: 6,
     text: "Strike When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile.",
     flavor: "",
+    effect: "topArsenalToRingside",
     set: "premiere",
   },
   'drop-kick': {
@@ -532,6 +534,8 @@ window.RawDeal.CARDS = {
     damage: 10,
     text: "Grapple When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. You may draw 1 card.",
     flavor: "",
+    effect: "topArsenalToRingside",
+    alsoDraw: 1,
     set: "premiere",
   },
   'ddt': {
@@ -544,6 +548,7 @@ window.RawDeal.CARDS = {
     damage: 9,
     text: "Grapple When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. Opponent must discard 2 cards. SV: 1",
     flavor: "",
+    effect: "topArsenalToRingside",
     set: "premiere",
   },
   'power-slam': {
@@ -580,6 +585,7 @@ window.RawDeal.CARDS = {
     damage: 15,
     text: "Grapple When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. Opponent must discard 2 cards. SV: 2",
     flavor: "",
+    effect: "topArsenalToRingside",
     set: "premiere",
   },
   'collar-elbow-lockup': {

@@ -20,6 +20,7 @@ window.RawDeal.Board = class Board {
       playerReversals: rootEl.querySelector('#rd-player-reversals'),
       opponentArsenal: rootEl.querySelector('#rd-opponent-arsenal'),
       opponentRingside: rootEl.querySelector('#rd-opponent-ringside'),
+      playerArsenal: rootEl.querySelector('#rd-player-arsenal'),
       playerRingside: rootEl.querySelector('#rd-player-ringside'),
       endTurnBtn: rootEl.querySelector('#rd-end-turn'),
       superstarAbilityBtn: rootEl.querySelector('#rd-superstar-ability'),
@@ -324,5 +325,13 @@ window.RawDeal.Board = class Board {
 
   getOpponentRingsideEl() {
     return this.els.opponentRingside;
+  }
+
+  getPlayerArsenalEl() {
+    return this.els.playerArsenal;
+  }
+
+  getPlayerRingsideEl() {
+    return this.els.playerRingside;
   }
 };
