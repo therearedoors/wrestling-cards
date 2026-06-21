@@ -66,6 +66,9 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Strike When successfully played, all Strike maneuvers are +1D for the rest of this turn.",
     flavor: "",
+    effect: "turnSubtypeDamageBonus",
+    effectValue: 1,
+    effectSubtype: "strike",
     set: "premiere",
   },
   'back-body-drop': {
@@ -1644,8 +1647,8 @@ window.RawDeal.CARDS = {
     text: "Action All your maneuvers are +3D for the rest of this turn. Draw 2 cards, or force opponent to discard 2 cards. Unique",
     flavor: "",
     unique: true,
-    effect: "draw",
-    effectValue: 2,
+    effect: "turnDamageBonus",
+    effectValue: 3,
     set: "premiere",
   },
   'the-rock': {
