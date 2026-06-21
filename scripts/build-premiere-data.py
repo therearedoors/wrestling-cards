@@ -389,6 +389,11 @@ def build_text(types_blob, rules):
 
 def infer_effect(card_type, rules, name):
     blob = rules.lower()
+    if 'take the top card of your arsenal and put it into your ringside pile' in blob:
+        effect = {'effect': 'topArsenalToRingside'}
+        if 'you may draw 1' in blob:
+            effect['alsoDraw'] = 1
+        return effect
     if card_type == 'action':
         if 'draw 2' in blob or 'draw up to 2' in blob:
             return {'effect': 'draw', 'effectValue': 2}
@@ -424,7 +429,7 @@ def emit_cards(cards):
         parts = [f"  '{card['id']}': {{"]
         for key in ['id', 'num', 'name', 'type', 'subtype', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
-                    'unique', 'hybrid', 'reverses', 'effect', 'effectValue', 'set']:
+                    'unique', 'hybrid', 'reverses', 'effect', 'effectValue', 'alsoDraw', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]
                 if isinstance(val, bool):

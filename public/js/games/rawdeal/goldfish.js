@@ -36,6 +36,19 @@
           }
         );
       },
+      onArsenalToRingside: async ({ card, onReveal }) => {
+        await window.RawDeal.Animations.flipArsenalToRingside(
+          card,
+          board.getPlayerArsenalEl(),
+          board.getPlayerRingsideEl(),
+          {
+            onReveal: () => {
+              onReveal();
+              window.RawDeal.Animations.pulseEl(board.getPlayerRingsideEl());
+            },
+          }
+        );
+      },
     });
 
     board.onPlayCard = async (instanceId) => {
