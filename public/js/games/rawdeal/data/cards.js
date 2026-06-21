@@ -82,6 +82,9 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Strike The card titled Irish Whip must be played before playing this card. When successfully played, you may either draw 2 cards, or force opponent to discard 2 cards. SV: 1",
     flavor: "",
+    requiresPlayed: "irish-whip",
+    effect: "drawOrOpponentDiscard",
+    effectValue: 2,
     set: "premiere",
   },
   'big-boot': {
@@ -135,6 +138,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     hybrid: true,
     reverses: ["after-irish-whip"],
+    requiresPlayed: "irish-whip",
     set: "premiere",
   },
   'ensugiri': {
@@ -1052,6 +1056,8 @@ window.RawDeal.CARDS = {
     flavor: "",
     hybrid: true,
     reverses: ["after-irish-whip"],
+    actionEffect: "nextStrikeBonus",
+    actionEffectValue: 5,
     set: "premiere",
   },
   'flash-in-the-pan': {
@@ -1641,6 +1647,7 @@ window.RawDeal.CARDS = {
     text: "Strike   (Maneuver) May not be reversed. You must play the card titled Irish Whip before playing this card. When successfully played, opponent discards 1 card. Unique",
     flavor: "",
     unique: true,
+    requiresPlayed: "irish-whip",
     set: "premiere",
   },
   'facebuster': {

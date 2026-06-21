@@ -36,6 +36,10 @@ window.RawDeal.GameEngine = class GameEngine {
     return { all: 0, strike: 0, grapple: 0, submission: 0 };
   }
 
+  _emptyTurnState() {
+    return { irishWhipPlayed: false, nextStrikeBonus: 0 };
+  }
+
   _playerIndex(player) {
     return player.isHuman ? 0 : 1;
   }
@@ -80,6 +84,14 @@ window.RawDeal.GameEngine = class GameEngine {
     if (this.cardEffectFlow?.playerIndex !== 0) return null;
 
     const flow = this.cardEffectFlow;
+    if (flow.type === 'choice') {
+      return {
+        mode: 'choice',
+        message: flow.message,
+        options: flow.options.map((o) => ({ ...o })),
+      };
+    }
+
     if (flow.type === 'discardFromHand') {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
@@ -159,6 +171,7 @@ window.RawDeal.GameEngine = class GameEngine {
       ring: player.ring,
       ringside: player.isHuman ? player.ringside : player.ringside.slice(-8),
       arsenal: player.arsenal,
+      turnState: player.turnState ? { ...player.turnState } : this._emptyTurnState(),
       isHuman: player.isHuman,
     };
   }
@@ -189,6 +202,7 @@ window.RawDeal.GameEngine = class GameEngine {
       ring: { maneuvers: [], actions: [], reversals: [] },
       fortitude: 0,
       superstarAbilityUsed: false,
+      turnState: this._emptyTurnState(),
       isHuman,
       deckId: deck.id,
     };
@@ -256,6 +270,7 @@ window.RawDeal.GameEngine = class GameEngine {
           this.pendingManeuverResolution = null;
         }
         this.turnDamageBonus[this.stateMachine.activePlayer] = this._emptyTurnDamageBonus();
+        active.turnState = this._emptyTurnState();
         this._syncFortitude(active);
         this.stateMachine.transition(EVENTS.REFRESH_DONE);
         continue;
@@ -316,6 +331,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const mode =
       playAs || (utils.canPlayFromHandAs(card, 'maneuver') ? 'maneuver' : utils.primaryType(card));
     if (!utils.canPlayFromHandAs(card, mode)) return false;
+    if (!utils.meetsPlayRequirement(player, card, mode)) return false;
 
     const cost = this._effectiveFortitudeCost(player, card, mode);
     return player.fortitude >= cost;
@@ -357,6 +373,11 @@ window.RawDeal.GameEngine = class GameEngine {
         return true;
       }
 
+      if (this._beginPreDamageChoice(player, played)) {
+        this.pendingManeuverResolution = { player, opponent, played, damage };
+        return true;
+      }
+
       return await this._applyManeuverDamage(player, opponent, played, damage);
     } else if (window.RawDeal.CardUtils.hasType(played, 'action')) {
       player.ring.actions.push(played);
@@ -369,15 +390,24 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async _playFromHandAsAction(player, card) {
-    player.ringside.push(card);
-
     if (card.actionEffect === 'discardToDraw') {
+      player.ringside.push(card);
       const draws = card.actionEffectValue || 1;
       for (let i = 0; i < draws; i++) {
         this._drawCard(player);
       }
       this.actionLog.push({
         message: `${card.name} (action): discarded to draw ${draws} card${draws === 1 ? '' : 's'}.`,
+      });
+      return;
+    }
+
+    player.ring.actions.push(card);
+
+    if (card.actionEffect === 'nextStrikeBonus') {
+      this._applyIrishWhipSetup(player, card);
+      this.actionLog.push({
+        message: `${card.name} played as an action.`,
       });
       return;
     }
@@ -415,7 +445,52 @@ window.RawDeal.GameEngine = class GameEngine {
       damage += turnBonus[subtype];
     }
 
+    if (played.subtype === 'strike' && player.turnState?.nextStrikeBonus) {
+      damage += player.turnState.nextStrikeBonus;
+      player.turnState.nextStrikeBonus = 0;
+    }
+
     return damage;
+  }
+
+  _applyIrishWhipSetup(player, card) {
+    if (!player.turnState) player.turnState = this._emptyTurnState();
+    player.turnState.irishWhipPlayed = true;
+    const bonus = card.actionEffectValue || 5;
+    player.turnState.nextStrikeBonus = bonus;
+    this.actionLog.push({
+      message: `${card.name}: Irish Whip set up — your next Strike maneuver is +${bonus}D this turn.`,
+    });
+  }
+
+  _forceOpponentDiscard(opponent, count) {
+    let discarded = 0;
+    for (let i = 0; i < count; i++) {
+      if (opponent.arsenal.length === 0) break;
+      opponent.ringside.push(opponent.arsenal.pop());
+      discarded += 1;
+    }
+    return discarded;
+  }
+
+  _beginPreDamageChoice(player, card) {
+    if (card.effect !== 'drawOrOpponentDiscard') return false;
+
+    const n = card.effectValue || 2;
+    this.cardEffectFlow = {
+      type: 'choice',
+      choiceId: 'drawOrOpponentDiscard',
+      playerIndex: 0,
+      sourceName: card.name,
+      count: n,
+      message: `${card.name}: choose one before damage is applied.`,
+      options: [
+        { id: 'draw', label: `Draw ${n} cards` },
+        { id: 'opponentDiscard', label: `Opponent discards ${n} cards` },
+      ],
+    };
+    this._notify();
+    return true;
   }
 
   _grantOnSuccessManeuverEffects(player, played) {
@@ -544,6 +619,39 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     return false;
+  }
+
+  selectChoice(optionId) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== 0) return false;
+    if (this.cardEffectFlow.type !== 'choice') return false;
+
+    const flow = this.cardEffectFlow;
+    const player = this.players[0];
+    const opponent = this.players[1];
+
+    if (flow.choiceId === 'drawOrOpponentDiscard') {
+      const n = flow.count || 2;
+      if (optionId === 'draw') {
+        for (let i = 0; i < n; i++) {
+          this._drawCard(player);
+        }
+        this.actionLog.push({
+          message: `${flow.sourceName}: drew ${n} cards.`,
+        });
+      } else if (optionId === 'opponentDiscard') {
+        const discarded = this._forceOpponentDiscard(opponent, n);
+        this.actionLog.push({
+          message: `${flow.sourceName}: opponent discarded ${discarded} card(s) to Ringside.`,
+        });
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
+
+    this._finishCardEffectResolution();
+    return true;
   }
 
   async _topArsenalToRingside(player, sourceCard) {
