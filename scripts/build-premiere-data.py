@@ -30,10 +30,10 @@ DECK_DEFS = {
         'cards': {
             'smackdown-hotel': 1, 'take-that-move': 1, 'rock-bottom': 1,
             'peoples-elbow': 1, 'peoples-eyebrow': 1,
-            'chop': 3, 'punch': 3, 'head-butt': 3,
+            'chop': 3, 'punch': 3, 'head-butt': 2,
             'arm-drag': 3, 'hip-toss': 3, 'samoan-drop': 3,
             'russian-leg-sweep': 3, 'snap-mare': 2, 'spinning-heel-kick': 2,
-            'superkick': 2, 'roundhouse-punch': 3, 'gut-buster': 2,
+            'superkick': 3, 'roundhouse-punch': 3, 'gut-buster': 2,
             'double-leg-takedown': 3, 'step-aside': 3, 'escape-move': 3,
             'break-the-hold': 2, 'irish-whip': 3, 'whaddya-got': 2,
             'shake-it-off': 2, 'recovery': 2, 'comeback': 1,
@@ -246,9 +246,7 @@ def parse_cards(text: str):
         idx += 1
         flavor = lines[idx] if idx < len(lines) and lines[idx].startswith('"') else ''
 
-        sv = fort = dmg = None
-        if m := re.search(r'SV:\s*(\d+)', stats):
-            sv = int(m.group(1))
+        fort = dmg = None
         if m := re.search(r'F:\s*(\d+)', stats):
             fort = int(m.group(1))
         if m := re.search(r'D:\s*(\d+)', stats):
@@ -258,6 +256,7 @@ def parse_cards(text: str):
         rules = ' '.join(rules_lines)
         if rules and not rules.endswith('.'):
             rules = rules  # keep as-is
+        sv = parse_stun_value(stats, rules)
 
         card_id = SUPERSTAR_SLUGS.get(num, slugify(name))
         if num in SUPERSTAR_NUMS:
@@ -428,6 +427,14 @@ def classify(types_blob, rules, name, damage):
             reverses.append('after-irish-whip')
 
     return subtype, reverses
+
+
+def parse_stun_value(stats, rules):
+    """Parse Stun Value from the stats line or rules text (e.g. 'SV: 1', 'Unique SV: 3')."""
+    for src in (stats, rules):
+        if m := re.search(r'(?:unique\s+)?sv:\s*(\d+)', src, re.I):
+            return int(m.group(1))
+    return None
 
 
 def build_text(types_blob, rules):

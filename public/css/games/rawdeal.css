@@ -610,6 +610,7 @@ body:has(.rd-page) {
 
 .rd-card__fort { color: #f1c40f; }
 .rd-card__dmg { color: var(--bg-danger); }
+.rd-card__sv { color: #9b59b6; }
 
 .rd-card--hoverable {
   cursor: default;
