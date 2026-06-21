@@ -65,7 +65,9 @@
     };
 
     board.onAbilitySelect = (instanceId) => {
-      engine.selectForAbility(instanceId);
+      if (!engine.selectForCardEffect(instanceId)) {
+        engine.selectForAbility(instanceId);
+      }
     };
 
     board.onRestart = () => {

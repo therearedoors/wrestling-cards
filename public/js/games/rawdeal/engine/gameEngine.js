@@ -19,6 +19,8 @@ window.RawDeal.GameEngine = class GameEngine {
     this.damageLog = [];
     this.actionLog = [];
     this.abilityFlow = null;
+    this.cardEffectFlow = null;
+    this.pendingManeuverResolution = null;
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
     this.stateMachine.activePlayer = 0;
     this.stateMachine.turnNumber = 0;
@@ -40,8 +42,31 @@ window.RawDeal.GameEngine = class GameEngine {
       damageLog: [...this.damageLog],
       actionLog: [...this.actionLog],
       canPlay: this.stateMachine.canPlayCards(),
+      selectionPrompt: this._publicSelectionPrompt(),
       superstarAbility: this._publicSuperstarAbility(),
     };
+  }
+
+  _publicSelectionPrompt() {
+    if (this.cardEffectFlow?.playerIndex !== 0) return null;
+
+    const flow = this.cardEffectFlow;
+    if (flow.type === 'discardFromHand') {
+      const n = flow.count || 1;
+      const picked = flow.selectedIds.length;
+      const message =
+        n === 1
+          ? `${flow.sourceName}: discard 1 card from your hand to Ringside before damage is applied.`
+          : `${flow.sourceName}: discard ${n} cards from your hand to Ringside before damage (${picked}/${n}).`;
+      return {
+        mode: 'hand',
+        count: n,
+        message,
+        selectedIds: [...flow.selectedIds],
+      };
+    }
+
+    return null;
   }
 
   _publicSuperstarAbility() {
@@ -198,6 +223,8 @@ window.RawDeal.GameEngine = class GameEngine {
         if (active.isHuman) {
           active.superstarAbilityUsed = false;
           this.abilityFlow = null;
+          this.cardEffectFlow = null;
+          this.pendingManeuverResolution = null;
         }
         this._syncFortitude(active);
         this.stateMachine.transition(EVENTS.REFRESH_DONE);
@@ -245,12 +272,11 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _effectiveFortitudeCost(player, card, playAs = 'maneuver') {
-    if (playAs === 'action') return 0;
-    return card.fortitude || 0;
+    return window.RawDeal.CardUtils.playFortitudeCost(card, playAs);
   }
 
   canPlayCard(playerIndex, instanceId, playAs) {
-    if (!this.stateMachine.canPlayCards() || playerIndex !== 0) return false;
+    if (!this.stateMachine.canPlayCards() || playerIndex !== 0 || this.cardEffectFlow) return false;
 
     const player = this.players[0];
     const card = player.hand.find((c) => c.instanceId === instanceId);
@@ -294,39 +320,14 @@ window.RawDeal.GameEngine = class GameEngine {
       this._syncFortitude(player);
       await this._resolveOnPlayManeuverEffects(player, played);
 
-      let damage = played.damage || 0;
-      if (opponent.superstar.id === 'mankind' && damage > 0) {
-        damage = Math.max(0, damage - 1);
+      const damage = this._calcManeuverDamage(player, opponent, played);
+
+      if (this._beginPreDamageDiscardPrompt(player, played)) {
+        this.pendingManeuverResolution = { player, opponent, played, damage };
+        return true;
       }
-      damage += this.nextManeuverBonus[0];
-      this.nextManeuverBonus[0] = 0;
 
-      if (damage > 0) {
-        const damageResult = await this._resolveDamage(opponent, played, damage);
-        this.damageLog.push({
-          card: played.name,
-          damage,
-          result: damageResult.result,
-          reversedBy: damageResult.reversedBy?.name || null,
-          cardsOverturned: damageResult.cardsOverturned,
-        });
-
-        if (damageResult.result === 'pinfall') {
-          this.winner = 0;
-          this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
-          this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
-          this._notify();
-          return true;
-        }
-
-        if (damageResult.result === 'reversed') {
-          this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
-          this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
-          this._notify();
-          await this._runAutoPhases();
-          return true;
-        }
-      }
+      return await this._applyManeuverDamage(player, opponent, played, damage);
     } else if (window.RawDeal.CardUtils.hasType(played, 'action')) {
       player.ring.actions.push(played);
       this._resolveAction(player, played);
@@ -366,6 +367,132 @@ window.RawDeal.GameEngine = class GameEngine {
   async _resolveOnPlayManeuverEffects(player, card) {
     if (!this._hasTopArsenalToRingside(card)) return;
     await this._topArsenalToRingside(player, card);
+  }
+
+  _calcManeuverDamage(player, opponent, played) {
+    let damage = played.damage || 0;
+    if (opponent.superstar.id === 'mankind' && damage > 0) {
+      damage = Math.max(0, damage - 1);
+    }
+    damage += this.nextManeuverBonus[0];
+    this.nextManeuverBonus[0] = 0;
+    return damage;
+  }
+
+  _beginPreDamageDiscardPrompt(player, card) {
+    if (card.effect !== 'discardFromHand') return false;
+
+    const count = card.effectValue || 1;
+    if (player.hand.length === 0) {
+      this.actionLog.push({
+        message: `${card.name}: no cards in hand to discard before damage.`,
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'discardFromHand',
+      playerIndex: 0,
+      sourceName: card.name,
+      count,
+      selectedIds: [],
+    };
+    this._notify();
+    return true;
+  }
+
+  async _applyManeuverDamage(player, opponent, played, damage) {
+    if (damage > 0) {
+      const damageResult = await this._resolveDamage(opponent, played, damage);
+      this.damageLog.push({
+        card: played.name,
+        damage,
+        result: damageResult.result,
+        reversedBy: damageResult.reversedBy?.name || null,
+        cardsOverturned: damageResult.cardsOverturned,
+      });
+
+      if (damageResult.result === 'pinfall') {
+        this.winner = 0;
+        this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
+        this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
+        this._notify();
+        return true;
+      }
+
+      if (damageResult.result === 'reversed') {
+        this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
+        this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
+        this._notify();
+        await this._runAutoPhases();
+        return true;
+      }
+    }
+
+    this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
+    this._notify();
+    return true;
+  }
+
+  async _continuePendingManeuverDamage() {
+    const pending = this.pendingManeuverResolution;
+    this.pendingManeuverResolution = null;
+    if (!pending) {
+      this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
+      this._notify();
+      return;
+    }
+
+    const { player, opponent, played, damage } = pending;
+    await this._applyManeuverDamage(player, opponent, played, damage);
+  }
+
+  _finishCardEffectResolution() {
+    this.cardEffectFlow = null;
+    if (this.pendingManeuverResolution) {
+      void this._continuePendingManeuverDamage();
+      return;
+    }
+
+    this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
+    this._notify();
+  }
+
+  selectForCardEffect(instanceId) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== 0) return false;
+
+    const player = this.players[0];
+    const flow = this.cardEffectFlow;
+
+    if (flow.type === 'discardFromHand') {
+      if (flow.selectedIds.includes(instanceId)) return false;
+      if (!player.hand.some((c) => c.instanceId === instanceId)) return false;
+
+      flow.selectedIds.push(instanceId);
+      const needed = flow.count || 1;
+
+      if (flow.selectedIds.length < needed) {
+        this._notify();
+        return true;
+      }
+
+      const toDiscard = flow.selectedIds
+        .map((id) => player.hand.find((c) => c.instanceId === id))
+        .filter(Boolean);
+      player.hand = player.hand.filter((c) => !flow.selectedIds.includes(c.instanceId));
+      for (const discarded of toDiscard) {
+        player.ringside.push(discarded);
+      }
+
+      const names = toDiscard.map((c) => c.name).join(', ');
+      this.actionLog.push({
+        message: `${flow.sourceName}: discarded ${names} to Ringside.`,
+      });
+      this._finishCardEffectResolution();
+      return true;
+    }
+
+    return false;
   }
 
   async _topArsenalToRingside(player, sourceCard) {
@@ -476,7 +603,9 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   canUseSuperstarAbility(playerIndex) {
-    if (!this.stateMachine.canPlayCards() || playerIndex !== 0 || this.abilityFlow) return false;
+    if (!this.stateMachine.canPlayCards() || playerIndex !== 0 || this.abilityFlow || this.cardEffectFlow) {
+      return false;
+    }
 
     const player = this.players[0];
     if (!player || player.superstarAbilityUsed) return false;
@@ -574,7 +703,9 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async endTurn() {
-    if (!this.stateMachine.canPlayCards()) return;
+    if (!this.stateMachine.canPlayCards() || this.cardEffectFlow || this.pendingManeuverResolution) {
+      return;
+    }
     this.abilityFlow = null;
     this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
     await this._runAutoPhases();

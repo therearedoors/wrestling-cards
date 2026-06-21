@@ -102,7 +102,7 @@ DECK_DEFS = {
         'cards': {
             'leaping-knee-to-the-face': 1, 'facebuster': 1, 'i-am-the-game': 1,
             'pedigree': 1, 'chyna-interferes': 1,
-            'punch': 3, 'roundhouse-punch': 3, 'clothesline': 2,
+            'head-butt': 3, 'roundhouse-punch': 3, 'clothesline': 2,
             'spinebuster-equivalent': 0,  # placeholder remove
             'atomic-drop': 3, 'belly-to-belly-suplex': 2,
             'pump-handle-slam': 1, 'body-slam': 2,
@@ -446,6 +446,8 @@ def infer_effect(types_list, rules, name):
         if 'you may draw 1' in blob:
             effect['alsoDraw'] = 1
         return effect
+    if 'when successfully played' in blob and 'discard 1 card of your choice from your hand' in blob:
+        return {'effect': 'discardFromHand', 'effectValue': 1}
     if 'action' in types_list:
         if 'draw 2' in blob or 'draw up to 2' in blob:
             return {'effect': 'draw', 'effectValue': 2}
