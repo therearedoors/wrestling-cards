@@ -47,6 +47,14 @@
       await engine.endTurn();
     };
 
+    board.onUseSuperstarAbility = () => {
+      engine.beginSuperstarAbility(0);
+    };
+
+    board.onAbilitySelect = (instanceId) => {
+      engine.selectForAbility(instanceId);
+    };
+
     board.onRestart = () => {
       setupScreen.classList.remove('hidden');
       gameScreen.classList.add('hidden');
