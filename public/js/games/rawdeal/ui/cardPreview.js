@@ -24,7 +24,8 @@ window.RawDeal.CardPreview = class CardPreview {
     this.els.empty.classList.add('hidden');
     this.els.content.classList.remove('hidden');
 
-    const color = window.RawDeal.CARD_COLORS[card.type] || '#555';
+    const utils = window.RawDeal.CardUtils;
+    const color = window.RawDeal.CARD_COLORS[utils.primaryType(card)] || '#555';
     this.els.content.style.setProperty('--preview-color', color);
 
     this.els.type.textContent = this._typeLabel(card);
@@ -47,11 +48,10 @@ window.RawDeal.CardPreview = class CardPreview {
   }
 
   _typeLabel(card) {
-    if (card.type === 'maneuver' && card.subtype) {
-      return card.subtype.replace(/-/g, ' ');
-    }
-    if (card.type === 'superstar') return 'Superstar';
-    return (card.type || '').charAt(0).toUpperCase() + (card.type || '').slice(1);
+    const utils = window.RawDeal.CardUtils;
+    if (utils.isSuperstar(card)) return 'Superstar';
+    if (utils.isHybrid(card)) return utils.typesLabel(card);
+    return utils.typeLabel(card, utils.primaryType(card));
   }
 
   _statsHtml(card) {
@@ -64,7 +64,8 @@ window.RawDeal.CardPreview = class CardPreview {
   }
 
   _rulesText(card) {
-    if (card.type === 'superstar' && card.ability) return card.ability;
+    const utils = window.RawDeal.CardUtils;
+    if (utils.isSuperstar(card) && card.ability) return card.ability;
     return card.text || '';
   }
 };
