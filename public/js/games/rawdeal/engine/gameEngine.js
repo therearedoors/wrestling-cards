@@ -452,7 +452,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
   async _applyManeuverDamage(player, opponent, played, damage) {
     if (damage > 0) {
-      const damageResult = await this._resolveDamage(opponent, played, damage);
+      const damageResult = await this._resolveDamage(player, opponent, played, damage);
       this.damageLog.push({
         card: played.name,
         damage,
@@ -595,7 +595,7 @@ window.RawDeal.GameEngine = class GameEngine {
     }
   }
 
-  async _resolveDamage(opponent, maneuver, damage) {
+  async _resolveDamage(attacker, opponent, maneuver, damage) {
     let cardsOverturned = 0;
 
     for (let i = 0; i < damage; i++) {
@@ -622,11 +622,31 @@ window.RawDeal.GameEngine = class GameEngine {
       });
 
       if (reversed) {
+        this._applyStunValueDraw(attacker, maneuver);
         return { result: 'reversed', reversedBy: overturned, cardsOverturned };
       }
     }
 
     return { result: 'hit', cardsOverturned };
+  }
+
+  /** Draw for the maneuver's owner when their maneuver is reversed from opponent Arsenal. */
+  _applyStunValueDraw(maneuverOwner, maneuver) {
+    const sv = window.RawDeal.CardUtils.getStunValue(maneuver);
+    if (sv <= 0) return;
+
+    let drawn = 0;
+    for (let i = 0; i < sv; i++) {
+      if (this._drawCard(maneuverOwner)) drawn += 1;
+    }
+
+    if (drawn > 0) {
+      const who = maneuverOwner.isHuman ? 'You draw' : 'Opponent draws';
+      this.actionLog.push({
+        message: `${maneuver.name} reversed (SV ${sv}): ${who} ${drawn} card${drawn === 1 ? '' : 's'}.`,
+      });
+      this._notify();
+    }
   }
 
   _reversalStops(card, maneuver, opponent) {

@@ -48,6 +48,10 @@ window.RawDeal.CardUtils = {
     return card.fortitude || 0;
   },
 
+  getStunValue(card) {
+    return card?.stunValue || 0;
+  },
+
   actionHint(card) {
     if (card.actionEffect === 'discardToDraw') {
       const n = card.actionEffectValue || 1;
