@@ -310,7 +310,7 @@ window.RawDeal.Board = class Board {
       };
     }
     return zones;
-  },
+  }
 
   _cardCost(player, card, playAs = 'maneuver') {
     if (playAs === 'action') return 0;

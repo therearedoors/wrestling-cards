@@ -49,7 +49,7 @@ window.RawDeal.CardPreview = class CardPreview {
 
   _typeLabel(card) {
     const utils = window.RawDeal.CardUtils;
-    if (card.type === 'superstar') return 'Superstar';
+    if (utils.isSuperstar(card)) return 'Superstar';
     if (utils.isHybrid(card)) return utils.typesLabel(card);
     return utils.typeLabel(card, utils.primaryType(card));
   }
@@ -64,7 +64,8 @@ window.RawDeal.CardPreview = class CardPreview {
   }
 
   _rulesText(card) {
-    if (card.type === 'superstar' && card.ability) return card.ability;
+    const utils = window.RawDeal.CardUtils;
+    if (utils.isSuperstar(card) && card.ability) return card.ability;
     return card.text || '';
   }
 };

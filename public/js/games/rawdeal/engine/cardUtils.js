@@ -4,9 +4,8 @@ window.RawDeal.CardUtils = {
   HAND_PLAY_MODES: ['maneuver', 'action'],
 
   getTypes(card) {
-    if (!card) return [];
-    if (card.types?.length) return card.types;
-    return card.type ? [card.type] : [];
+    if (!card?.types?.length) return [];
+    return card.types;
   },
 
   isHybrid(card) {
@@ -17,8 +16,12 @@ window.RawDeal.CardUtils = {
     return this.getTypes(card).includes(type);
   },
 
+  isSuperstar(card) {
+    return this.hasType(card, 'superstar');
+  },
+
   primaryType(card) {
-    return this.getTypes(card)[0] || card.type;
+    return this.getTypes(card)[0] || 'maneuver';
   },
 
   typeLabel(card, type) {

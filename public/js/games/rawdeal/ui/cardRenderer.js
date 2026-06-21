@@ -86,31 +86,41 @@ window.RawDeal.CardRenderer = {
           .filter(Boolean)
           .join(' ');
 
-        let body = `<span class="rd-card__zone-kind">${utils.typeLabel(card, type)}</span>`;
+        let stats = '';
         if (type === 'maneuver') {
-          body += `<span class="rd-card__zone-stat">${card.damage ? `D ${card.damage}` : ''}</span>`;
+          if (card.damage) stats += `<span class="rd-card__zone-stat">D ${card.damage}</span>`;
           if (card.fortitude !== undefined) {
-            body += `<span class="rd-card__zone-stat">F ${card.fortitude}</span>`;
+            stats += `<span class="rd-card__zone-stat">F ${card.fortitude}</span>`;
           }
         } else if (type === 'action') {
-          body += `<span class="rd-card__zone-stat">${utils.actionHint(card)}</span>`;
+          stats += `<span class="rd-card__zone-stat">${utils.actionHint(card)}</span>`;
         } else if (type === 'reversal') {
-          body += `<span class="rd-card__zone-stat">Reversal</span>`;
+          stats += `<span class="rd-card__zone-stat">Reversal</span>`;
         }
 
         const tag = playZones ? 'button' : 'div';
         const attrs = playZones
           ? `type="button" data-play-as="${type}"${disabled ? ' disabled' : ''}`
           : `data-play-as="${type}"`;
-        return `<${tag} class="${classes}" ${attrs}>${body}</${tag}>`;
+        return `<${tag} class="${classes}" ${attrs}>
+          <span class="rd-card__zone-kind">${utils.typeLabel(card, type)}</span>
+          ${stats}
+        </${tag}>`;
       })
+      .join('');
+
+    const titleBands = types
+      .map((type) => `<span class="rd-card__hybrid-color rd-card__hybrid-color--${type}"></span>`)
       .join('');
 
     return `
       <div class="rd-card__inner">
         <div class="rd-card__face rd-card__front rd-card__front--hybrid">
+          <div class="rd-card__hybrid-header">
+            <div class="rd-card__hybrid-header-colors" aria-hidden="true">${titleBands}</div>
+            <span class="rd-card__hybrid-name">${card.name}</span>
+          </div>
           <div class="rd-card__zones">${zones}</div>
-          <span class="rd-card__name rd-card__name--hybrid">${card.name}</span>
         </div>
         <div class="rd-card__face rd-card__back">
           <span class="rd-card__back-logo">RAW DEAL</span>

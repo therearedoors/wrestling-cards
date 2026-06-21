@@ -327,7 +327,7 @@ window.RawDeal.GameEngine = class GameEngine {
           return true;
         }
       }
-    } else if (played.type === 'action') {
+    } else if (window.RawDeal.CardUtils.hasType(played, 'action')) {
       player.ring.actions.push(played);
       this._resolveAction(player, played);
     }
@@ -447,8 +447,9 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _reversalStops(card, maneuver, opponent) {
+    const utils = window.RawDeal.CardUtils;
     const canReverseFromArsenal =
-      card.type === 'reversal' || (card.reverses && card.reverses.length > 0);
+      utils.hasType(card, 'reversal') || (card.reverses && card.reverses.length > 0);
     if (!canReverseFromArsenal || !card.reverses) return false;
 
     const reversalCost = card.fortitude || 0;
