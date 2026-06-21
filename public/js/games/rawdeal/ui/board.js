@@ -229,29 +229,44 @@ window.RawDeal.Board = class Board {
 
     const abilityHandMode = abilityPrompt?.mode === 'hand';
 
+    const utils = window.RawDeal.CardUtils;
+
     for (const card of player.hand) {
-      const cost = this._cardCost(player, card);
-      const affordable = player.fortitude >= cost;
-      const playable =
-        canPlay && !abilityPrompt && card.type !== 'reversal' && affordable;
+      const cost = this._cardCost(player, card, 'maneuver');
+      const affordableManeuver = player.fortitude >= cost;
+      const canManeuver =
+        canPlay && !abilityPrompt && utils.canPlayFromHandAs(card, 'maneuver') && affordableManeuver;
+      const canAction =
+        canPlay && !abilityPrompt && utils.canPlayFromHandAs(card, 'action');
       const selected = abilityPrompt?.selectedIds?.includes(card.instanceId);
       const selectedCount = abilityPrompt?.selectedIds?.length || 0;
       const selectable =
         abilityHandMode && !selected && selectedCount < (abilityPrompt.count || 1);
+      const isHybrid = utils.isHybrid(card);
+
+      const playZones = isHybrid
+        ? this._buildHybridPlayZones(card, { canManeuver, canAction })
+        : null;
 
       const el = window.RawDeal.CardRenderer.createCardEl(card, {
-        clickable: playable || selectable,
-        onClick: playable
+        clickable: !isHybrid && (canManeuver || canAction || selectable),
+        playZones,
+        onClick: !isHybrid && canManeuver
           ? () => {
-              if (this.onPlayCard) this.onPlayCard(card.instanceId);
+              if (this.onPlayCard) this.onPlayCard(card.instanceId, 'maneuver');
             }
-          : selectable
+          : !isHybrid && canAction
             ? () => {
-                if (this.onAbilitySelect) this.onAbilitySelect(card.instanceId);
+                if (this.onPlayCard) this.onPlayCard(card.instanceId, 'action');
               }
-            : undefined,
+            : selectable
+              ? () => {
+                  if (this.onAbilitySelect) this.onAbilitySelect(card.instanceId);
+                }
+              : undefined,
       });
-      if (canPlay && !abilityPrompt && card.type !== 'reversal' && !affordable) {
+
+      if (canPlay && !abilityPrompt && !isHybrid && utils.canPlayFromHandAs(card, 'maneuver') && !affordableManeuver) {
         el.classList.add('rd-card--unaffordable');
       }
       if (selected) {
@@ -275,7 +290,30 @@ window.RawDeal.Board = class Board {
     });
   }
 
-  _cardCost(player, card) {
+  _buildHybridPlayZones(card, { canManeuver, canAction }) {
+    const zones = {};
+    const utils = window.RawDeal.CardUtils;
+
+    for (const type of utils.getTypes(card)) {
+      if (!utils.HAND_PLAY_MODES.includes(type)) {
+        zones[type] = { playable: false };
+        continue;
+      }
+      const playable = type === 'maneuver' ? canManeuver : type === 'action' ? canAction : false;
+      zones[type] = {
+        playable,
+        onClick: playable
+          ? () => {
+              if (this.onPlayCard) this.onPlayCard(card.instanceId, type);
+            }
+          : undefined,
+      };
+    }
+    return zones;
+  },
+
+  _cardCost(player, card, playAs = 'maneuver') {
+    if (playAs === 'action') return 0;
     return card.fortitude || 0;
   }
 
