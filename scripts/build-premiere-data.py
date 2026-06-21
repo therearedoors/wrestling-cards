@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PREMIERE_TXT = Path(__file__).resolve().parent.parent / 'data' / 'premiere.txt'
 
-TAG_TEAM_NUMS = {11, 69, 78, 84, 97}
+TAG_TEAM_NUMS = {11, 69, 73, 78, 84, 97}
 
 SUPERSTAR_SLUGS = {
     123: 'stone-cold',
@@ -278,7 +278,7 @@ def parse_cards(text: str):
                 'id': card_id,
                 'num': num,
                 'name': name.split('(')[0].strip().title() if 'logo' in name.lower() else name,
-                'type': 'superstar',
+                'types': ['superstar'],
                 'handSize': hand_size or 5,
                 'superstarValue': sv_val or 3,
                 'ability': ability,
@@ -291,14 +291,20 @@ def parse_cards(text: str):
         if num in TAG_TEAM_NUMS:
             continue
 
-        card_type, subtype, reverses = classify(types_blob, rules, name, dmg)
+        card_text_blob = f'{types_blob} {rules}'.lower()
+        if 'tag team only' in card_text_blob:
+            continue
+
+        subtype, reverses = classify(types_blob, rules, name, dmg)
         unique = bool(re.search(r'^Unique$', rules, re.M)) or num >= 123
+
+        types_list = parse_types_list(types_blob)
 
         entry = {
             'id': card_id,
             'num': num,
             'name': name,
-            'type': card_type,
+            'types': types_list,
             'fortitude': fort if fort is not None else 0,
             'damage': dmg or 0,
             'text': build_text(types_blob, rules),
@@ -313,14 +319,11 @@ def parse_cards(text: str):
             entry['unique'] = True
         if reverses:
             entry['reverses'] = reverses
-
-        types_list = parse_types_list(types_blob, card_type)
-        entry['types'] = types_list
         if len(types_list) > 1:
             entry['hybrid'] = True
 
         # goldfish effect hints
-        effect = infer_effect(card_type, rules, name)
+        effect = infer_effect(types_list, rules, name)
         if effect:
             entry.update(effect)
         action_effect = infer_action_effect(rules)
@@ -332,33 +335,49 @@ def parse_cards(text: str):
     return cards
 
 
-def parse_types_list(types_blob, card_type):
+MANEUVER_MARKERS = ('Strike', 'Grapple', 'Submission', 'High Risk', 'Trademark', 'Maneuver')
+
+
+def _has_standalone_maneuver_segment(types_blob: str) -> bool:
+    """True when the card line includes a maneuver type, not only 'Reversal: Strike'."""
+    blob = types_blob.strip()
+    blob_lower = blob.lower()
+    if '/' in blob:
+        head = blob.split('/')[0].strip()
+        return any(k in head for k in MANEUVER_MARKERS)
+    if blob_lower.startswith('reversal') or blob_lower.startswith('action'):
+        return False
+    return any(k in blob for k in MANEUVER_MARKERS)
+
+
+def _has_action_segment(types_blob: str) -> bool:
+    blob_lower = types_blob.lower().strip()
+    return bool(
+        re.search(r'(^|/|\s)action', blob_lower) or blob_lower.startswith('action')
+    )
+
+
+def parse_types_list(types_blob: str) -> list:
     """Return ordered play modes for a card, e.g. ['maneuver', 'action']."""
-    blob_lower = types_blob.lower()
+    blob_lower = types_blob.lower().strip()
     types = []
 
-    has_maneuver_line = card_type == 'maneuver' or any(
-        k in types_blob
-        for k in ('Strike', 'Grapple', 'Submission', 'High Risk', 'Trademark', 'Maneuver')
-    )
-    has_action_line = bool(
-        re.search(r'(^|/|\s)action', blob_lower) or blob_lower.strip().startswith('action')
-    )
-    has_reversal_line = 'reversal' in blob_lower
-
-    if has_maneuver_line and card_type != 'action':
+    if _has_standalone_maneuver_segment(types_blob):
         types.append('maneuver')
-    if has_action_line:
+    if _has_action_segment(types_blob):
         types.append('action')
-    if has_reversal_line:
+    if blob_lower.startswith('reversal') or (
+        'reversal' in blob_lower and '/' in types_blob
+    ):
         types.append('reversal')
 
-    if card_type == 'action' and 'action' not in types:
-        types.insert(0, 'action')
-    if card_type == 'reversal' and 'reversal' not in types:
-        types.append('reversal')
     if not types:
-        types = [card_type]
+        if blob_lower.startswith('action'):
+            types = ['action']
+        elif 'reversal' in blob_lower:
+            types = ['reversal']
+        else:
+            types = ['maneuver']
 
     seen = set()
     ordered = []
@@ -382,32 +401,15 @@ def classify(types_blob, rules, name, damage):
     types_lower = types_blob.lower()
 
     if 'superstar' in types_lower:
-        return 'superstar', None, []
+        return None, []
 
-    is_maneuver_line = any(
-        k in types_blob for k in ('Strike', 'Grapple', 'Submission', 'High Risk', 'Trademark', 'Maneuver')
-    )
-    is_reversal_primary = types_lower.strip().startswith('reversal')
-    is_action_primary = types_lower.strip().startswith('action')
+    subtype = None
+    for st in ('trademark-finisher', 'trademark', 'high-risk', 'submission', 'grapple', 'strike'):
+        if st.replace('-', ' ') in blob or st in blob:
+            subtype = st
+            break
 
-    if is_maneuver_line or (damage and damage > 0 and not is_reversal_primary):
-        card_type = 'maneuver'
-        subtype = None
-        for st in ('trademark-finisher', 'trademark', 'high-risk', 'submission', 'grapple', 'strike'):
-            if st.replace('-', ' ') in blob or st in blob:
-                subtype = st
-                break
-    elif is_reversal_primary or (types_lower.startswith('reversal') and not is_maneuver_line):
-        card_type = 'reversal'
-        subtype = None
-    elif is_action_primary or 'action' in types_lower:
-        card_type = 'action'
-        subtype = None
-    else:
-        card_type = 'reversal' if 'reversal' in types_lower else 'action'
-        subtype = None
-
-    if card_type == 'reversal' or 'reversal' in types_blob.lower():
+    if 'reversal' in types_blob.lower():
         if 'reverse any strike' in blob or 'reversal: strike' in blob:
             reverses.append('strike')
         if 'reverse any grapple' in blob or 'reversal: grapple' in blob:
@@ -425,7 +427,7 @@ def classify(types_blob, rules, name, damage):
         if 'irish whip' in blob:
             reverses.append('after-irish-whip')
 
-    return card_type, subtype, reverses
+    return subtype, reverses
 
 
 def build_text(types_blob, rules):
@@ -437,14 +439,14 @@ def build_text(types_blob, rules):
     return ' '.join(parts)
 
 
-def infer_effect(card_type, rules, name):
+def infer_effect(types_list, rules, name):
     blob = rules.lower()
     if 'take the top card of your arsenal and put it into your ringside pile' in blob:
         effect = {'effect': 'topArsenalToRingside'}
         if 'you may draw 1' in blob:
             effect['alsoDraw'] = 1
         return effect
-    if card_type == 'action':
+    if 'action' in types_list:
         if 'draw 2' in blob or 'draw up to 2' in blob:
             return {'effect': 'draw', 'effectValue': 2}
         if 'draw 1' in blob or 'draw a card' in blob:
@@ -477,7 +479,7 @@ def emit_cards(cards):
     items = sorted(cards.values(), key=lambda c: c['num'])
     for i, card in enumerate(items):
         parts = [f"  '{card['id']}': {{"]
-        for key in ['id', 'num', 'name', 'type', 'types', 'subtype', 'handSize', 'superstarValue',
+        for key in ['id', 'num', 'name', 'types', 'subtype', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
                     'unique', 'hybrid', 'reverses', 'effect', 'effectValue', 'actionEffect',
                     'actionEffectValue', 'alsoDraw', 'set']:
