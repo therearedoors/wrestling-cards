@@ -313,17 +313,67 @@ def parse_cards(text: str):
             entry['unique'] = True
         if reverses:
             entry['reverses'] = reverses
-        if 'hybrid' in entry.get('text', '').lower() or '/' in types_blob:
+
+        types_list = parse_types_list(types_blob, card_type)
+        entry['types'] = types_list
+        if len(types_list) > 1:
             entry['hybrid'] = True
 
         # goldfish effect hints
         effect = infer_effect(card_type, rules, name)
         if effect:
             entry.update(effect)
+        action_effect = infer_action_effect(rules)
+        if action_effect:
+            entry.update(action_effect)
 
         cards[card_id] = entry
 
     return cards
+
+
+def parse_types_list(types_blob, card_type):
+    """Return ordered play modes for a card, e.g. ['maneuver', 'action']."""
+    blob_lower = types_blob.lower()
+    types = []
+
+    has_maneuver_line = card_type == 'maneuver' or any(
+        k in types_blob
+        for k in ('Strike', 'Grapple', 'Submission', 'High Risk', 'Trademark', 'Maneuver')
+    )
+    has_action_line = bool(
+        re.search(r'(^|/|\s)action', blob_lower) or blob_lower.strip().startswith('action')
+    )
+    has_reversal_line = 'reversal' in blob_lower
+
+    if has_maneuver_line and card_type != 'action':
+        types.append('maneuver')
+    if has_action_line:
+        types.append('action')
+    if has_reversal_line:
+        types.append('reversal')
+
+    if card_type == 'action' and 'action' not in types:
+        types.insert(0, 'action')
+    if card_type == 'reversal' and 'reversal' not in types:
+        types.append('reversal')
+    if not types:
+        types = [card_type]
+
+    seen = set()
+    ordered = []
+    for t in types:
+        if t not in seen:
+            seen.add(t)
+            ordered.append(t)
+    return ordered
+
+
+def infer_action_effect(rules):
+    blob = rules.lower()
+    if 'as an action' in blob and 'discard this card to draw 1' in blob:
+        return {'actionEffect': 'discardToDraw', 'actionEffectValue': 1}
+    return None
 
 
 def classify(types_blob, rules, name, damage):
@@ -427,9 +477,10 @@ def emit_cards(cards):
     items = sorted(cards.values(), key=lambda c: c['num'])
     for i, card in enumerate(items):
         parts = [f"  '{card['id']}': {{"]
-        for key in ['id', 'num', 'name', 'type', 'subtype', 'handSize', 'superstarValue',
+        for key in ['id', 'num', 'name', 'type', 'types', 'subtype', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
-                    'unique', 'hybrid', 'reverses', 'effect', 'effectValue', 'alsoDraw', 'set']:
+                    'unique', 'hybrid', 'reverses', 'effect', 'effectValue', 'actionEffect',
+                    'actionEffectValue', 'alsoDraw', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]
                 if isinstance(val, bool):

@@ -51,9 +51,9 @@
       },
     });
 
-    board.onPlayCard = async (instanceId) => {
-      if (!engine.canPlayCard(0, instanceId)) return;
-      await engine.playCard(instanceId);
+    board.onPlayCard = async (instanceId, playAs) => {
+      if (!engine.canPlayCard(0, instanceId, playAs)) return;
+      await engine.playCard(instanceId, playAs);
     };
 
     board.onEndTurn = async () => {

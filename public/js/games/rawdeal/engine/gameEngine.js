@@ -244,39 +244,57 @@ window.RawDeal.GameEngine = class GameEngine {
     return false;
   }
 
-  _effectiveFortitudeCost(player, card) {
+  _effectiveFortitudeCost(player, card, playAs = 'maneuver') {
+    if (playAs === 'action') return 0;
     return card.fortitude || 0;
   }
 
-  canPlayCard(playerIndex, instanceId) {
+  canPlayCard(playerIndex, instanceId, playAs) {
     if (!this.stateMachine.canPlayCards() || playerIndex !== 0) return false;
 
     const player = this.players[0];
     const card = player.hand.find((c) => c.instanceId === instanceId);
     if (!card) return false;
-    const cost = this._effectiveFortitudeCost(player, card);
+
+    const utils = window.RawDeal.CardUtils;
+    const mode =
+      playAs || (utils.canPlayFromHandAs(card, 'maneuver') ? 'maneuver' : utils.primaryType(card));
+    if (!utils.canPlayFromHandAs(card, mode)) return false;
+
+    const cost = this._effectiveFortitudeCost(player, card, mode);
     return player.fortitude >= cost;
   }
 
-  async playCard(instanceId) {
-    if (!this.canPlayCard(0, instanceId)) return false;
-
+  async playCard(instanceId, playAs) {
     const player = this.players[0];
+    const card = player.hand.find((c) => c.instanceId === instanceId);
+    const utils = window.RawDeal.CardUtils;
+    const mode =
+      playAs || (utils.canPlayFromHandAs(card, 'maneuver') ? 'maneuver' : utils.primaryType(card));
+
+    if (!this.canPlayCard(0, instanceId, mode)) return false;
+
     const opponent = this.players[1];
     const handIndex = player.hand.findIndex((c) => c.instanceId === instanceId);
-    const card = player.hand.splice(handIndex, 1)[0];
-    const cost = this._effectiveFortitudeCost(player, card);
+    const played = player.hand.splice(handIndex, 1)[0];
 
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD);
     this._notify();
 
-    if (card.type === 'maneuver' || card.type === 'reversal') {
-      const ringArea = card.type === 'reversal' ? player.ring.reversals : player.ring.maneuvers;
-      ringArea.push(card);
-      this._syncFortitude(player);
-      await this._resolveOnPlayManeuverEffects(player, card);
+    if (mode === 'action') {
+      await this._playFromHandAsAction(player, played);
+      this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
+      this._notify();
+      return true;
+    }
 
-      let damage = card.damage || 0;
+    if (mode === 'maneuver' || mode === 'reversal') {
+      const ringArea = mode === 'reversal' ? player.ring.reversals : player.ring.maneuvers;
+      ringArea.push(played);
+      this._syncFortitude(player);
+      await this._resolveOnPlayManeuverEffects(player, played);
+
+      let damage = played.damage || 0;
       if (opponent.superstar.id === 'mankind' && damage > 0) {
         damage = Math.max(0, damage - 1);
       }
@@ -284,9 +302,9 @@ window.RawDeal.GameEngine = class GameEngine {
       this.nextManeuverBonus[0] = 0;
 
       if (damage > 0) {
-        const damageResult = await this._resolveDamage(opponent, card, damage);
+        const damageResult = await this._resolveDamage(opponent, played, damage);
         this.damageLog.push({
-          card: card.name,
+          card: played.name,
           damage,
           result: damageResult.result,
           reversedBy: damageResult.reversedBy?.name || null,
@@ -309,14 +327,34 @@ window.RawDeal.GameEngine = class GameEngine {
           return true;
         }
       }
-    } else if (card.type === 'action') {
-      player.ring.actions.push(card);
-      this._resolveAction(player, card);
+    } else if (played.type === 'action') {
+      player.ring.actions.push(played);
+      this._resolveAction(player, played);
     }
 
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
     return true;
+  }
+
+  async _playFromHandAsAction(player, card) {
+    player.ringside.push(card);
+
+    if (card.actionEffect === 'discardToDraw') {
+      const draws = card.actionEffectValue || 1;
+      for (let i = 0; i < draws; i++) {
+        this._drawCard(player);
+      }
+      this.actionLog.push({
+        message: `${card.name} (action): discarded to draw ${draws} card${draws === 1 ? '' : 's'}.`,
+      });
+      return;
+    }
+
+    this._resolveAction(player, card);
+    this.actionLog.push({
+      message: `${card.name} played as an action.`,
+    });
   }
 
   _hasTopArsenalToRingside(card) {
