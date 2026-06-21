@@ -40,6 +40,14 @@ window.RawDeal.CardUtils = {
     return this.hasType(card, playAs);
   },
 
+  /** Fortitude required to play from hand. Hybrid discard-to-draw actions cost 0. */
+  playFortitudeCost(card, playAs = 'maneuver') {
+    if (playAs === 'action' && this.isHybrid(card) && card.actionEffect === 'discardToDraw') {
+      return 0;
+    }
+    return card.fortitude || 0;
+  },
+
   actionHint(card) {
     if (card.actionEffect === 'discardToDraw') {
       const n = card.actionEffectValue || 1;

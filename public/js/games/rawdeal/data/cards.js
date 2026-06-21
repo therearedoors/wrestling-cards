@@ -40,6 +40,8 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Strike When successfully played, discard 1 card of your choice from your hand.",
     flavor: "",
+    effect: "discardFromHand",
+    effectValue: 1,
     set: "premiere",
   },
   'roundhouse-punch': {
@@ -295,6 +297,8 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Grapple When successfully played, discard 1 card of your choice from your hand.",
     flavor: "",
+    effect: "discardFromHand",
+    effectValue: 1,
     set: "premiere",
   },
   'russian-leg-sweep': {
@@ -526,6 +530,8 @@ window.RawDeal.CARDS = {
     damage: 8,
     text: "Grapple When successfully played, discard 1 card of your choice from your hand. Look at opponent’s hand, then choose and discard 1 card from his hand.",
     flavor: "",
+    effect: "discardFromHand",
+    effectValue: 1,
     set: "premiere",
   },
   'fisherman-s-suplex': {
@@ -631,6 +637,8 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Submission When successfully played, discard 1 card of your choice from your hand.",
     flavor: "",
+    effect: "discardFromHand",
+    effectValue: 1,
     set: "premiere",
   },
   'chin-lock': {
