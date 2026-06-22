@@ -1,0 +1,434 @@
+{
+  "chop": {
+    "unique": false
+  },
+  "punch": {
+    "unique": false
+  },
+  "head-butt": {
+    "unique": false
+  },
+  "roundhouse-punch": {
+    "unique": false
+  },
+  "haymaker": {
+    "unique": false
+  },
+  "back-body-drop": {
+    "unique": false
+  },
+  "big-boot": {
+    "unique": false
+  },
+  "shoulder-block": {
+    "unique": false
+  },
+  "kick": {
+    "unique": false
+  },
+  "cross-body-block": {
+    "unique": false
+  },
+  "ensugiri": {
+    "unique": false
+  },
+  "running-elbow-smash": {
+    "unique": false
+  },
+  "drop-kick": {
+    "unique": false
+  },
+  "discus-punch": {
+    "unique": false
+  },
+  "superkick": {
+    "unique": false
+  },
+  "spinning-heel-kick": {
+    "unique": false
+  },
+  "spear": {
+    "unique": false
+  },
+  "clothesline": {
+    "unique": false
+  },
+  "chair-shot": {
+    "unique": false
+  },
+  "hurricanrana": {
+    "unique": false
+  },
+  "arm-bar-takedown": {
+    "unique": false
+  },
+  "hip-toss": {
+    "unique": false
+  },
+  "arm-drag": {
+    "unique": false
+  },
+  "russian-leg-sweep": {
+    "unique": false
+  },
+  "snap-mare": {
+    "unique": false
+  },
+  "gut-buster": {
+    "unique": false
+  },
+  "body-slam": {
+    "unique": false
+  },
+  "back-breaker": {
+    "unique": false
+  },
+  "double-leg-takedown": {
+    "unique": false
+  },
+  "fireman-s-carry": {
+    "unique": false
+  },
+  "headlock-takedown": {
+    "unique": false
+  },
+  "belly-to-belly-suplex": {
+    "unique": false
+  },
+  "atomic-facebuster": {
+    "unique": false
+  },
+  "atomic-drop": {
+    "unique": false
+  },
+  "inverse-atomic-drop": {
+    "unique": false
+  },
+  "vertical-suplex": {
+    "unique": false
+  },
+  "belly-to-back-suplex": {
+    "unique": false
+  },
+  "pump-handle-slam": {
+    "unique": false
+  },
+  "reverse-ddt": {
+    "unique": false
+  },
+  "samoan-drop": {
+    "unique": false
+  },
+  "sit-out-powerbomb": {
+    "unique": false
+  },
+  "bulldog": {
+    "unique": false
+  },
+  "fisherman-s-suplex": {
+    "unique": false
+  },
+  "ddt": {
+    "unique": false
+  },
+  "power-slam": {
+    "unique": false
+  },
+  "powerbomb": {
+    "unique": false
+  },
+  "press-slam": {
+    "unique": false
+  },
+  "collar-elbow-lockup": {
+    "unique": false
+  },
+  "wrist-lock": {
+    "unique": false
+  },
+  "arm-bar": {
+    "unique": false
+  },
+  "chin-lock": {
+    "unique": false
+  },
+  "bear-hug": {
+    "unique": false
+  },
+  "full-nelson": {
+    "unique": false
+  },
+  "choke-hold": {
+    "unique": false
+  },
+  "step-over-toe-hold": {
+    "unique": false
+  },
+  "ankle-lock": {
+    "unique": false
+  },
+  "standing-side-headlock": {
+    "unique": false
+  },
+  "cobra-clutch": {
+    "unique": false
+  },
+  "bow-and-arrow": {
+    "unique": false
+  },
+  "chicken-wing": {
+    "unique": false
+  },
+  "sleeper": {
+    "unique": false
+  },
+  "camel-clutch": {
+    "unique": false
+  },
+  "boston-crab": {
+    "unique": false
+  },
+  "guillotine-stretch": {
+    "unique": false
+  },
+  "abdominal-stretch": {
+    "unique": false
+  },
+  "torture-rack": {
+    "unique": false
+  },
+  "figure-four-leg-lock": {
+    "unique": false
+  },
+  "step-aside": {
+    "unique": false
+  },
+  "escape-move": {
+    "unique": false
+  },
+  "break-the-hold": {
+    "unique": false
+  },
+  "rolling-takedown": {
+    "unique": false
+  },
+  "knee-to-the-gut": {
+    "unique": false
+  },
+  "elbow-to-the-face": {
+    "unique": false
+  },
+  "clean-break": {
+    "unique": false
+  },
+  "manager-interferes": {
+    "unique": false
+  },
+  "disqualification": {
+    "unique": false
+  },
+  "no-chance-in-hell": {
+    "unique": false
+  },
+  "hmmm": {
+    "unique": false
+  },
+  "don-t-think-too-hard": {
+    "unique": false
+  },
+  "whaddya-got": {
+    "unique": false
+  },
+  "not-yet": {
+    "unique": false
+  },
+  "jockeying-for-position": {
+    "unique": false
+  },
+  "irish-whip": {
+    "unique": false
+  },
+  "flash-in-the-pan": {
+    "unique": false
+  },
+  "view-of-villainy": {
+    "unique": false
+  },
+  "shake-it-off": {
+    "unique": false
+  },
+  "offer-handshake": {
+    "unique": false
+  },
+  "roll-out-of-the-ring": {
+    "unique": false
+  },
+  "distract-the-ref": {
+    "unique": false
+  },
+  "recovery": {
+    "unique": false
+  },
+  "spit-at-opponent": {
+    "unique": false
+  },
+  "get-crowd-support": {
+    "unique": false
+  },
+  "comeback": {
+    "unique": false
+  },
+  "ego-boost": {
+    "unique": false
+  },
+  "deluding-yourself": {
+    "unique": false
+  },
+  "stagger": {
+    "unique": false
+  },
+  "diversion": {
+    "unique": false
+  },
+  "marking-out": {
+    "unique": false
+  },
+  "puppies-puppies": {
+    "unique": false
+  },
+  "shane-omac": {
+    "unique": false
+  },
+  "maintain-hold": {
+    "unique": false
+  },
+  "pat-and-gerry": {
+    "unique": false
+  },
+  "stone-cold-stunner": {
+    "unique": false
+  },
+  "open-up-a-can": {
+    "unique": false
+  },
+  "undertakers-tombstone-piledriver": {
+    "unique": false
+  },
+  "power-of-darkness": {
+    "unique": true
+  },
+  "mandible-claw": {
+    "unique": false
+  },
+  "mr-socko": {
+    "unique": false
+  },
+  "pedigree": {
+    "unique": false
+  },
+  "chyna-interferes": {
+    "unique": false
+  },
+  "peoples-eyebrow": {
+    "unique": false
+  },
+  "peoples-elbow": {
+    "unique": false
+  },
+  "kanes-tombstone-piledriver": {
+    "unique": false
+  },
+  "hellfire-brimstone": {
+    "unique": false
+  },
+  "walls-of-jericho": {
+    "unique": false
+  },
+  "ayatollah-of-rock-n-roll-a": {
+    "unique": false
+  },
+  "stone-cold": {
+    "unique": false
+  },
+  "austin-elbow-smash": {
+    "unique": true
+  },
+  "lou-thesz-press": {
+    "unique": true
+  },
+  "double-digits": {
+    "unique": true
+  },
+  "undertaker": {
+    "unique": false
+  },
+  "undertakers-chokeslam": {
+    "unique": true
+  },
+  "undertakers-flying-clothesline": {
+    "unique": true
+  },
+  "undertaker-sits-up": {
+    "unique": true
+  },
+  "mankind": {
+    "unique": false
+  },
+  "have-a-nice-day": {
+    "unique": true
+  },
+  "double-arm-ddt": {
+    "unique": true
+  },
+  "tree-of-woe": {
+    "unique": true
+  },
+  "hhh": {
+    "unique": false
+  },
+  "leaping-knee-to-the-face": {
+    "unique": true
+  },
+  "facebuster": {
+    "unique": true
+  },
+  "i-am-the-game": {
+    "unique": true
+  },
+  "the-rock": {
+    "unique": false
+  },
+  "smackdown-hotel": {
+    "unique": true
+  },
+  "take-that-move": {
+    "unique": true
+  },
+  "rock-bottom": {
+    "unique": true
+  },
+  "kane": {
+    "unique": false
+  },
+  "kanes-chokeslam": {
+    "unique": true
+  },
+  "kanes-flying-clothesline": {
+    "unique": true
+  },
+  "kanes-return": {
+    "unique": true
+  },
+  "jericho": {
+    "unique": false
+  },
+  "lionsault": {
+    "unique": true
+  },
+  "y2j": {
+    "unique": true
+  },
+  "dont-you-never-ever": {
+    "unique": true
+  }
+}

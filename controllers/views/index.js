@@ -38,5 +38,15 @@ exports.getRawDealGoldfishPage = (req, res) => {
     if (!req.cookies.token) {
         return res.redirect('/login');
     }
-    res.render('games/rawdeal/goldfish', { authorized: true });
+    res.render('games/rawdeal/goldfish', {
+        authorized: true,
+        devMode: req.query.dev === '1',
+    });
+}
+
+exports.getRawDealDeckBuilderPage = (req, res) => {
+    if (!req.cookies.token) {
+        return res.redirect('/login');
+    }
+    res.render('games/rawdeal/deck-builder', { authorized: true });
 }

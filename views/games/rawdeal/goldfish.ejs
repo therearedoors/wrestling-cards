@@ -1,7 +1,7 @@
 <%- include('../../include/header') %>
 <link rel="stylesheet" href="/css/games/rawdeal.css">
 
-<div class="rd-page">
+<div class="rd-page" data-rd-dev="<%= devMode ? '1' : '0' %>">
     <section id="rd-setup" class="rd-setup">
         <div class="rd-setup-card">
             <h2>Choose Your Superstar</h2>
@@ -17,6 +17,15 @@
             </select>
             <p class="rd-setup-note">
                 You'll face the rival starter deck. The opponent won't play cards — overturn reversals from their Arsenal still work.
+            </p>
+            <p id="rd-override-note" class="rd-setup-note rd-setup-note--override hidden">
+                Using your saved deck customizations from the <a href="/rawdeal/decks">Deck Builder</a>.
+            </p>
+            <p class="rd-setup-links">
+                <a href="/rawdeal/decks">Edit Decks</a>
+                <% if (!devMode) { %>
+                    · <a href="/rawdeal/goldfish?dev=1">Dev Mode</a>
+                <% } %>
             </p>
             <button id="rd-start-btn" class="rd-btn rd-btn--primary">Start Match</button>
         </div>
@@ -107,24 +116,44 @@
                 </div>
             </div>
 
-            <aside id="rd-card-preview" class="rd-card-preview">
-                <div class="rd-preview__empty">
-                    <p>Hover a card to inspect it</p>
-                </div>
-                <div class="rd-preview__content hidden">
-                    <div class="rd-preview__card-mount"></div>
-                    <span class="rd-preview__type"></span>
-                    <h2 class="rd-preview__name"></h2>
-                    <div class="rd-preview__stats"></div>
-                    <div class="rd-preview__section">
-                        <h3>Rules Text</h3>
-                        <p class="rd-preview__rules"></p>
+            <aside class="rd-sidebar">
+                <div id="rd-card-preview" class="rd-card-preview">
+                    <div class="rd-preview__empty">
+                        <p>Hover a card to inspect it</p>
                     </div>
-                    <div class="rd-preview__section">
-                        <h3>Flavor</h3>
-                        <p class="rd-preview__flavor"></p>
+                    <div class="rd-preview__content hidden">
+                        <div class="rd-preview__card-mount"></div>
+                        <span class="rd-preview__type"></span>
+                        <h2 class="rd-preview__name"></h2>
+                        <div class="rd-preview__stats"></div>
+                        <div class="rd-preview__section">
+                            <h3>Rules Text</h3>
+                            <p class="rd-preview__rules"></p>
+                        </div>
+                        <div class="rd-preview__section">
+                            <h3>Flavor</h3>
+                            <p class="rd-preview__flavor"></p>
+                        </div>
                     </div>
                 </div>
+
+                <% if (devMode) { %>
+                <div id="rd-dev-console" class="rd-dev-console">
+                    <div class="rd-dev-console__header">Dev Console</div>
+                    <div class="rd-dev-console__log" data-rd-dev-log></div>
+                    <form class="rd-dev-console__form" data-rd-dev-form>
+                        <input
+                            type="text"
+                            class="rd-dev-console__input"
+                            data-rd-dev-input
+                            placeholder="draw irish-whip"
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                        <button type="submit" class="rd-btn rd-btn--secondary rd-dev-console__submit">Run</button>
+                    </form>
+                </div>
+                <% } %>
             </aside>
         </div>
     </section>
@@ -132,6 +161,7 @@
 
 <script src="/js/games/rawdeal/data/cards.js"></script>
 <script src="/js/games/rawdeal/data/decks.js"></script>
+<script src="/js/games/rawdeal/data/deckStore.js"></script>
 <script src="/js/games/rawdeal/engine/constants.js"></script>
 <script src="/js/games/rawdeal/engine/cardUtils.js"></script>
 <script src="/js/games/rawdeal/engine/stateMachine.js"></script>
@@ -140,6 +170,10 @@
 <script src="/js/games/rawdeal/ui/cardPreview.js"></script>
 <script src="/js/games/rawdeal/ui/animations.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
+<% if (devMode) { %>
+<script src="/js/games/rawdeal/dev/devCommands.js"></script>
+<script src="/js/games/rawdeal/dev/devConsole.js"></script>
+<% } %>
 <script src="/js/games/rawdeal/goldfish.js"></script>
 
 <%- include('../../include/footer') %>

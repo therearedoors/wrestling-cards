@@ -109,10 +109,11 @@ window.RawDeal.GameEngine = class GameEngine {
     };
   }
 
-  startGame(playerDeckId, opponentDeckId = 'austin') {
-    const { DECKS, CARDS } = window.RawDeal;
-    const playerDeck = DECKS[playerDeckId];
-    const opponentDeck = DECKS[opponentDeckId];
+  startGame(playerDeckId, opponentDeckId = 'austin', decks = null) {
+    const { CARDS } = window.RawDeal;
+    const deckMap = decks || window.RawDeal.DeckStore?.getResolvedDecks() || window.RawDeal.DECKS;
+    const playerDeck = deckMap[playerDeckId];
+    const opponentDeck = deckMap[opponentDeckId];
 
     this.players[0] = this._createPlayer(playerDeck, true);
     this.players[1] = this._createPlayer(opponentDeck, false);
@@ -582,5 +583,43 @@ window.RawDeal.GameEngine = class GameEngine {
 
   _delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  _devCloneCard(cardId) {
+    const base = window.RawDeal.CARDS[cardId];
+    if (!base) return null;
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return { ...base, instanceId: `${cardId}-dev-${suffix}` };
+  }
+
+  devGiveCard(playerIndex, cardId) {
+    const player = this.players[playerIndex];
+    if (!player || this.winner !== null) return false;
+
+    const card = this._devCloneCard(cardId);
+    if (!card) return false;
+
+    player.hand.push(card);
+    this._notify();
+    return true;
+  }
+
+  devStackArsenal(playerIndex, cardId, count = 1) {
+    const player = this.players[playerIndex];
+    if (!player || this.winner !== null) return 0;
+
+    const base = window.RawDeal.CARDS[cardId];
+    if (!base) return 0;
+
+    let stacked = 0;
+    for (let i = 0; i < count; i++) {
+      const card = this._devCloneCard(cardId);
+      if (!card) break;
+      player.arsenal.push(card);
+      stacked++;
+    }
+
+    if (stacked > 0) this._notify();
+    return stacked;
   }
 };

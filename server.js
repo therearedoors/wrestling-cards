@@ -13,6 +13,7 @@ dotenv.config()
 //Routes
 const viewRoutes = require('./routes/views')
 const userRoutes = require('./routes/api/user')
+const rawdealRoutes = require('./routes/api/rawdeal')
 const { createRoom, joinRoom, removeRoom } = require('./utils/room')
 
 const app = express()
@@ -37,6 +38,7 @@ app.use(express.urlencoded({ extended: true }))
 
 app.use("/", viewRoutes)
 app.use("/api", userRoutes)
+app.use("/api/rawdeal", rawdealRoutes)
 
 const io = socketIo(server);
 
