@@ -43,6 +43,7 @@ window.RawDeal.CardRenderer = {
               <div class="rd-card__stats">
                 ${card.fortitude !== undefined ? `<span class="rd-card__fort">F ${card.fortitude}</span>` : ''}
                 ${card.damage ? `<span class="rd-card__dmg">D ${card.damage}</span>` : ''}
+                ${card.stunValue ? `<span class="rd-card__sv">SV ${card.stunValue}</span>` : ''}
               </div>
             </div>
             <div class="rd-card__face rd-card__back">
