@@ -583,8 +583,15 @@ def main():
 
     cards_out.write_text(emit_cards(cards), encoding='utf-8')
     decks_out.write_text(emit_decks(cards, DECK_DEFS), encoding='utf-8')
+    catalog_out = ROOT / 'data/rawdeal-card-catalog.json'
+    catalog = {
+        cid: {'unique': bool(card.get('unique'))}
+        for cid, card in cards.items()
+    }
+    catalog_out.write_text(json.dumps(catalog, indent=2), encoding='utf-8')
     print(f'Wrote {len(cards)} cards -> {cards_out}')
     print(f'Wrote {len(DECK_DEFS)} decks -> {decks_out}')
+    print(f'Wrote card catalog -> {catalog_out}')
 
 
 if __name__ == '__main__':

@@ -1,0 +1,114 @@
+<%- include('../../include/header') %>
+<link rel="stylesheet" href="/css/games/rawdeal.css">
+
+<div class="rd-page rd-deck-builder">
+    <header class="rd-db-header">
+        <div>
+            <h1>Raw Deal Deck Builder</h1>
+            <p class="rd-db-header__sub">Customize starter decks for Goldfish practice. Changes save to your account.</p>
+        </div>
+        <a href="/rawdeal/goldfish" class="rd-btn rd-btn--secondary">Back to Practice</a>
+    </header>
+
+    <div class="rd-db-layout">
+        <section class="rd-db-main">
+            <div class="rd-db-toolbar">
+                <label>
+                    Deck
+                    <select id="rd-db-deck-select" class="rd-select">
+                        <option value="rock">The Rock</option>
+                        <option value="austin">"Stone Cold" Steve Austin</option>
+                        <option value="undertaker">The Undertaker</option>
+                        <option value="mankind">Mankind</option>
+                        <option value="hhh">Triple H</option>
+                        <option value="kane">Kane</option>
+                        <option value="jericho">Chris Jericho</option>
+                    </select>
+                </label>
+                <label>
+                    Display Name
+                    <input id="rd-db-deck-name" class="rd-db-input" type="text" />
+                </label>
+                <label>
+                    Superstar
+                    <select id="rd-db-superstar-select" class="rd-select">
+                        <option value="the-rock">The Rock</option>
+                        <option value="stone-cold">"Stone Cold" Steve Austin</option>
+                        <option value="undertaker">The Undertaker</option>
+                        <option value="mankind">Mankind</option>
+                        <option value="hhh">Triple H</option>
+                        <option value="kane">Kane</option>
+                        <option value="jericho">Chris Jericho</option>
+                    </select>
+                </label>
+                <label>
+                    Default Opponent
+                    <select id="rd-db-opponent-select" class="rd-select">
+                        <option value="rock">The Rock</option>
+                        <option value="austin">"Stone Cold" Steve Austin</option>
+                        <option value="undertaker">The Undertaker</option>
+                        <option value="mankind">Mankind</option>
+                        <option value="hhh">Triple H</option>
+                        <option value="kane">Kane</option>
+                        <option value="jericho">Chris Jericho</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="rd-db-search-bar">
+                <input
+                    id="rd-db-search"
+                    class="rd-db-input rd-db-input--search"
+                    type="search"
+                    placeholder="Search cards by name or id…"
+                />
+                <div class="rd-db-total-wrap">
+                    <span>Total:</span>
+                    <strong id="rd-db-total" class="rd-db-total">0</strong>
+                    <span>/ 60</span>
+                </div>
+            </div>
+
+            <div id="rd-db-errors" class="rd-db-errors hidden"></div>
+            <div id="rd-db-status" class="rd-db-status hidden"></div>
+
+            <div id="rd-db-catalog" class="rd-db-catalog"></div>
+
+            <div class="rd-db-actions">
+                <button id="rd-db-save" class="rd-btn rd-btn--primary" disabled>Save Deck</button>
+                <button id="rd-db-reset" class="rd-btn rd-btn--secondary">Reset to Default</button>
+            </div>
+        </section>
+
+        <aside class="rd-sidebar rd-sidebar--builder">
+            <div id="rd-card-preview" class="rd-card-preview">
+                <div class="rd-preview__empty">
+                    <p>Hover a card to inspect it</p>
+                </div>
+                <div class="rd-preview__content hidden">
+                    <div class="rd-preview__card-mount"></div>
+                    <span class="rd-preview__type"></span>
+                    <h2 class="rd-preview__name"></h2>
+                    <div class="rd-preview__stats"></div>
+                    <div class="rd-preview__section">
+                        <h3>Rules Text</h3>
+                        <p class="rd-preview__rules"></p>
+                    </div>
+                    <div class="rd-preview__section">
+                        <h3>Flavor</h3>
+                        <p class="rd-preview__flavor"></p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<script src="/js/games/rawdeal/data/cards.js"></script>
+<script src="/js/games/rawdeal/data/decks.js"></script>
+<script src="/js/games/rawdeal/data/deckStore.js"></script>
+<script src="/js/games/rawdeal/ui/cardRenderer.js"></script>
+<script src="/js/games/rawdeal/ui/cardPreview.js"></script>
+<script src="/js/games/rawdeal/deckBuilder.js"></script>
+
+<%- include('../../include/footer') %>
