@@ -1,9 +1,15 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.Board = class Board {
-  constructor(rootEl, cardPreview) {
+  constructor(rootEl, cardPreview, choiceModal = null) {
     this.root = rootEl;
     this.cardPreview = cardPreview;
+    this.choiceModal = choiceModal;
+    if (this.choiceModal) {
+      this.choiceModal.onSelect = (optionId) => {
+        if (this.onChoiceSelect) this.onChoiceSelect(optionId);
+      };
+    }
     this._state = null;
     this._hoveredCardEl = null;
     this.els = {
@@ -39,6 +45,7 @@ window.RawDeal.Board = class Board {
     this.onRestart = null;
     this.onUseSuperstarAbility = null;
     this.onAbilitySelect = null;
+    this.onChoiceSelect = null;
     this._lastLogLength = 0;
     this._lastActionLogLength = 0;
     this._reversalBannerTimer = null;
@@ -116,18 +123,19 @@ window.RawDeal.Board = class Board {
     this.els.playerArsenalCount.textContent = player.arsenalSize;
 
     const ability = state.superstarAbility || {};
-    const abilityPrompt = ability.prompt;
+    const activePrompt = state.selectionPrompt || ability.prompt;
 
-    this._renderSuperstarAbility(player, ability, state.canPlay);
-    this._renderAbilityPrompt(abilityPrompt);
-    this._renderHand(player, state.canPlay, abilityPrompt);
+    this._renderChoiceModal(activePrompt);
+    this._renderSuperstarAbility(player, ability, state.canPlay, activePrompt);
+    this._renderAbilityPrompt(activePrompt);
+    this._renderHand(player, state.canPlay, activePrompt);
     this._renderRing(this.els.playerManeuvers, player.ring.maneuvers);
     this._renderRing(this.els.playerActions, player.ring.actions);
     this._renderRing(this.els.playerReversals, player.ring.reversals);
     this._renderRingside(this.els.opponentRingside, opponent.ringside);
-    this._renderRingside(this.els.playerRingside, player.ringside, abilityPrompt);
+    this._renderRingside(this.els.playerRingside, player.ringside, activePrompt);
 
-    this.els.endTurnBtn.disabled = !state.canPlay || !!abilityPrompt;
+    this.els.endTurnBtn.disabled = !state.canPlay || !!activePrompt;
     this.els.gameOverPanel.classList.toggle('hidden', state.phase !== window.RawDeal.PHASES.GAME_OVER);
 
     if (state.phase === window.RawDeal.PHASES.GAME_OVER) {
@@ -147,7 +155,7 @@ window.RawDeal.Board = class Board {
     }
   }
 
-  _renderSuperstarAbility(player, ability, canPlay) {
+  _renderSuperstarAbility(player, ability, canPlay, activePrompt) {
     const btn = this.els.superstarAbilityBtn;
     if (!btn) return;
 
@@ -159,7 +167,16 @@ window.RawDeal.Board = class Board {
     const label = ability.label || 'Superstar Ability';
     btn.textContent = label;
     btn.title = player.superstar.ability || label;
-    btn.disabled = !ability.canUse || ability.used || !!ability.prompt;
+    btn.disabled = !ability.canUse || ability.used || !!activePrompt;
+  }
+
+  _renderChoiceModal(prompt) {
+    if (!this.choiceModal) return;
+    if (prompt?.mode === 'choice') {
+      this.choiceModal.show(prompt);
+    } else {
+      this.choiceModal.hide();
+    }
   }
 
   _renderAbilityPrompt(prompt) {
@@ -167,7 +184,7 @@ window.RawDeal.Board = class Board {
     const text = this.els.abilityPromptText;
     if (!panel || !text) return;
 
-    const active = !!prompt;
+    const active = !!prompt && prompt.mode !== 'choice';
     panel.classList.toggle('hidden', !active);
     if (active) {
       text.textContent = prompt.message;
@@ -232,12 +249,19 @@ window.RawDeal.Board = class Board {
     const utils = window.RawDeal.CardUtils;
 
     for (const card of player.hand) {
-      const cost = this._cardCost(player, card, 'maneuver');
-      const affordableManeuver = player.fortitude >= cost;
+      const maneuverCost = utils.playFortitudeCost(card, 'maneuver');
+      const actionCost = utils.playFortitudeCost(card, 'action');
+      const affordableManeuver = player.fortitude >= maneuverCost;
+      const affordableAction = player.fortitude >= actionCost;
+      const meetsManeuverReq = utils.meetsPlayRequirement(player, card, 'maneuver');
       const canManeuver =
-        canPlay && !abilityPrompt && utils.canPlayFromHandAs(card, 'maneuver') && affordableManeuver;
+        canPlay &&
+        !abilityPrompt &&
+        utils.canPlayFromHandAs(card, 'maneuver') &&
+        affordableManeuver &&
+        meetsManeuverReq;
       const canAction =
-        canPlay && !abilityPrompt && utils.canPlayFromHandAs(card, 'action');
+        canPlay && !abilityPrompt && utils.canPlayFromHandAs(card, 'action') && affordableAction;
       const selected = abilityPrompt?.selectedIds?.includes(card.instanceId);
       const selectedCount = abilityPrompt?.selectedIds?.length || 0;
       const selectable =
@@ -266,8 +290,23 @@ window.RawDeal.Board = class Board {
               : undefined,
       });
 
-      if (canPlay && !abilityPrompt && !isHybrid && utils.canPlayFromHandAs(card, 'maneuver') && !affordableManeuver) {
+      if (
+        canPlay &&
+        !abilityPrompt &&
+        !isHybrid &&
+        ((utils.canPlayFromHandAs(card, 'maneuver') && !affordableManeuver) ||
+          (utils.canPlayFromHandAs(card, 'action') && !affordableAction))
+      ) {
         el.classList.add('rd-card--unaffordable');
+      }
+      if (
+        canPlay &&
+        !abilityPrompt &&
+        utils.canPlayFromHandAs(card, 'maneuver') &&
+        !meetsManeuverReq
+      ) {
+        el.classList.add('rd-card--blocked');
+        el.title = 'Requires Irish Whip this turn';
       }
       if (selected) {
         el.classList.add('rd-card--selected');
@@ -313,8 +352,7 @@ window.RawDeal.Board = class Board {
   }
 
   _cardCost(player, card, playAs = 'maneuver') {
-    if (playAs === 'action') return 0;
-    return card.fortitude || 0;
+    return window.RawDeal.CardUtils.playFortitudeCost(card, playAs);
   }
 
   _renderRing(container, cards) {
