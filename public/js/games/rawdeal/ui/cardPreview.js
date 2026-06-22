@@ -60,6 +60,7 @@ window.RawDeal.CardPreview = class CardPreview {
     if (card.superstarValue !== undefined) parts.push(`<span>SV ${card.superstarValue}</span>`);
     if (card.fortitude !== undefined) parts.push(`<span class="rd-preview__fort">Fortitude ${card.fortitude}</span>`);
     if (card.damage) parts.push(`<span class="rd-preview__dmg">Damage ${card.damage}</span>`);
+    if (card.stunValue) parts.push(`<span class="rd-preview__sv">Stun ${card.stunValue}</span>`);
     return parts.join('');
   }
 
