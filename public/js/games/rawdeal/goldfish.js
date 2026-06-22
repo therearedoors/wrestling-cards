@@ -17,6 +17,8 @@
 
   const previewRoot = document.getElementById('rd-card-preview');
   const cardPreview = previewRoot ? new window.RawDeal.CardPreview(previewRoot) : null;
+  const choiceModalRoot = document.getElementById('rd-choice-modal');
+  const choiceModal = choiceModalRoot ? new window.RawDeal.ChoiceModal(choiceModalRoot) : null;
 
   async function loadDecks() {
     await window.RawDeal.DeckStore.load();
@@ -30,7 +32,7 @@
   function initGame(playerDeckId) {
     const resolvedDecks = window.RawDeal.DeckStore.getResolvedDecks();
 
-    board = new window.RawDeal.Board(boardRoot, cardPreview);
+    board = new window.RawDeal.Board(boardRoot, cardPreview, choiceModal);
 
     engine = new window.RawDeal.GameEngine({
       onStateChange: (state) => board.render(state),
@@ -81,7 +83,13 @@
     };
 
     board.onAbilitySelect = (instanceId) => {
-      engine.selectForAbility(instanceId);
+      if (!engine.selectForCardEffect(instanceId)) {
+        engine.selectForAbility(instanceId);
+      }
+    };
+
+    board.onChoiceSelect = (optionId) => {
+      engine.selectChoice(optionId);
     };
 
     board.onRestart = () => {
