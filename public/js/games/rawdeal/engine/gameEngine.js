@@ -24,6 +24,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.cardEffectFlow = null;
     this.pendingManeuverResolution = null;
     this.reversalWindow = null;
+    this.animationEvents = [];
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
     this.stateMachine.activePlayer = 0;
     this.stateMachine.turnNumber = 0;
@@ -86,7 +87,12 @@ window.RawDeal.GameEngine = class GameEngine {
       selectionPrompt: this._publicSelectionPrompt(viewerIndex),
       superstarAbility: this._publicSuperstarAbility(viewerIndex),
       reversalWindow: this._publicReversalWindow(viewerIndex),
+      animationEvents: this.animationEvents.map((e) => ({ ...e })),
     };
+  }
+
+  clearAnimationEvents() {
+    this.animationEvents = [];
   }
 
   _publicReversalWindow(viewerIndex) {
@@ -766,6 +772,7 @@ window.RawDeal.GameEngine = class GameEngine {
     await this.onArsenalToRingside({
       card: top,
       sourceManeuver: sourceCard,
+      playerSeat: this._playerIndex(player),
       onReveal: () => {
         player.ringside.push(top);
         this.actionLog.push({
@@ -826,6 +833,7 @@ window.RawDeal.GameEngine = class GameEngine {
         total: damage,
         maneuver,
         reversed,
+        playerSeat: this._playerIndex(opponent),
         onReveal: () => {
           opponent.ringside.push(overturned);
           this._notify();

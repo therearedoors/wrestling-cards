@@ -82,6 +82,19 @@ class RoomGame {
   }
 }
 
+function serialAnimCard(card) {
+  return {
+    id: card.id,
+    name: card.name,
+    instanceId: card.instanceId,
+    subtype: card.subtype,
+    damage: card.damage,
+    fortitude: card.fortitude,
+    type: card.type,
+    types: card.types,
+  };
+}
+
 async function startGame(roomId, room) {
   if (activeGames.has(roomId)) return activeGames.get(roomId);
 
@@ -90,8 +103,24 @@ async function startGame(roomId, room) {
 
   const engine = new RawDeal.GameEngine({
     engineMode: 'multiplayer',
-    onDamageStep: async ({ onReveal }) => { if (onReveal) onReveal(); },
-    onArsenalToRingside: async ({ onReveal }) => { if (onReveal) onReveal(); },
+    onDamageStep: async ({ card, maneuver, reversed, playerSeat, onReveal }) => {
+      engine.animationEvents.push({
+        type: 'damageFlip',
+        seat: playerSeat,
+        card: serialAnimCard(card),
+        reversed: !!reversed,
+        maneuver: maneuver ? { id: maneuver.id, name: maneuver.name } : null,
+      });
+      if (onReveal) onReveal();
+    },
+    onArsenalToRingside: async ({ card, playerSeat, onReveal }) => {
+      engine.animationEvents.push({
+        type: 'arsenalToRingside',
+        seat: playerSeat,
+        card: serialAnimCard(card),
+      });
+      if (onReveal) onReveal();
+    },
   });
 
   const deckMap = {
