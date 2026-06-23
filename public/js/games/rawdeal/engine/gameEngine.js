@@ -411,7 +411,6 @@ window.RawDeal.GameEngine = class GameEngine {
       const ringArea = mode === 'reversal' ? player.ring.reversals : player.ring.maneuvers;
       ringArea.push(played);
       this._syncFortitude(player);
-      await this._resolveOnPlayManeuverEffects(player, played);
 
       const damage = this._calcManeuverDamage(player, opponent, played);
 
@@ -469,11 +468,6 @@ window.RawDeal.GameEngine = class GameEngine {
     if (card.effect === 'topArsenalToRingside') return true;
     const text = (card.text || '').toLowerCase();
     return text.includes('take the top card of your arsenal and put it into your ringside pile');
-  }
-
-  async _resolveOnPlayManeuverEffects(player, card) {
-    if (!this._hasTopArsenalToRingside(card)) return;
-    await this._topArsenalToRingside(player, card);
   }
 
   _calcManeuverDamage(player, opponent, played) {
@@ -540,7 +534,11 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  _grantOnSuccessManeuverEffects(player, played) {
+  async _resolveOnSuccessManeuverEffects(player, played) {
+    if (this._hasTopArsenalToRingside(played)) {
+      await this._topArsenalToRingside(player, played);
+    }
+
     if (played.effect === 'turnSubtypeDamageBonus') {
       this._addTurnDamageBonus(player, {
         subtype: played.effectSubtype,
@@ -583,14 +581,6 @@ window.RawDeal.GameEngine = class GameEngine {
         cardsOverturned: damageResult.cardsOverturned,
       });
 
-      if (damageResult.result === 'pinfall') {
-        this.winner = this._playerIndex(player);
-        this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
-        this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
-        this._notify();
-        return true;
-      }
-
       if (damageResult.result === 'reversed') {
         this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
         this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
@@ -598,9 +588,21 @@ window.RawDeal.GameEngine = class GameEngine {
         await this._runAutoPhases();
         return true;
       }
+
+      await this._resolveOnSuccessManeuverEffects(player, played);
+
+      if (damageResult.result === 'pinfall') {
+        this.winner = this._playerIndex(player);
+        this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
+        this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
+        this._notify();
+        return true;
+      }
     }
 
-    this._grantOnSuccessManeuverEffects(player, played);
+    if (damage <= 0) {
+      await this._resolveOnSuccessManeuverEffects(player, played);
+    }
 
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
