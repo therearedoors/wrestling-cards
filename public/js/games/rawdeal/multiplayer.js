@@ -19,6 +19,8 @@
   let myIndex = 0;
   let board = null;
   let lastDamageLogLen = 0;
+  let lastBoardState = null;
+  let animChain = Promise.resolve();
 
   const previewRoot = document.getElementById('rd-card-preview');
   const cardPreview = previewRoot ? new window.RawDeal.CardPreview(previewRoot) : null;
@@ -27,6 +29,45 @@
 
   function emitAction(action) {
     socket.emit('rd-action', roomId, action);
+  }
+
+  function resolveAnimCard(eventCard) {
+    const base = window.RawDeal.CARDS[eventCard.id] || {};
+    return { ...base, ...eventCard };
+  }
+
+  function getAnimPiles(seat) {
+    const isMe = seat === myIndex;
+    return {
+      from: isMe ? board.getPlayerArsenalEl() : board.getOpponentArsenalEl(),
+      to: isMe ? board.getPlayerRingsideEl() : board.getOpponentRingsideEl(),
+    };
+  }
+
+  async function playAnimationEvent(ev) {
+    const { from, to } = getAnimPiles(ev.seat);
+    const card = resolveAnimCard(ev.card);
+    const Animations = window.RawDeal.Animations;
+
+    if (ev.type === 'damageFlip') {
+      await Animations.flipArsenalToRingside(card, from, to, {
+        isReversal: !!ev.reversed,
+        onReveal: () => {},
+      });
+      if (ev.reversed && ev.maneuver) {
+        board.showReversalNotice(ev.maneuver, card);
+      } else {
+        Animations.pulseEl(to);
+      }
+      return;
+    }
+
+    if (ev.type === 'arsenalToRingside') {
+      await Animations.flipArsenalToRingside(card, from, to, {
+        onReveal: () => {},
+      });
+      Animations.pulseEl(to);
+    }
   }
 
   function setupBoard() {
@@ -67,21 +108,57 @@
     if (!board) setupBoard();
   }
 
-  function handleState(state) {
+  function processDamageLog(state, showedReversalFromAnim) {
+    if (!state.damageLog || state.damageLog.length <= lastDamageLogLen) return;
+
+    if (showedReversalFromAnim) {
+      lastDamageLogLen = state.damageLog.length;
+      return;
+    }
+
+    const entry = state.damageLog[state.damageLog.length - 1];
+    if (entry.result === 'reversed' && entry.reversedBy) {
+      board.showReversalNotice(
+        { name: entry.card },
+        { name: entry.reversedBy }
+      );
+    }
+    lastDamageLogLen = state.damageLog.length;
+  }
+
+  async function applyState(state) {
     if (!board) setupBoard();
     showGame();
-    board.render(state);
 
-    if (state.damageLog && state.damageLog.length > lastDamageLogLen) {
-      const entry = state.damageLog[state.damageLog.length - 1];
-      if (entry.result === 'reversed' && entry.reversedBy) {
-        board.showReversalNotice(
-          { name: entry.card },
-          { name: entry.reversedBy }
-        );
+    const events = state.animationEvents || [];
+    const hasAnims = events.length > 0 && lastBoardState;
+
+    if (hasAnims) {
+      board.render(lastBoardState);
+      for (const ev of events) {
+        await playAnimationEvent(ev);
       }
-      lastDamageLogLen = state.damageLog.length;
     }
+
+    board.render(state);
+    lastBoardState = state;
+
+    const showedReversalFromAnim = events.some(
+      (e) => e.type === 'damageFlip' && e.reversed
+    );
+    processDamageLog(state, showedReversalFromAnim);
+  }
+
+  function handleState(state) {
+    if (state.myIndex !== undefined) {
+      myIndex = state.myIndex;
+    }
+
+    animChain = animChain.then(() => applyState(state)).catch((err) => {
+      console.warn('rawdeal animation:', err);
+      if (board) board.render(state);
+      lastBoardState = state;
+    });
   }
 
   fetch('/api/user-info', { credentials: 'same-origin' })

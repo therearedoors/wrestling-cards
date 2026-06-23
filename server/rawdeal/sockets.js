@@ -23,6 +23,10 @@ function emitStateToRoom(io, roomId) {
     game.bindSocket(seat, s.id);
     s.emit('rd-state', game.getStateForSeat(seat));
   }
+
+  if (game.engine.clearAnimationEvents) {
+    game.engine.clearAnimationEvents();
+  }
 }
 
 function maybeStartRawDealGame(io, redisClient, roomId) {
