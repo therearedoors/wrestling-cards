@@ -33,6 +33,9 @@ window.RawDeal.Board = class Board {
       playerArsenal: rootEl.querySelector('#rd-player-arsenal'),
       playerRingside: rootEl.querySelector('#rd-player-ringside'),
       endTurnBtn: rootEl.querySelector('#rd-end-turn'),
+      passPriorityBtn: rootEl.querySelector('#rd-pass-priority'),
+      reversalPrompt: rootEl.querySelector('#rd-reversal-prompt'),
+      reversalPromptText: rootEl.querySelector('#rd-reversal-prompt-text'),
       superstarAbilityBtn: rootEl.querySelector('#rd-superstar-ability'),
       abilityPrompt: rootEl.querySelector('#rd-ability-prompt'),
       abilityPromptText: rootEl.querySelector('#rd-ability-prompt-text'),
@@ -50,6 +53,8 @@ window.RawDeal.Board = class Board {
     this.onUseSuperstarAbility = null;
     this.onAbilitySelect = null;
     this.onChoiceSelect = null;
+    this.onPlayReversal = null;
+    this.onPassPriority = null;
     this._lastLogLength = 0;
     this._lastActionLogLength = 0;
     this._reversalBannerTimer = null;
@@ -57,14 +62,21 @@ window.RawDeal.Board = class Board {
     this.els.endTurnBtn.addEventListener('click', () => {
       if (this.onEndTurn) this.onEndTurn();
     });
+    if (this.els.passPriorityBtn) {
+      this.els.passPriorityBtn.addEventListener('click', () => {
+        if (this.onPassPriority) this.onPassPriority();
+      });
+    }
     if (this.els.superstarAbilityBtn) {
       this.els.superstarAbilityBtn.addEventListener('click', () => {
         if (this.onUseSuperstarAbility) this.onUseSuperstarAbility();
       });
     }
-    this.els.restartBtn.addEventListener('click', () => {
-      if (this.onRestart) this.onRestart();
-    });
+    if (this.els.restartBtn) {
+      this.els.restartBtn.addEventListener('click', () => {
+        if (this.onRestart) this.onRestart();
+      });
+    }
 
     const hoverZone = rootEl.closest('.rd-play-layout') || rootEl;
     hoverZone.addEventListener('mouseover', (e) => this._onCardHover(e));
@@ -146,14 +158,19 @@ window.RawDeal.Board = class Board {
     this._renderChoiceModal(activePrompt);
     this._renderSuperstarAbility(player, ability, state.canPlay, activePrompt);
     this._renderAbilityPrompt(activePrompt);
-    this._renderHand(player, state.canPlay, activePrompt);
+    this._renderReversalPrompt(state.reversalWindow);
+    this._renderHand(player, state.canPlay, activePrompt, state.reversalWindow);
     this._renderRing(this.els.playerManeuvers, player.ring.maneuvers);
     this._renderRing(this.els.playerActions, player.ring.actions);
     this._renderRing(this.els.playerReversals, player.ring.reversals);
     this._renderRingside(this.els.opponentRingside, opponent.ringside);
     this._renderRingside(this.els.playerRingside, player.ringside, activePrompt);
 
-    this.els.endTurnBtn.disabled = !state.canPlay || !!activePrompt;
+    this.els.endTurnBtn.disabled = !state.canPlay || !!activePrompt || !!state.reversalWindow?.canRespond;
+    if (this.els.passPriorityBtn) {
+      this.els.passPriorityBtn.classList.toggle('hidden', !state.reversalWindow?.canRespond);
+      this.els.passPriorityBtn.disabled = !state.reversalWindow?.canRespond;
+    }
     this.els.gameOverPanel.classList.toggle('hidden', state.phase !== window.RawDeal.PHASES.GAME_OVER);
 
     if (state.phase === window.RawDeal.PHASES.GAME_OVER) {
@@ -241,6 +258,7 @@ window.RawDeal.Board = class Board {
       refresh: 'Refresh Step',
       draw: 'Draw Step',
       main: 'Main Step',
+      reversalPriority: 'Reversal Window',
       resolvingDamage: 'Resolving Damage…',
       endOfTurn: 'End of Turn',
       opponentTurn: "Opponent's Turn",
@@ -250,23 +268,50 @@ window.RawDeal.Board = class Board {
   }
 
   _winMessage(state) {
-    if (state.winner === 0) {
-      return state.winReason === 'pinfall'
-        ? 'PINFALL! You win!'
-        : 'Count-out! You win!';
+    const myIndex = state.myIndex ?? 0;
+    if (state.winner === myIndex) {
+      if (state.winReason === 'pinfall') return 'PINFALL! You win!';
+      if (state.winReason === 'forfeit') return 'Opponent left — you win!';
+      return 'Count-out! You win!';
     }
+    if (state.winReason === 'forfeit') return 'You left the match.';
+    if (state.winReason === 'pinfall') return 'PINFALL! You lose.';
     return 'You got counted out. Try again!';
   }
 
-  _renderHand(player, canPlay, abilityPrompt) {
+  _renderReversalPrompt(reversalWindow) {
+    const panel = this.els.reversalPrompt;
+    const text = this.els.reversalPromptText;
+    if (!panel || !text) return;
+
+    const active = !!reversalWindow?.active;
+    panel.classList.toggle('hidden', !active);
+    if (!active) return;
+
+    const m = reversalWindow.maneuver;
+    if (reversalWindow.canRespond) {
+      text.textContent = `Opponent played ${m.name} (${m.damage}D) — play a Reversal from hand or Pass.`;
+    } else {
+      text.textContent = `Waiting for opponent to respond to ${m.name}…`;
+    }
+  }
+
+  _renderHand(player, canPlay, abilityPrompt, reversalWindow) {
     const container = this.els.playerHand;
     window.RawDeal.CardRenderer.clearContainer(container);
 
     const abilityHandMode = abilityPrompt?.mode === 'hand';
+    const reversalMode = reversalWindow?.canRespond;
 
     const utils = window.RawDeal.CardUtils;
 
     for (const card of player.hand) {
+      const isReversalCard = utils.hasType(card, 'reversal') || (card.reverses && card.reverses.length > 0);
+      const canReversal =
+        reversalMode &&
+        isReversalCard &&
+        reversalWindow.maneuver &&
+        this._canReverseManeuver(card, reversalWindow.maneuver, player);
       const maneuverCost = utils.playFortitudeCost(card, 'maneuver');
       const actionCost = utils.playFortitudeCost(card, 'action');
       const affordableManeuver = player.fortitude >= maneuverCost;
@@ -291,21 +336,25 @@ window.RawDeal.Board = class Board {
         : null;
 
       const el = window.RawDeal.CardRenderer.createCardEl(card, {
-        clickable: !isHybrid && (canManeuver || canAction || selectable),
+        clickable: !isHybrid && (canManeuver || canAction || selectable || canReversal),
         playZones,
-        onClick: !isHybrid && canManeuver
+        onClick: !isHybrid && canReversal
           ? () => {
-              if (this.onPlayCard) this.onPlayCard(card.instanceId, 'maneuver');
+              if (this.onPlayReversal) this.onPlayReversal(card.instanceId);
             }
-          : !isHybrid && canAction
+          : !isHybrid && canManeuver
             ? () => {
-                if (this.onPlayCard) this.onPlayCard(card.instanceId, 'action');
+                if (this.onPlayCard) this.onPlayCard(card.instanceId, 'maneuver');
               }
-            : selectable
+            : !isHybrid && canAction
               ? () => {
-                  if (this.onAbilitySelect) this.onAbilitySelect(card.instanceId);
+                  if (this.onPlayCard) this.onPlayCard(card.instanceId, 'action');
                 }
-              : undefined,
+              : selectable
+                ? () => {
+                    if (this.onAbilitySelect) this.onAbilitySelect(card.instanceId);
+                  }
+                : undefined,
       });
 
       if (
@@ -329,7 +378,7 @@ window.RawDeal.Board = class Board {
       if (selected) {
         el.classList.add('rd-card--selected');
       }
-      if (selectable) {
+      if (selectable || canReversal) {
         el.classList.add('rd-card--ability-target');
       }
       container.appendChild(el);
@@ -371,6 +420,26 @@ window.RawDeal.Board = class Board {
 
   _cardCost(player, card, playAs = 'maneuver') {
     return window.RawDeal.CardUtils.playFortitudeCost(card, playAs);
+  }
+
+  _canReverseManeuver(card, maneuver, player) {
+    if (!card.reverses) return false;
+    const reversalCost = card.fortitude || 0;
+    if (player.fortitude < reversalCost) return false;
+
+    const subtype = maneuver.subtype || '';
+    if (card.reverses.includes('low-damage') && (maneuver.damage || 0) <= (card.maxDamage || 5)) {
+      return true;
+    }
+    if (subtype && card.reverses.includes(subtype)) return true;
+    if (
+      card.reverses.includes('strike') &&
+      card.reverses.includes('grapple') &&
+      card.reverses.includes('submission')
+    ) {
+      return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
+    }
+    return false;
   }
 
   _renderSuperstarCard(container, superstar) {

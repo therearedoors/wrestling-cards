@@ -1,11 +1,8 @@
 window.RawDeal = window.RawDeal || {};
 
-/**
- * Turn-phase state machine for Raw Deal goldfish.
- * Player 0 = human, Player 1 = passive opponent.
- */
 window.RawDeal.StateMachine = class StateMachine {
-  constructor() {
+  constructor(mode = 'goldfish') {
+    this.mode = mode;
     this.phase = window.RawDeal.PHASES.SETUP;
     this.activePlayer = 0;
     this.turnNumber = 0;
@@ -56,7 +53,7 @@ window.RawDeal.StateMachine = class StateMachine {
 
       case PHASES.DRAW:
         if (event === EVENTS.DRAW_DONE) {
-          if (this.activePlayer === 0) {
+          if (this.mode === 'multiplayer' || this.activePlayer === 0) {
             this.phase = PHASES.MAIN;
           } else {
             this.phase = PHASES.OPPONENT_TURN;
@@ -66,8 +63,20 @@ window.RawDeal.StateMachine = class StateMachine {
 
       case PHASES.MAIN:
         if (event === EVENTS.PLAY_CARD) {
-          this.phase = PHASES.RESOLVING_DAMAGE;
+          if (context.openReversalWindow) {
+            this.phase = PHASES.REVERSAL_PRIORITY;
+          } else if (!context.isAction) {
+            this.phase = PHASES.RESOLVING_DAMAGE;
+          }
         } else if (event === EVENTS.END_TURN) {
+          this.phase = PHASES.END_OF_TURN;
+        }
+        break;
+
+      case PHASES.REVERSAL_PRIORITY:
+        if (event === EVENTS.PASS_PRIORITY) {
+          this.phase = PHASES.RESOLVING_DAMAGE;
+        } else if (event === EVENTS.PLAY_REVERSAL) {
           this.phase = PHASES.END_OF_TURN;
         }
         break;
@@ -116,11 +125,17 @@ window.RawDeal.StateMachine = class StateMachine {
   isPlayerTurn(playerIndex) {
     return (
       this.activePlayer === playerIndex &&
-      [window.RawDeal.PHASES.MAIN, window.RawDeal.PHASES.RESOLVING_DAMAGE].includes(this.phase)
+      [
+        window.RawDeal.PHASES.MAIN,
+        window.RawDeal.PHASES.RESOLVING_DAMAGE,
+      ].includes(this.phase)
     );
   }
 
-  canPlayCards() {
-    return this.phase === window.RawDeal.PHASES.MAIN && this.activePlayer === 0;
+  canPlayCards(playerIndex = 0) {
+    return (
+      this.phase === window.RawDeal.PHASES.MAIN &&
+      this.activePlayer === playerIndex
+    );
   }
 };
