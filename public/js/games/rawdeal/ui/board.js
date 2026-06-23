@@ -505,9 +505,10 @@ window.RawDeal.Board = class Board {
     const el = window.RawDeal.CardRenderer.createCardEl(card, { small: true });
     container.appendChild(el);
 
-    const visible = container.querySelectorAll('.rd-card');
-    while (visible.length > 6) {
-      container.removeChild(container.firstChild);
+    const cards = container.querySelectorAll('.rd-card');
+    const excess = cards.length - 6;
+    for (let i = 0; i < excess; i++) {
+      cards[i].remove();
     }
 
     if (arsenalCountEl) {
