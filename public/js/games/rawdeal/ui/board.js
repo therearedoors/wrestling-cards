@@ -19,7 +19,11 @@ window.RawDeal.Board = class Board {
       playerFortitude: rootEl.querySelector('#rd-player-fortitude'),
       opponentSuperstar: rootEl.querySelector('#rd-opponent-superstar'),
       opponentArsenalCount: rootEl.querySelector('#rd-opponent-arsenal-count'),
+      opponentHandCount: rootEl.querySelector('#rd-opponent-hand-count'),
       playerArsenalCount: rootEl.querySelector('#rd-player-arsenal-count'),
+      playerHandCount: rootEl.querySelector('#rd-player-hand-count'),
+      opponentSuperstarCard: rootEl.querySelector('#rd-opponent-superstar-card'),
+      playerSuperstarCard: rootEl.querySelector('#rd-player-superstar-card'),
       playerHand: rootEl.querySelector('#rd-player-hand'),
       playerManeuvers: rootEl.querySelector('#rd-player-maneuvers'),
       playerActions: rootEl.querySelector('#rd-player-actions'),
@@ -89,6 +93,11 @@ window.RawDeal.Board = class Board {
     if (!this._state) return window.RawDeal.CARDS[cardId] || null;
 
     const { players } = this._state;
+    if (cardId) {
+      for (const player of players) {
+        if (player?.superstar?.id === cardId) return player.superstar;
+      }
+    }
     if (instanceId) {
       for (const player of players) {
         if (!player) continue;
@@ -121,6 +130,15 @@ window.RawDeal.Board = class Board {
     this.els.opponentSuperstar.textContent = opponent.superstar.name;
     this.els.opponentArsenalCount.textContent = opponent.arsenalSize;
     this.els.playerArsenalCount.textContent = player.arsenalSize;
+    if (this.els.opponentHandCount) {
+      this.els.opponentHandCount.textContent = opponent.handSize;
+    }
+    if (this.els.playerHandCount) {
+      this.els.playerHandCount.textContent = player.handSize;
+    }
+
+    this._renderSuperstarCard(this.els.opponentSuperstarCard, opponent.superstar);
+    this._renderSuperstarCard(this.els.playerSuperstarCard, player.superstar);
 
     const ability = state.superstarAbility || {};
     const activePrompt = state.selectionPrompt || ability.prompt;
@@ -353,6 +371,16 @@ window.RawDeal.Board = class Board {
 
   _cardCost(player, card, playAs = 'maneuver') {
     return window.RawDeal.CardUtils.playFortitudeCost(card, playAs);
+  }
+
+  _renderSuperstarCard(container, superstar) {
+    if (!container) return;
+    window.RawDeal.CardRenderer.clearContainer(container);
+    if (!superstar) return;
+
+    const el = window.RawDeal.CardRenderer.createCardEl(superstar, { small: true });
+    el.classList.add('rd-card--superstar-board');
+    container.appendChild(el);
   }
 
   _renderRing(container, cards) {

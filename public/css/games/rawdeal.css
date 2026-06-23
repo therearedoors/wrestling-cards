@@ -194,7 +194,31 @@ body:has(.rd-page) {
 .rd-piles {
   display: flex;
   gap: 16px;
-  align-items: flex-start;
+  align-items: flex-end;
+}
+
+.rd-superstar-slot {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.rd-superstar-slot::before {
+  content: 'Superstar';
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  opacity: 0.7;
+  letter-spacing: 0.04em;
+}
+
+.rd-card--superstar-board {
+  pointer-events: auto;
+}
+
+.rd-card__hand {
+  color: #85c1e9;
 }
 
 .rd-pile {
