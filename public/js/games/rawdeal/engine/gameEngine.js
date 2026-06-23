@@ -414,16 +414,6 @@ window.RawDeal.GameEngine = class GameEngine {
 
       const damage = this._calcManeuverDamage(player, opponent, played);
 
-      if (this._beginPreDamageDiscardPrompt(player, played, playerIndex)) {
-        this.pendingManeuverResolution = { player, opponent, played, damage };
-        return true;
-      }
-
-      if (this._beginPreDamageChoice(player, played, playerIndex)) {
-        this.pendingManeuverResolution = { player, opponent, played, damage };
-        return true;
-      }
-
       return this._openReversalWindowOrApplyDamage(player, opponent, played, damage);
     } else if (window.RawDeal.CardUtils.hasType(played, 'action')) {
       player.ring.actions.push(played);
@@ -609,6 +599,22 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
+  async _continueManeuverAfterReversal(player, opponent, played, damage) {
+    const playerIndex = this._playerIndex(player);
+
+    if (this._beginPreDamageDiscardPrompt(player, played, playerIndex)) {
+      this.pendingManeuverResolution = { player, opponent, played, damage };
+      return true;
+    }
+
+    if (this._beginPreDamageChoice(player, played, playerIndex)) {
+      this.pendingManeuverResolution = { player, opponent, played, damage };
+      return true;
+    }
+
+    return this._applyManeuverDamage(player, opponent, played, damage);
+  }
+
   async _continuePendingManeuverDamage() {
     const pending = this.pendingManeuverResolution;
     this.pendingManeuverResolution = null;
@@ -619,12 +625,19 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     const { player, opponent, played, damage } = pending;
-    await this._openReversalWindowOrApplyDamage(player, opponent, played, damage);
+    const playerIndex = this._playerIndex(player);
+
+    if (this._beginPreDamageChoice(player, played, playerIndex)) {
+      this.pendingManeuverResolution = { player, opponent, played, damage };
+      return;
+    }
+
+    await this._applyManeuverDamage(player, opponent, played, damage);
   }
 
   async _openReversalWindowOrApplyDamage(player, opponent, played, damage) {
     if (this.engineMode !== 'multiplayer') {
-      return this._applyManeuverDamage(player, opponent, played, damage);
+      return this._continueManeuverAfterReversal(player, opponent, played, damage);
     }
 
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD, { openReversalWindow: true });
@@ -681,7 +694,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.reversalWindow = null;
     this.stateMachine.transition(window.RawDeal.EVENTS.PASS_PRIORITY);
     this._notify();
-    return await this._applyManeuverDamage(player, opponent, played, damage);
+    return await this._continueManeuverAfterReversal(player, opponent, played, damage);
   }
 
   _finishCardEffectResolution() {
