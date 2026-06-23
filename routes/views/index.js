@@ -1,5 +1,12 @@
 const {Router} = require('express');
-const {getRegisterPage, getLoginPage, getLobbyPage, getGamesPage, getRoomPage, getRawDealGoldfishPage, getRawDealDeckBuilderPage } = require('../../controllers/views/index')
+const {getRegisterPage, 
+    getLoginPage, 
+    getLobbyPage, 
+    getGamesPage, 
+    getRoomPage, 
+    getRawDealGoldfishPage, 
+    getRawDealDeckBuilderPage
+    } = require('../../controllers/views/index')
 
 const router = Router();
 

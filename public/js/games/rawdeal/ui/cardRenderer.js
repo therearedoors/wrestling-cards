@@ -41,6 +41,8 @@ window.RawDeal.CardRenderer = {
               <span class="rd-card__type">${this._typeLabel(card)}</span>
               <span class="rd-card__name">${card.name}</span>
               <div class="rd-card__stats">
+                ${card.handSize !== undefined ? `<span class="rd-card__hand">H ${card.handSize}</span>` : ''}
+                ${card.superstarValue !== undefined ? `<span class="rd-card__sv">SV ${card.superstarValue}</span>` : ''}
                 ${card.fortitude !== undefined ? `<span class="rd-card__fort">F ${card.fortitude}</span>` : ''}
                 ${card.damage ? `<span class="rd-card__dmg">D ${card.damage}</span>` : ''}
                 ${card.stunValue ? `<span class="rd-card__sv">SV ${card.stunValue}</span>` : ''}
