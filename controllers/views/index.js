@@ -50,3 +50,17 @@ exports.getRawDealDeckBuilderPage = (req, res) => {
     }
     res.render('games/rawdeal/deck-builder', { authorized: true });
 }
+
+exports.getRawDealGamesPage = (req, res) => {
+    if (!req.cookies.token) {
+        return res.redirect('/login');
+    }
+    res.render('games/rawdeal/games', { authorized: true });
+}
+
+exports.getRawDealRoomPage = (req, res) => {
+    if (!req.cookies.token) {
+        return res.redirect('/login');
+    }
+    res.render('games/rawdeal/room', { authorized: true });
+}

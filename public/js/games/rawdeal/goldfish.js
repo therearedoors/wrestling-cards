@@ -71,11 +71,11 @@
 
     board.onPlayCard = async (instanceId, playAs) => {
       if (!engine.canPlayCard(0, instanceId, playAs)) return;
-      await engine.playCard(instanceId, playAs);
+      await engine.playCard(0, instanceId, playAs);
     };
 
     board.onEndTurn = async () => {
-      await engine.endTurn();
+      await engine.endTurn(0);
     };
 
     board.onUseSuperstarAbility = () => {
@@ -83,13 +83,13 @@
     };
 
     board.onAbilitySelect = (instanceId) => {
-      if (!engine.selectForCardEffect(instanceId)) {
-        engine.selectForAbility(instanceId);
+      if (!engine.selectForCardEffect(0, instanceId)) {
+        engine.selectForAbility(0, instanceId);
       }
     };
 
     board.onChoiceSelect = (optionId) => {
-      engine.selectChoice(optionId);
+      engine.selectChoice(0, optionId);
     };
 
     board.onRestart = () => {
