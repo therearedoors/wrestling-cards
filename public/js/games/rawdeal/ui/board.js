@@ -492,6 +492,36 @@ window.RawDeal.Board = class Board {
     }
   }
 
+  /**
+   * Append one card to ringside when a flip animation reveals it (multiplayer).
+   * viewerPlayerIndex: 0 = you, 1 = opponent (remapped viewer coordinates).
+   */
+  revealFlippedCard(viewerPlayerIndex, card) {
+    const container =
+      viewerPlayerIndex === 0 ? this.els.playerRingside : this.els.opponentRingside;
+    const arsenalCountEl =
+      viewerPlayerIndex === 0 ? this.els.playerArsenalCount : this.els.opponentArsenalCount;
+
+    const el = window.RawDeal.CardRenderer.createCardEl(card, { small: true });
+    container.appendChild(el);
+
+    const visible = container.querySelectorAll('.rd-card');
+    while (visible.length > 6) {
+      container.removeChild(container.firstChild);
+    }
+
+    if (arsenalCountEl) {
+      const n = parseInt(arsenalCountEl.textContent, 10) || 0;
+      arsenalCountEl.textContent = Math.max(0, n - 1);
+    }
+
+    const player = this._state?.players?.[viewerPlayerIndex];
+    if (player) {
+      player.ringside = [...(player.ringside || []), card];
+      player.arsenalSize = Math.max(0, (player.arsenalSize || 0) - 1);
+    }
+  }
+
   getOpponentArsenalEl() {
     return this.els.opponentArsenal;
   }
