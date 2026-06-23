@@ -497,6 +497,8 @@ body:has(.rd-page) {
   text-align: center;
   padding: 4px 6px;
   width: 100%;
+  overflow: hidden;
+  word-break: break-word;
   color: white;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
   word-break: break-word;
@@ -623,6 +625,10 @@ body:has(.rd-page) {
   flex: 1;
   display: flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .rd-card__stats {

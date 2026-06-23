@@ -1,6 +1,32 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.CardRenderer = {
+  NAME_LIMIT_DEFAULT: 22,
+  NAME_LIMIT_SMALL: 14,
+
+  _formatDisplayName(name, { preview = false, small = false } = {}) {
+    if (preview || !name) {
+      return { text: name || '', full: name || '', truncated: false };
+    }
+    const limit = small ? this.NAME_LIMIT_SMALL : this.NAME_LIMIT_DEFAULT;
+    if (name.length <= limit) {
+      return { text: name, full: name, truncated: false };
+    }
+    return {
+      text: `${name.slice(0, limit)}…`,
+      full: name,
+      truncated: true,
+    };
+  },
+
+  _nameAttr(displayName) {
+    if (!displayName.truncated) return '';
+    const full = String(displayName.full)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;');
+    return ` title="${full}"`;
+  },
+
   createCardEl(card, options = {}) {
     const {
       clickable = false,
@@ -30,16 +56,17 @@ window.RawDeal.CardRenderer = {
 
     const color = window.RawDeal.CARD_COLORS[utils.primaryType(card)] || '#555';
     el.style.setProperty('--card-color', color);
+    const displayName = this._formatDisplayName(card.name, { preview, small });
 
     if (!faceDown) {
       if (isHybrid) {
-        el.innerHTML = this._hybridFrontHtml(card, types, playZones);
+        el.innerHTML = this._hybridFrontHtml(card, types, playZones, displayName);
       } else {
         el.innerHTML = `
           <div class="rd-card__inner">
             <div class="rd-card__face rd-card__front">
               <span class="rd-card__type">${this._typeLabel(card)}</span>
-              <span class="rd-card__name">${card.name}</span>
+              <span class="rd-card__name"${this._nameAttr(displayName)}>${displayName.text}</span>
               <div class="rd-card__stats">
                 ${card.handSize !== undefined ? `<span class="rd-card__hand">H ${card.handSize}</span>` : ''}
                 ${card.superstarValue !== undefined ? `<span class="rd-card__sv">SV ${card.superstarValue}</span>` : ''}
@@ -73,7 +100,8 @@ window.RawDeal.CardRenderer = {
     return el;
   },
 
-  _hybridFrontHtml(card, types, playZones) {
+  _hybridFrontHtml(card, types, playZones, displayName) {
+    const name = displayName || this._formatDisplayName(card.name);
     const utils = window.RawDeal.CardUtils;
     const zones = types
       .map((type) => {
@@ -121,7 +149,7 @@ window.RawDeal.CardRenderer = {
         <div class="rd-card__face rd-card__front rd-card__front--hybrid">
           <div class="rd-card__hybrid-header">
             <div class="rd-card__hybrid-header-colors" aria-hidden="true">${titleBands}</div>
-            <span class="rd-card__hybrid-name">${card.name}</span>
+            <span class="rd-card__hybrid-name"${this._nameAttr(name)}>${name.text}</span>
           </div>
           <div class="rd-card__zones">${zones}</div>
         </div>
