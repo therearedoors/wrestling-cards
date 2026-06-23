@@ -44,15 +44,21 @@
     };
   }
 
+  function onCardRevealed(ev, card) {
+    const viewerPlayerIndex = ev.seat === myIndex ? 0 : 1;
+    board.revealFlippedCard(viewerPlayerIndex, card);
+  }
+
   async function playAnimationEvent(ev) {
     const { from, to } = getAnimPiles(ev.seat);
     const card = resolveAnimCard(ev.card);
     const Animations = window.RawDeal.Animations;
+    const onReveal = () => onCardRevealed(ev, card);
 
     if (ev.type === 'damageFlip') {
       await Animations.flipArsenalToRingside(card, from, to, {
         isReversal: !!ev.reversed,
-        onReveal: () => {},
+        onReveal,
       });
       if (ev.reversed && ev.maneuver) {
         board.showReversalNotice(ev.maneuver, card);
@@ -63,9 +69,7 @@
     }
 
     if (ev.type === 'arsenalToRingside') {
-      await Animations.flipArsenalToRingside(card, from, to, {
-        onReveal: () => {},
-      });
+      await Animations.flipArsenalToRingside(card, from, to, { onReveal });
       Animations.pulseEl(to);
     }
   }
