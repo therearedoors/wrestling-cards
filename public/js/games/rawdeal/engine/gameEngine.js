@@ -97,9 +97,10 @@ window.RawDeal.GameEngine = class GameEngine {
 
   _publicReversalWindow(viewerIndex) {
     if (!this.reversalWindow) return null;
-    const { attackerIndex, defenderIndex, played, damage } = this.reversalWindow;
+    const { attackerIndex, defenderIndex, played, damage, kind = 'maneuver' } = this.reversalWindow;
     return {
       active: true,
+      kind,
       attackerIndex,
       defenderIndex,
       canRespond: viewerIndex === defenderIndex,
@@ -107,8 +108,10 @@ window.RawDeal.GameEngine = class GameEngine {
         id: played.id,
         name: played.name,
         subtype: played.subtype,
-        damage,
-        afterIrishWhip: !!this.players[attackerIndex]?.turnState?.irishWhipPlayed,
+        damage: kind === 'action' ? 0 : damage,
+        afterIrishWhip: kind === 'maneuver'
+          ? !!this.players[attackerIndex]?.turnState?.irishWhipPlayed
+          : false,
       },
     };
   }
@@ -403,6 +406,9 @@ window.RawDeal.GameEngine = class GameEngine {
     const played = player.hand.splice(handIndex, 1)[0];
 
     if (mode === 'action') {
+      if (this._openActionReversalWindowOrPlay(player, opponent, played)) {
+        return true;
+      }
       await this._playFromHandAsAction(player, played);
       this._notify();
       return true;
@@ -665,6 +671,27 @@ window.RawDeal.GameEngine = class GameEngine {
     await this._applyManeuverDamage(player, opponent, played, damage);
   }
 
+  _openActionReversalWindowOrPlay(player, opponent, played) {
+    if (this.engineMode !== 'multiplayer') return false;
+    if (!window.RawDeal.CardUtils.defenderCanRespondToAction(opponent)) return false;
+
+    this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD, {
+      openReversalWindow: true,
+      isAction: true,
+    });
+    this.reversalWindow = {
+      kind: 'action',
+      attackerIndex: this._playerIndex(player),
+      defenderIndex: this._playerIndex(opponent),
+      player,
+      opponent,
+      played,
+      damage: 0,
+    };
+    this._notify();
+    return true;
+  }
+
   async _openReversalWindowOrApplyDamage(player, opponent, played, damage) {
     if (this.engineMode !== 'multiplayer') {
       return this._continueManeuverAfterReversal(player, opponent, played, damage);
@@ -672,6 +699,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD, { openReversalWindow: true });
     this.reversalWindow = {
+      kind: 'maneuver',
       attackerIndex: this._playerIndex(player),
       defenderIndex: this._playerIndex(opponent),
       player,
@@ -691,8 +719,13 @@ window.RawDeal.GameEngine = class GameEngine {
     const card = player.hand.find((c) => c.instanceId === instanceId);
     if (!card) return false;
 
+    const { played, kind = 'maneuver' } = this.reversalWindow;
+    if (kind === 'action') {
+      return window.RawDeal.CardUtils.canReverseAction(card, played, player.fortitude);
+    }
+
     const attacker = this.players[this.reversalWindow.attackerIndex];
-    return this._reversalStops(card, this.reversalWindow.played, player, {
+    return this._reversalStops(card, played, player, {
       attacker,
       effectiveDamage: this.reversalWindow.damage,
     });
@@ -702,16 +735,29 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!this.canPlayReversalFromHand(playerIndex, instanceId)) return false;
 
     const player = this.players[playerIndex];
-    const { player: attacker, played: maneuver } = this.reversalWindow;
+    const { player: attacker, played, kind = 'maneuver' } = this.reversalWindow;
     const handIndex = player.hand.findIndex((c) => c.instanceId === instanceId);
     const reversal = player.hand.splice(handIndex, 1)[0];
 
     player.ringside.push(reversal);
+
+    if (kind === 'action') {
+      attacker.ringside.push(played);
+      this.actionLog.push({
+        message: `${reversal.name} reversed ${played.name} — action has no effect.`,
+      });
+      this.reversalWindow = null;
+      this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
+      this._notify();
+      await this._runAutoPhases();
+      return true;
+    }
+
     this.actionLog.push({
-      message: `${reversal.name} reversed ${maneuver.name} from hand!`,
+      message: `${reversal.name} reversed ${played.name} from hand!`,
     });
 
-    this._applyStunValueDraw(attacker, maneuver);
+    this._applyStunValueDraw(attacker, played);
     this.reversalWindow = null;
 
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
@@ -724,8 +770,17 @@ window.RawDeal.GameEngine = class GameEngine {
     if (this.stateMachine.phase !== window.RawDeal.PHASES.REVERSAL_PRIORITY) return false;
     if (!this.reversalWindow || this.reversalWindow.defenderIndex !== playerIndex) return false;
 
-    const { player, opponent, played, damage } = this.reversalWindow;
+    const { player, opponent, played, damage, kind = 'maneuver' } = this.reversalWindow;
     this.reversalWindow = null;
+
+    if (kind === 'action') {
+      this.stateMachine.transition(window.RawDeal.EVENTS.PASS_PRIORITY, { isAction: true });
+      this._notify();
+      await this._playFromHandAsAction(player, played);
+      this._notify();
+      return true;
+    }
+
     this.stateMachine.transition(window.RawDeal.EVENTS.PASS_PRIORITY);
     this._notify();
     return await this._continueManeuverAfterReversal(player, opponent, played, damage);

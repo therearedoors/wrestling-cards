@@ -290,7 +290,13 @@ window.RawDeal.Board = class Board {
 
     const m = reversalWindow.maneuver;
     if (reversalWindow.canRespond) {
-      text.textContent = `Opponent played ${m.name} (${m.damage}D) — play a Reversal from hand or Pass.`;
+      if (reversalWindow.kind === 'action') {
+        text.textContent = `Opponent played ${m.name} as an Action — play a Reversal from hand or Pass.`;
+      } else {
+        text.textContent = `Opponent played ${m.name} (${m.damage}D) — play a Reversal from hand or Pass.`;
+      }
+    } else if (reversalWindow.kind === 'action') {
+      text.textContent = `Waiting for opponent to respond to ${m.name} (Action)…`;
     } else {
       text.textContent = `Waiting for opponent to respond to ${m.name}…`;
     }
@@ -311,7 +317,9 @@ window.RawDeal.Board = class Board {
         reversalMode &&
         isReversalCard &&
         reversalWindow.maneuver &&
-        this._canReverseManeuver(card, reversalWindow.maneuver, player, reversalWindow);
+        (reversalWindow.kind === 'action'
+          ? this._canReverseAction(card, reversalWindow.maneuver, player)
+          : this._canReverseManeuver(card, reversalWindow.maneuver, player, reversalWindow));
       const maneuverCost = utils.playFortitudeCost(card, 'maneuver');
       const actionCost = utils.playFortitudeCost(card, 'action');
       const affordableManeuver = player.fortitude >= maneuverCost;
@@ -441,6 +449,14 @@ window.RawDeal.Board = class Board {
       player.fortitude,
       maneuver.damage,
       { afterIrishWhip: reversalWindow?.maneuver?.afterIrishWhip ?? false }
+    );
+  }
+
+  _canReverseAction(card, action, player) {
+    return window.RawDeal.CardUtils.canReverseAction(
+      card,
+      { ...action, types: action.types || ['action'] },
+      player.fortitude
     );
   }
 

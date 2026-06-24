@@ -75,7 +75,7 @@ window.RawDeal.StateMachine = class StateMachine {
 
       case PHASES.REVERSAL_PRIORITY:
         if (event === EVENTS.PASS_PRIORITY) {
-          this.phase = PHASES.RESOLVING_DAMAGE;
+          this.phase = context.isAction ? PHASES.MAIN : PHASES.RESOLVING_DAMAGE;
         } else if (event === EVENTS.PLAY_REVERSAL) {
           this.phase = PHASES.END_OF_TURN;
         }
