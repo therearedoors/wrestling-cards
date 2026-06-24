@@ -1,11 +1,17 @@
 <%- include('../../include/header') %>
 <link rel="stylesheet" href="/css/games/rawdeal.css">
 
-<div class="rd-page">
+<div class="rd-page" data-rd-dev="<%= devMode ? '1' : '0' %>">
     <section id="rd-waiting" class="rd-setup">
         <div class="rd-setup-card">
             <h2>Waiting for Opponent</h2>
             <p id="rd-waiting-text" class="rd-setup-note">Connecting to room…</p>
+            <p class="rd-setup-links">
+                <a href="/rawdeal/games">Back to Lobby</a>
+                <% if (!devMode) { %>
+                    · <a id="rd-dev-mode-link" href="#">Dev Mode</a>
+                <% } %>
+            </p>
             <a href="/rawdeal/games" class="rd-btn rd-btn--secondary">Back to Lobby</a>
         </div>
     </section>
@@ -130,6 +136,24 @@
                         </div>
                     </div>
                 </div>
+
+                <% if (devMode) { %>
+                <div id="rd-dev-console" class="rd-dev-console">
+                    <div class="rd-dev-console__header">Dev Console</div>
+                    <div class="rd-dev-console__log" data-rd-dev-log></div>
+                    <form class="rd-dev-console__form" data-rd-dev-form>
+                        <input
+                            type="text"
+                            class="rd-dev-console__input"
+                            data-rd-dev-input
+                            placeholder="draw irish-whip"
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                        <button type="submit" class="rd-btn rd-btn--secondary rd-dev-console__submit">Run</button>
+                    </form>
+                </div>
+                <% } %>
             </aside>
         </div>
     </section>
@@ -144,6 +168,10 @@
 <script src="/js/games/rawdeal/ui/animations.js"></script>
 <script src="/js/games/rawdeal/ui/choiceModal.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
+<% if (devMode) { %>
+<script src="/js/games/rawdeal/dev/devCommands.js"></script>
+<script src="/js/games/rawdeal/dev/devConsole.js"></script>
+<% } %>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/index.js"></script>
 <script src="/js/games/rawdeal/multiplayer.js"></script>

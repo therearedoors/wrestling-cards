@@ -274,6 +274,23 @@ function attachRawDealHandlers(socket, io, redisClient, sendRoomAndUserCounts) {
 
     const username = socket.data.rdUsername;
     const result = await game.applyAction(username, action);
+    if (action.type === 'devCommand') {
+      socket.emit('rd-dev-result', result.devResult || { ok: false, message: 'Dev command failed' });
+      if (result.mutates) {
+        emitStateToRoom(io, roomId);
+        if (game.engine.winner !== null) {
+          io.to(roomId).emit('rd-game-over', {
+            winner: game.engine.winner,
+            reason: game.engine.winReason,
+          });
+          endGame(roomId);
+          removeRoom(roomId);
+          sendRoomAndUserCounts();
+        }
+      }
+      return;
+    }
+
     if (!result.ok) {
       socket.emit('rd-error', result.error || 'Invalid action');
       return;

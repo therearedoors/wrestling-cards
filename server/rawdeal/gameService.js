@@ -71,6 +71,14 @@ class RoomGame {
       case 'choiceSelect':
         ok = await engine.selectChoice(seat, action.optionId);
         break;
+      case 'devCommand': {
+        const { loadRawDeal } = require('./bootstrap');
+        const RawDeal = loadRawDeal();
+        const devResult = RawDeal.DevCommands.execute(engine, action.line, { mySeat: seat });
+        const cmd = (action.line || '').trim().split(/\s+/)[0]?.toLowerCase();
+        const mutates = devResult.ok && (cmd === 'draw' || cmd === 'stack');
+        return { ok: true, devResult, mutates };
+      }
       default:
         return { ok: false, error: 'Unknown action' };
     }

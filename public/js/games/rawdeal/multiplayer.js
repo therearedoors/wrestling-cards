@@ -6,6 +6,11 @@
 
   if (!waitingScreen || !gameScreen || !boardRoot) return;
 
+  const pageRoot = waitingScreen.closest('.rd-page');
+  const devMode = pageRoot?.dataset.rdDev === '1';
+  const devConsoleRoot = document.getElementById('rd-dev-console');
+  const devModeLink = document.getElementById('rd-dev-mode-link');
+
   const params = new URLSearchParams(window.location.search);
   const roomId = params.get('id');
   const password = params.get('password') || null;
@@ -18,6 +23,8 @@
   let user = null;
   let myIndex = 0;
   let board = null;
+  let devConsole = null;
+  let pendingDevResolve = null;
   let lastDamageLogLen = 0;
   let lastBoardState = null;
   let animChain = Promise.resolve();
@@ -106,10 +113,23 @@
     };
   }
 
+  function initDevConsole() {
+    if (!devMode || !devConsoleRoot || devConsole) return;
+
+    devConsole = new window.RawDeal.DevConsole(devConsoleRoot, (line) => {
+      return new Promise((resolve) => {
+        pendingDevResolve = resolve;
+        emitAction({ type: 'devCommand', line });
+      });
+    });
+    devConsole.log('Dev console ready. Type help for commands.');
+  }
+
   function showGame() {
     waitingScreen.classList.add('hidden');
     gameScreen.classList.remove('hidden');
     if (!board) setupBoard();
+    initDevConsole();
   }
 
   function processDamageLog(state, showedReversalFromAnim) {
@@ -211,10 +231,31 @@
     }
   });
 
+  socket.on('rd-dev-result', (result) => {
+    if (pendingDevResolve) {
+      pendingDevResolve(result);
+      pendingDevResolve = null;
+    }
+  });
+
   socket.on('rd-error', (msg) => {
+    if (pendingDevResolve) {
+      pendingDevResolve({ ok: false, message: msg });
+      pendingDevResolve = null;
+      return;
+    }
     alert(msg);
     if (msg.includes('not exist') || msg.includes('not in')) {
       window.location.href = '/rawdeal/games';
     }
   });
+
+  if (devModeLink) {
+    devModeLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      const next = new URLSearchParams(window.location.search);
+      next.set('dev', '1');
+      window.location.search = next.toString();
+    });
+  }
 })();

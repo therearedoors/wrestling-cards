@@ -17,6 +17,7 @@ function loadRawDeal() {
     'engine/cardUtils.js',
     'engine/stateMachine.js',
     'engine/gameEngine.js',
+    'dev/devCommands.js',
   ];
 
   const sandbox = {
