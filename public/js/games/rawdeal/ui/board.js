@@ -423,23 +423,12 @@ window.RawDeal.Board = class Board {
   }
 
   _canReverseManeuver(card, maneuver, player) {
-    if (!card.reverses) return false;
-    const reversalCost = card.fortitude || 0;
-    if (player.fortitude < reversalCost) return false;
-
-    const subtype = maneuver.subtype || '';
-    if (card.reverses.includes('low-damage') && (maneuver.damage || 0) <= (card.maxDamage || 5)) {
-      return true;
-    }
-    if (subtype && card.reverses.includes(subtype)) return true;
-    if (
-      card.reverses.includes('strike') &&
-      card.reverses.includes('grapple') &&
-      card.reverses.includes('submission')
-    ) {
-      return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
-    }
-    return false;
+    return window.RawDeal.CardUtils.canReverseManeuver(
+      card,
+      maneuver,
+      player.fortitude,
+      maneuver.damage
+    );
   }
 
   _renderSuperstarCard(container, superstar) {
