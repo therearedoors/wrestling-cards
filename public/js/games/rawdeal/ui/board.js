@@ -311,7 +311,7 @@ window.RawDeal.Board = class Board {
         reversalMode &&
         isReversalCard &&
         reversalWindow.maneuver &&
-        this._canReverseManeuver(card, reversalWindow.maneuver, player);
+        this._canReverseManeuver(card, reversalWindow.maneuver, player, reversalWindow);
       const maneuverCost = utils.playFortitudeCost(card, 'maneuver');
       const actionCost = utils.playFortitudeCost(card, 'action');
       const affordableManeuver = player.fortitude >= maneuverCost;
@@ -332,7 +332,7 @@ window.RawDeal.Board = class Board {
       const isHybrid = utils.isHybrid(card);
 
       const playZones = isHybrid
-        ? this._buildHybridPlayZones(card, { canManeuver, canAction })
+        ? this._buildHybridPlayZones(card, { canManeuver, canAction, canReversal })
         : null;
 
       const el = window.RawDeal.CardRenderer.createCardEl(card, {
@@ -396,11 +396,23 @@ window.RawDeal.Board = class Board {
     });
   }
 
-  _buildHybridPlayZones(card, { canManeuver, canAction }) {
+  _buildHybridPlayZones(card, { canManeuver, canAction, canReversal = false }) {
     const zones = {};
     const utils = window.RawDeal.CardUtils;
 
     for (const type of utils.getTypes(card)) {
+      if (type === 'reversal') {
+        zones[type] = {
+          playable: canReversal,
+          onClick: canReversal
+            ? () => {
+                if (this.onPlayReversal) this.onPlayReversal(card.instanceId);
+              }
+            : undefined,
+        };
+        continue;
+      }
+
       if (!utils.HAND_PLAY_MODES.includes(type)) {
         zones[type] = { playable: false };
         continue;
@@ -422,12 +434,13 @@ window.RawDeal.Board = class Board {
     return window.RawDeal.CardUtils.playFortitudeCost(card, playAs);
   }
 
-  _canReverseManeuver(card, maneuver, player) {
+  _canReverseManeuver(card, maneuver, player, reversalWindow = null) {
     return window.RawDeal.CardUtils.canReverseManeuver(
       card,
       maneuver,
       player.fortitude,
-      maneuver.damage
+      maneuver.damage,
+      { afterIrishWhip: reversalWindow?.maneuver?.afterIrishWhip ?? false }
     );
   }
 

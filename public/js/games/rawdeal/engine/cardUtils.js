@@ -70,8 +70,9 @@ window.RawDeal.CardUtils = {
   /**
    * Whether a reversal card can stop a maneuver. effectiveDamage should include
    * all modifiers (Haymaker, Irish Whip, etc.) when known.
+   * options.afterIrishWhip — attacker played Irish Whip before this maneuver this turn.
    */
-  canReverseManeuver(reversalCard, maneuver, defenderFortitude, effectiveDamage = null) {
+  canReverseManeuver(reversalCard, maneuver, defenderFortitude, effectiveDamage = null, options = {}) {
     const canReverse =
       this.hasType(reversalCard, 'reversal') ||
       (reversalCard.reverses && reversalCard.reverses.length > 0);
@@ -81,20 +82,28 @@ window.RawDeal.CardUtils = {
     if (defenderFortitude < reversalCost) return false;
 
     const damage = effectiveDamage ?? (maneuver.damage || 0);
+    const { afterIrishWhip = false } = options;
+    const reverses = reversalCard.reverses;
 
-    if (reversalCard.reverses.includes('low-damage')) {
-      return damage <= (reversalCard.maxDamage ?? 7);
+    if (reverses.includes('irish-whip') && maneuver.id === 'irish-whip') return true;
+
+    if (reverses.includes('after-irish-whip') && afterIrishWhip && this.hasType(maneuver, 'maneuver')) {
+      return true;
+    }
+
+    if (reverses.includes('low-damage') && damage <= (reversalCard.maxDamage ?? 7)) {
+      return true;
     }
 
     const subtype = maneuver.subtype || '';
-    if (subtype && reversalCard.reverses.includes(subtype)) return true;
-    if (reversalCard.reverses.includes('strike') && subtype === 'strike') return true;
-    if (reversalCard.reverses.includes('grapple') && subtype === 'grapple') return true;
-    if (reversalCard.reverses.includes('submission') && subtype === 'submission') return true;
+    if (subtype && reverses.includes(subtype)) return true;
+    if (reverses.includes('strike') && subtype === 'strike') return true;
+    if (reverses.includes('grapple') && subtype === 'grapple') return true;
+    if (reverses.includes('submission') && subtype === 'submission') return true;
     if (
-      reversalCard.reverses.includes('strike') &&
-      reversalCard.reverses.includes('grapple') &&
-      reversalCard.reverses.includes('submission')
+      reverses.includes('strike') &&
+      reverses.includes('grapple') &&
+      reverses.includes('submission')
     ) {
       return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
     }

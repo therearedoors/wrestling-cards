@@ -108,6 +108,7 @@ window.RawDeal.GameEngine = class GameEngine {
         name: played.name,
         subtype: played.subtype,
         damage,
+        afterIrishWhip: !!this.players[attackerIndex]?.turnState?.irishWhipPlayed,
       },
     };
   }
@@ -925,16 +926,19 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _reversalStops(card, maneuver, opponent, options = {}) {
-    const { attacker = null, effectiveDamage = null } = options;
+    const { attacker = null, effectiveDamage = null, afterIrishWhip = null } = options;
     const damage =
       effectiveDamage ??
       (attacker ? this._peekManeuverDamage(attacker, opponent, maneuver) : (maneuver.damage || 0));
+    const playedAfterIrishWhip =
+      afterIrishWhip ?? !!attacker?.turnState?.irishWhipPlayed;
 
     return window.RawDeal.CardUtils.canReverseManeuver(
       card,
       maneuver,
       opponent.fortitude,
-      damage
+      damage,
+      { afterIrishWhip: playedAfterIrishWhip }
     );
   }
 
