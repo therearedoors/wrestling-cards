@@ -87,7 +87,7 @@ window.RawDeal.CardUtils = {
 
     if (reverses.includes('irish-whip') && maneuver.id === 'irish-whip') return true;
 
-    if (reverses.includes('after-irish-whip') && afterIrishWhip && this.hasType(maneuver, 'maneuver')) {
+    if (reverses.includes('after-irish-whip') && afterIrishWhip) {
       return true;
     }
 
