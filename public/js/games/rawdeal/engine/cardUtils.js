@@ -2,6 +2,8 @@ window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.CardUtils = {
   HAND_PLAY_MODES: ['maneuver', 'action'],
+  /** Lowest F cost among cards that reverse actions from hand (only No Chance in Hell). */
+  ACTION_REVERSAL_MIN_FORTITUDE: 12,
 
   getTypes(card) {
     if (!card?.types?.length) return [];
@@ -108,5 +110,23 @@ window.RawDeal.CardUtils = {
       return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
     }
     return false;
+  },
+
+  /** Whether a reversal can stop an action played from hand (e.g. No Chance in Hell). */
+  canReverseAction(reversalCard, actionCard, defenderFortitude) {
+    const canReverse =
+      this.hasType(reversalCard, 'reversal') ||
+      (reversalCard.reverses && reversalCard.reverses.length > 0);
+    if (!canReverse || !reversalCard.reverses?.includes('action')) return false;
+    if (!this.hasType(actionCard, 'action')) return false;
+
+    const reversalCost = reversalCard.fortitude || 0;
+    return defenderFortitude >= reversalCost;
+  },
+
+  defenderCanRespondToAction(defender) {
+    if (defender.fortitude < this.ACTION_REVERSAL_MIN_FORTITUDE) return false;
+    const stubAction = { types: ['action'] };
+    return defender.hand.some((card) => this.canReverseAction(card, stubAction, defender.fortitude));
   },
 };
