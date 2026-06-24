@@ -333,6 +333,8 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Grapple When successfully played, if your next card played this turn is a Strike maneuver it is +2D.",
     flavor: "",
+    effect: "nextStrikeBonus",
+    effectValue: 2,
     set: "premiere",
   },
   'gut-buster': {

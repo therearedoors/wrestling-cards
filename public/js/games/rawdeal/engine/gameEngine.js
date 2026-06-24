@@ -494,14 +494,18 @@ window.RawDeal.GameEngine = class GameEngine {
     return damage;
   }
 
+  _applyNextStrikeBonus(player, sourceName, bonus) {
+    if (!player.turnState) player.turnState = this._emptyTurnState();
+    player.turnState.nextStrikeBonus = bonus;
+    this.actionLog.push({
+      message: `${sourceName}: your next Strike maneuver is +${bonus}D this turn.`,
+    });
+  }
+
   _applyIrishWhipSetup(player, card) {
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.irishWhipPlayed = true;
-    const bonus = card.actionEffectValue || 5;
-    player.turnState.nextStrikeBonus = bonus;
-    this.actionLog.push({
-      message: `${card.name}: Irish Whip set up — your next Strike maneuver is +${bonus}D this turn.`,
-    });
+    this._applyNextStrikeBonus(player, card.name, card.actionEffectValue || 5);
   }
 
   _forceOpponentDiscard(opponent, count) {
@@ -545,6 +549,10 @@ window.RawDeal.GameEngine = class GameEngine {
         value: played.effectValue || 1,
         sourceName: played.name,
       });
+    }
+
+    if (played.effect === 'nextStrikeBonus') {
+      this._applyNextStrikeBonus(player, played.name, played.effectValue || 2);
     }
   }
 
