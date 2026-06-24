@@ -1058,7 +1058,7 @@ window.RawDeal.CARDS = {
     text: "Action: Set-up / Reversal: Special As an action, if your next card played is a Strike maneuver it is +5D. As a reversal, may only reverse the card titled Irish Whip. If so, you end opponent’s turn; and if your next card played on your turn is a Strike maneuver it is +5D.",
     flavor: "",
     hybrid: true,
-    reverses: ["after-irish-whip"],
+    reverses: ["irish-whip"],
     actionEffect: "nextStrikeBonus",
     actionEffectValue: 5,
     set: "premiere",
