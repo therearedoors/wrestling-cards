@@ -935,7 +935,8 @@ window.RawDeal.CARDS = {
     damage: 2,
     text: "Reversal: Special May reverse any maneuver that does 7D or less. End your opponent’s turn.",
     flavor: "",
-    reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher"],
+    reverses: ["low-damage"],
+    maxDamage: 7,
     set: "premiere",
   },
   'clean-break': {

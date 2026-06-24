@@ -66,4 +66,38 @@ window.RawDeal.CardUtils = {
     }
     return 'Action';
   },
+
+  /**
+   * Whether a reversal card can stop a maneuver. effectiveDamage should include
+   * all modifiers (Haymaker, Irish Whip, etc.) when known.
+   */
+  canReverseManeuver(reversalCard, maneuver, defenderFortitude, effectiveDamage = null) {
+    const canReverse =
+      this.hasType(reversalCard, 'reversal') ||
+      (reversalCard.reverses && reversalCard.reverses.length > 0);
+    if (!canReverse || !reversalCard.reverses) return false;
+
+    const reversalCost = reversalCard.fortitude || 0;
+    if (defenderFortitude < reversalCost) return false;
+
+    const damage = effectiveDamage ?? (maneuver.damage || 0);
+
+    if (reversalCard.reverses.includes('low-damage')) {
+      return damage <= (reversalCard.maxDamage ?? 7);
+    }
+
+    const subtype = maneuver.subtype || '';
+    if (subtype && reversalCard.reverses.includes(subtype)) return true;
+    if (reversalCard.reverses.includes('strike') && subtype === 'strike') return true;
+    if (reversalCard.reverses.includes('grapple') && subtype === 'grapple') return true;
+    if (reversalCard.reverses.includes('submission') && subtype === 'submission') return true;
+    if (
+      reversalCard.reverses.includes('strike') &&
+      reversalCard.reverses.includes('grapple') &&
+      reversalCard.reverses.includes('submission')
+    ) {
+      return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
+    }
+    return false;
+  },
 };

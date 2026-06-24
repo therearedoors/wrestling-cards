@@ -460,14 +460,13 @@ window.RawDeal.GameEngine = class GameEngine {
     return text.includes('take the top card of your arsenal and put it into your ringside pile');
   }
 
-  _calcManeuverDamage(player, opponent, played) {
+  _peekManeuverDamage(player, opponent, played) {
     const idx = this._playerIndex(player);
     let damage = played.damage || 0;
     if (opponent.superstar.id === 'mankind' && damage > 0) {
       damage = Math.max(0, damage - 1);
     }
     damage += this.nextManeuverBonus[idx];
-    this.nextManeuverBonus[idx] = 0;
 
     const turnBonus = this.turnDamageBonus[idx];
     damage += turnBonus.all || 0;
@@ -478,6 +477,17 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (played.subtype === 'strike' && player.turnState?.nextStrikeBonus) {
       damage += player.turnState.nextStrikeBonus;
+    }
+
+    return damage;
+  }
+
+  _calcManeuverDamage(player, opponent, played) {
+    const damage = this._peekManeuverDamage(player, opponent, played);
+    const idx = this._playerIndex(player);
+    this.nextManeuverBonus[idx] = 0;
+
+    if (played.subtype === 'strike' && player.turnState?.nextStrikeBonus) {
       player.turnState.nextStrikeBonus = 0;
     }
 
@@ -661,7 +671,11 @@ window.RawDeal.GameEngine = class GameEngine {
     const card = player.hand.find((c) => c.instanceId === instanceId);
     if (!card) return false;
 
-    return this._reversalStops(card, this.reversalWindow.played, player);
+    const attacker = this.players[this.reversalWindow.attackerIndex];
+    return this._reversalStops(card, this.reversalWindow.played, player, {
+      attacker,
+      effectiveDamage: this.reversalWindow.damage,
+    });
   }
 
   async playReversalFromHand(playerIndex, instanceId) {
@@ -840,7 +854,10 @@ window.RawDeal.GameEngine = class GameEngine {
       cardsOverturned += 1;
       this._notify();
 
-      const reversed = this._reversalStops(overturned, maneuver, opponent);
+      const reversed = this._reversalStops(overturned, maneuver, opponent, {
+        attacker,
+        effectiveDamage: this._peekManeuverDamage(attacker, opponent, maneuver),
+      });
 
       await this.onDamageStep({
         card: overturned,
@@ -883,33 +900,18 @@ window.RawDeal.GameEngine = class GameEngine {
     }
   }
 
-  _reversalStops(card, maneuver, opponent) {
-    const utils = window.RawDeal.CardUtils;
-    const canReverseFromArsenal =
-      utils.hasType(card, 'reversal') || (card.reverses && card.reverses.length > 0);
-    if (!canReverseFromArsenal || !card.reverses) return false;
+  _reversalStops(card, maneuver, opponent, options = {}) {
+    const { attacker = null, effectiveDamage = null } = options;
+    const damage =
+      effectiveDamage ??
+      (attacker ? this._peekManeuverDamage(attacker, opponent, maneuver) : (maneuver.damage || 0));
 
-    const reversalCost = card.fortitude || 0;
-    if (opponent.fortitude < reversalCost) return false;
-
-    if (card.reverses.includes('low-damage') && (maneuver.damage || 0) <= (card.maxDamage || 5)) {
-      return true;
-    }
-    const subtype = maneuver.subtype || '';
-    if (subtype && card.reverses.includes(subtype)) {
-      return true;
-    }
-    if (card.reverses.includes('strike') && subtype === 'strike') return true;
-    if (card.reverses.includes('grapple') && subtype === 'grapple') return true;
-    if (card.reverses.includes('submission') && subtype === 'submission') return true;
-    if (
-      card.reverses.includes('strike') &&
-      card.reverses.includes('grapple') &&
-      card.reverses.includes('submission')
-    ) {
-      return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
-    }
-    return false;
+    return window.RawDeal.CardUtils.canReverseManeuver(
+      card,
+      maneuver,
+      opponent.fortitude,
+      damage
+    );
   }
 
   canUseSuperstarAbility(playerIndex) {
