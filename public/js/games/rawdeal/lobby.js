@@ -27,6 +27,8 @@
   let pendingJoinId = null;
   let pendingJoinPassword = false;
 
+  const devQs = new URLSearchParams(window.location.search).get('dev') === '1' ? '&dev=1' : '';
+
   const DECK_NAMES = {
     rock: 'The Rock',
     austin: 'Stone Cold',
@@ -99,12 +101,12 @@
     const id = roomIdInput.value.trim();
     const password = addPassword.checked ? roomPassword.value : '';
     const qs = password ? `&password=${encodeURIComponent(password)}` : '';
-    window.location.href = `/rawdeal/room?id=${encodeURIComponent(id)}${qs}`;
+    window.location.href = `/rawdeal/room?id=${encodeURIComponent(id)}${qs}${devQs}`;
   });
 
   socket.on('rd-room-joined', (roomId, password) => {
     const qs = password ? `&password=${encodeURIComponent(password)}` : '';
-    window.location.href = `/rawdeal/room?id=${encodeURIComponent(roomId)}${qs}`;
+    window.location.href = `/rawdeal/room?id=${encodeURIComponent(roomId)}${qs}${devQs}`;
   });
 
   socket.on('rd-error', (msg) => {

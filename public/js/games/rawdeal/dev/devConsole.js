@@ -1,15 +1,21 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.DevConsole = class DevConsole {
-  constructor(rootEl, engine) {
-    this.engine = engine;
+  constructor(rootEl, engineOrExecutor) {
+    if (typeof engineOrExecutor === 'function') {
+      this.executor = engineOrExecutor;
+    } else {
+      this.executor = (line) =>
+        window.RawDeal.DevCommands.execute(engineOrExecutor, line);
+    }
+
     this.logEl = rootEl.querySelector('[data-rd-dev-log]');
     this.inputEl = rootEl.querySelector('[data-rd-dev-input]');
     this.formEl = rootEl.querySelector('[data-rd-dev-form]');
 
     this.formEl?.addEventListener('submit', (e) => {
       e.preventDefault();
-      this.submit();
+      void this.submit();
     });
   }
 
@@ -22,13 +28,13 @@ window.RawDeal.DevConsole = class DevConsole {
     this.logEl.scrollTop = this.logEl.scrollHeight;
   }
 
-  submit() {
+  async submit() {
     const line = this.inputEl?.value?.trim();
     if (!line) return;
 
     this.log(`> ${line}`);
-    const result = window.RawDeal.DevCommands.execute(this.engine, line);
-    if (result.message) {
+    const result = await Promise.resolve(this.executor(line));
+    if (result?.message) {
       this.log(result.message, !result.ok);
     }
 

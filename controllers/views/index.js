@@ -62,5 +62,8 @@ exports.getRawDealRoomPage = (req, res) => {
     if (!req.cookies.token) {
         return res.redirect('/login');
     }
-    res.render('games/rawdeal/room', { authorized: true });
+    res.render('games/rawdeal/room', {
+        authorized: true,
+        devMode: req.query.dev === '1',
+    });
 }
