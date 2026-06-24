@@ -63,12 +63,13 @@ class RoomGame {
       case 'superstarAbility':
         ok = engine.beginSuperstarAbility(seat);
         break;
-      case 'abilitySelect':
-        ok = engine.selectForAbility(seat, action.instanceId)
-          || engine.selectForCardEffect(seat, action.instanceId);
+      case 'abilitySelect': {
+        const abilityOk = engine.selectForAbility(seat, action.instanceId);
+        ok = abilityOk || (await engine.selectForCardEffect(seat, action.instanceId));
         break;
+      }
       case 'choiceSelect':
-        ok = engine.selectChoice(seat, action.optionId);
+        ok = await engine.selectChoice(seat, action.optionId);
         break;
       default:
         return { ok: false, error: 'Unknown action' };

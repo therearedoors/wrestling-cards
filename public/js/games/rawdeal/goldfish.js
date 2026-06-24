@@ -82,14 +82,14 @@
       engine.beginSuperstarAbility(0);
     };
 
-    board.onAbilitySelect = (instanceId) => {
-      if (!engine.selectForCardEffect(0, instanceId)) {
+    board.onAbilitySelect = async (instanceId) => {
+      if (!(await engine.selectForCardEffect(0, instanceId))) {
         engine.selectForAbility(0, instanceId);
       }
     };
 
-    board.onChoiceSelect = (optionId) => {
-      engine.selectChoice(0, optionId);
+    board.onChoiceSelect = async (optionId) => {
+      await engine.selectChoice(0, optionId);
     };
 
     board.onRestart = () => {

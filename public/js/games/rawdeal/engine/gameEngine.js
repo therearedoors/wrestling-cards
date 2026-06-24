@@ -509,13 +509,24 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _forceOpponentDiscard(opponent, count) {
-    let discarded = 0;
+    const autoPick = this.engineMode === 'goldfish' || !opponent.isHuman;
+    const discardedCards = [];
+
     for (let i = 0; i < count; i++) {
+      if (autoPick && opponent.hand.length > 0) {
+        const idx = Math.floor(Math.random() * opponent.hand.length);
+        discardedCards.push(opponent.hand.splice(idx, 1)[0]);
+        continue;
+      }
       if (opponent.arsenal.length === 0) break;
-      opponent.ringside.push(opponent.arsenal.pop());
-      discarded += 1;
+      discardedCards.push(opponent.arsenal.pop());
     }
-    return discarded;
+
+    for (const card of discardedCards) {
+      opponent.ringside.push(card);
+    }
+
+    return { count: discardedCards.length, cards: discardedCards };
   }
 
   _beginPreDamageChoice(player, card, playerIndex = 0) {
@@ -633,7 +644,7 @@ window.RawDeal.GameEngine = class GameEngine {
     return this._applyManeuverDamage(player, opponent, played, damage);
   }
 
-  async _continuePendingManeuverDamage() {
+  async _continuePendingManeuverDamage({ afterDiscard = false } = {}) {
     const pending = this.pendingManeuverResolution;
     this.pendingManeuverResolution = null;
     if (!pending) {
@@ -645,7 +656,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const { player, opponent, played, damage } = pending;
     const playerIndex = this._playerIndex(player);
 
-    if (this._beginPreDamageChoice(player, played, playerIndex)) {
+    if (afterDiscard && this._beginPreDamageChoice(player, played, playerIndex)) {
       this.pendingManeuverResolution = { player, opponent, played, damage };
       return;
     }
@@ -719,10 +730,10 @@ window.RawDeal.GameEngine = class GameEngine {
     return await this._continueManeuverAfterReversal(player, opponent, played, damage);
   }
 
-  _finishCardEffectResolution() {
+  async _finishCardEffectResolution({ afterDiscard = false } = {}) {
     this.cardEffectFlow = null;
     if (this.pendingManeuverResolution) {
-      void this._continuePendingManeuverDamage();
+      await this._continuePendingManeuverDamage({ afterDiscard });
       return;
     }
 
@@ -730,7 +741,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this._notify();
   }
 
-  selectForCardEffect(playerIndex, instanceId) {
+  async selectForCardEffect(playerIndex, instanceId) {
     if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
 
     const player = this.players[playerIndex];
@@ -760,14 +771,14 @@ window.RawDeal.GameEngine = class GameEngine {
       this.actionLog.push({
         message: `${flow.sourceName}: discarded ${names} to Ringside.`,
       });
-      this._finishCardEffectResolution();
+      await this._finishCardEffectResolution({ afterDiscard: true });
       return true;
     }
 
     return false;
   }
 
-  selectChoice(playerIndex, optionId) {
+  async selectChoice(playerIndex, optionId) {
     if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
     if (this.cardEffectFlow.type !== 'choice') return false;
 
@@ -784,10 +795,14 @@ window.RawDeal.GameEngine = class GameEngine {
         this.actionLog.push({
           message: `${flow.sourceName}: drew ${n} cards.`,
         });
+        this._notify();
       } else if (optionId === 'opponentDiscard') {
-        const discarded = this._forceOpponentDiscard(opponent, n);
+        const { count, cards } = this._forceOpponentDiscard(opponent, n);
+        const names = cards.map((c) => c.name).join(', ');
         this.actionLog.push({
-          message: `${flow.sourceName}: opponent discarded ${discarded} card(s) to Ringside.`,
+          message: count
+            ? `${flow.sourceName}: opponent discarded ${names} to Ringside.`
+            : `${flow.sourceName}: opponent had no cards to discard.`,
         });
       } else {
         return false;
@@ -796,7 +811,8 @@ window.RawDeal.GameEngine = class GameEngine {
       return false;
     }
 
-    this._finishCardEffectResolution();
+    this._notify();
+    await this._finishCardEffectResolution();
     return true;
   }
 
