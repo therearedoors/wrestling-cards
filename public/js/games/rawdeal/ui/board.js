@@ -448,14 +448,17 @@ window.RawDeal.Board = class Board {
       maneuver,
       player.fortitude,
       maneuver.damage,
-      { afterIrishWhip: reversalWindow?.maneuver?.afterIrishWhip ?? false }
+      {
+        afterIrishWhip: reversalWindow?.maneuver?.afterIrishWhip ?? false,
+        reversalFortitudeTax: reversalWindow?.maneuver?.reversalFortitudeTax ?? 0,
+      }
     );
   }
 
   _canReverseAction(card, action, player) {
     return window.RawDeal.CardUtils.canReverseAction(
       card,
-      { ...action, types: action.types || ['action'] },
+      { id: action.id, types: action.types || ['action'] },
       player.fortitude
     );
   }

@@ -2,8 +2,6 @@ window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.CardUtils = {
   HAND_PLAY_MODES: ['maneuver', 'action'],
-  /** Lowest F cost among cards that reverse actions from hand (only No Chance in Hell). */
-  ACTION_REVERSAL_MIN_FORTITUDE: 12,
 
   getTypes(card) {
     if (!card?.types?.length) return [];
@@ -80,11 +78,11 @@ window.RawDeal.CardUtils = {
       (reversalCard.reverses && reversalCard.reverses.length > 0);
     if (!canReverse || !reversalCard.reverses) return false;
 
-    const reversalCost = reversalCard.fortitude || 0;
+    const { afterIrishWhip = false, reversalFortitudeTax = 0 } = options;
+    const reversalCost = (reversalCard.fortitude || 0) + reversalFortitudeTax;
     if (defenderFortitude < reversalCost) return false;
 
     const damage = effectiveDamage ?? (maneuver.damage || 0);
-    const { afterIrishWhip = false } = options;
     const reverses = reversalCard.reverses;
 
     if (reverses.includes('irish-whip') && maneuver.id === 'irish-whip') return true;
@@ -112,21 +110,22 @@ window.RawDeal.CardUtils = {
     return false;
   },
 
-  /** Whether a reversal can stop an action played from hand (e.g. No Chance in Hell). */
+  /** Whether a reversal can stop an action played from hand. */
   canReverseAction(reversalCard, actionCard, defenderFortitude) {
     const canReverse =
       this.hasType(reversalCard, 'reversal') ||
       (reversalCard.reverses && reversalCard.reverses.length > 0);
-    if (!canReverse || !reversalCard.reverses?.includes('action')) return false;
-    if (!this.hasType(actionCard, 'action')) return false;
+    if (!canReverse || !this.hasType(actionCard, 'action')) return false;
 
     const reversalCost = reversalCard.fortitude || 0;
-    return defenderFortitude >= reversalCost;
-  },
+    if (defenderFortitude < reversalCost) return false;
 
-  defenderCanRespondToAction(defender) {
-    if (defender.fortitude < this.ACTION_REVERSAL_MIN_FORTITUDE) return false;
-    const stubAction = { types: ['action'] };
-    return defender.hand.some((card) => this.canReverseAction(card, stubAction, defender.fortitude));
+    const reverses = reversalCard.reverses || [];
+    if (reverses.includes('action')) return true;
+    if (reverses.includes('irish-whip') && actionCard.id === 'irish-whip') return true;
+    if (reverses.includes('jockeying-for-position') && actionCard.id === 'jockeying-for-position') {
+      return true;
+    }
+    return false;
   },
 };

@@ -40,7 +40,20 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _emptyTurnState() {
-    return { irishWhipPlayed: false, nextStrikeBonus: 0 };
+    return {
+      irishWhipPlayed: false,
+      nextStrikeBonus: 0,
+      nextGrappleBonus: 0,
+      nextGrappleReversalTax: 0,
+    };
+  }
+
+  _clearTurnSetupEffects(player) {
+    if (!player?.turnState) return;
+    player.turnState.irishWhipPlayed = false;
+    player.turnState.nextStrikeBonus = 0;
+    player.turnState.nextGrappleBonus = 0;
+    player.turnState.nextGrappleReversalTax = 0;
   }
 
   _playerIndex(player) {
@@ -112,6 +125,10 @@ window.RawDeal.GameEngine = class GameEngine {
         afterIrishWhip: kind === 'maneuver'
           ? !!this.players[attackerIndex]?.turnState?.irishWhipPlayed
           : false,
+        reversalFortitudeTax:
+          kind === 'maneuver' && played.subtype === 'grapple'
+            ? this.players[attackerIndex]?.turnState?.nextGrappleReversalTax || 0
+            : 0,
       },
     };
   }
@@ -347,6 +364,7 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       if (phase === PHASES.END_OF_TURN) {
+        this._clearTurnSetupEffects(active);
         const opponent = this.players[1 - this.stateMachine.activePlayer];
         const gameOver = this._checkCountOut(opponent);
         this.stateMachine.transition(null, { gameOver });
@@ -455,6 +473,14 @@ window.RawDeal.GameEngine = class GameEngine {
       return;
     }
 
+    if (card.actionEffect === 'jockeyingChoice') {
+      this.actionLog.push({
+        message: `${card.name} played as an action.`,
+      });
+      this._beginJockeyingChoice(player, this._playerIndex(player), card.name);
+      return;
+    }
+
     this._resolveAction(player, card);
     this.actionLog.push({
       message: `${card.name} played as an action.`,
@@ -486,6 +512,10 @@ window.RawDeal.GameEngine = class GameEngine {
       damage += player.turnState.nextStrikeBonus;
     }
 
+    if (played.subtype === 'grapple' && player.turnState?.nextGrappleBonus) {
+      damage += player.turnState.nextGrappleBonus;
+    }
+
     return damage;
   }
 
@@ -496,6 +526,10 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (played.subtype === 'strike' && player.turnState?.nextStrikeBonus) {
       player.turnState.nextStrikeBonus = 0;
+    }
+
+    if (played.subtype === 'grapple' && player.turnState?.nextGrappleBonus) {
+      player.turnState.nextGrappleBonus = 0;
     }
 
     return damage;
@@ -513,6 +547,21 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.irishWhipPlayed = true;
     this._applyNextStrikeBonus(player, card.name, card.actionEffectValue || 5);
+  }
+
+  _beginJockeyingChoice(player, playerIndex, sourceName) {
+    this.cardEffectFlow = {
+      type: 'choice',
+      choiceId: 'jockeyingForPosition',
+      playerIndex,
+      sourceName,
+      message: `${sourceName}: choose an effect for your next Grapple maneuver.`,
+      options: [
+        { id: 'grappleDamage', label: 'Next Grapple +4D' },
+        { id: 'grappleReversalTax', label: "Opponent's reversal to it +8F" },
+      ],
+    };
+    this._notify();
   }
 
   _forceOpponentDiscard(opponent, count) {
@@ -637,6 +686,9 @@ window.RawDeal.GameEngine = class GameEngine {
 
   async _continueManeuverAfterReversal(player, opponent, played, damage) {
     const playerIndex = this._playerIndex(player);
+    if (played.subtype === 'grapple') {
+      this._clearGrappleJockeyingTax(player);
+    }
 
     if (this._beginPreDamageDiscardPrompt(player, played, playerIndex)) {
       this.pendingManeuverResolution = { player, opponent, played, damage };
@@ -673,7 +725,6 @@ window.RawDeal.GameEngine = class GameEngine {
 
   _openActionReversalWindowOrPlay(player, opponent, played) {
     if (this.engineMode !== 'multiplayer') return false;
-    if (!window.RawDeal.CardUtils.defenderCanRespondToAction(opponent)) return false;
 
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD, {
       openReversalWindow: true,
@@ -725,9 +776,12 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     const attacker = this.players[this.reversalWindow.attackerIndex];
+    const reversalFortitudeTax =
+      played.subtype === 'grapple' ? attacker.turnState?.nextGrappleReversalTax || 0 : 0;
     return this._reversalStops(card, played, player, {
       attacker,
       effectiveDamage: this.reversalWindow.damage,
+      reversalFortitudeTax,
     });
   }
 
@@ -743,6 +797,12 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (kind === 'action') {
       attacker.ringside.push(played);
+      const reversalPlayerIndex = this._playerIndex(player);
+      const grantIrishWhipSetup =
+        reversal.id === 'irish-whip' && played.id === 'irish-whip';
+      const grantJockeyingChoice =
+        reversal.id === 'jockeying-for-position' && played.id === 'jockeying-for-position';
+
       this.actionLog.push({
         message: `${reversal.name} reversed ${played.name} — action has no effect.`,
       });
@@ -750,12 +810,23 @@ window.RawDeal.GameEngine = class GameEngine {
       this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
       this._notify();
       await this._runAutoPhases();
+
+      if (grantIrishWhipSetup) {
+        this._applyIrishWhipSetup(player, reversal);
+      } else if (grantJockeyingChoice) {
+        this._beginJockeyingChoice(player, reversalPlayerIndex, reversal.name);
+      }
+      this._notify();
       return true;
     }
 
     this.actionLog.push({
       message: `${reversal.name} reversed ${played.name} from hand!`,
     });
+
+    if (played.subtype === 'grapple') {
+      this._clearGrappleJockeyingTax(attacker);
+    }
 
     this._applyStunValueDraw(attacker, played);
     this.reversalWindow = null;
@@ -841,6 +912,26 @@ window.RawDeal.GameEngine = class GameEngine {
     const flow = this.cardEffectFlow;
     const player = this.players[playerIndex];
     const opponent = this.players[1 - playerIndex];
+
+    if (flow.choiceId === 'jockeyingForPosition') {
+      if (!player.turnState) player.turnState = this._emptyTurnState();
+      if (optionId === 'grappleDamage') {
+        player.turnState.nextGrappleBonus = 4;
+        this.actionLog.push({
+          message: `${flow.sourceName}: your next Grapple maneuver is +4D.`,
+        });
+      } else if (optionId === 'grappleReversalTax') {
+        player.turnState.nextGrappleReversalTax = 8;
+        this.actionLog.push({
+          message: `${flow.sourceName}: opponent's reversal to your next Grapple is +8F.`,
+        });
+      } else {
+        return false;
+      }
+      this.cardEffectFlow = null;
+      this._notify();
+      return true;
+    }
 
     if (flow.choiceId === 'drawOrOpponentDiscard') {
       const n = flow.count || 2;
@@ -981,20 +1072,34 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _reversalStops(card, maneuver, opponent, options = {}) {
-    const { attacker = null, effectiveDamage = null, afterIrishWhip = null } = options;
+    const {
+      attacker = null,
+      effectiveDamage = null,
+      afterIrishWhip = null,
+      reversalFortitudeTax = 0,
+    } = options;
     const damage =
       effectiveDamage ??
       (attacker ? this._peekManeuverDamage(attacker, opponent, maneuver) : (maneuver.damage || 0));
     const playedAfterIrishWhip =
       afterIrishWhip ?? !!attacker?.turnState?.irishWhipPlayed;
+    const tax =
+      reversalFortitudeTax ||
+      (maneuver.subtype === 'grapple' ? attacker?.turnState?.nextGrappleReversalTax || 0 : 0);
 
     return window.RawDeal.CardUtils.canReverseManeuver(
       card,
       maneuver,
       opponent.fortitude,
       damage,
-      { afterIrishWhip: playedAfterIrishWhip }
+      { afterIrishWhip: playedAfterIrishWhip, reversalFortitudeTax: tax }
     );
+  }
+
+  _clearGrappleJockeyingTax(player) {
+    if (player?.turnState?.nextGrappleReversalTax) {
+      player.turnState.nextGrappleReversalTax = 0;
+    }
   }
 
   canUseSuperstarAbility(playerIndex) {
