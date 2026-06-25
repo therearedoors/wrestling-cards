@@ -160,6 +160,21 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'opponentDiscardFromHand') {
+      const n = flow.count || 1;
+      const picked = flow.selectedIds.length;
+      const message =
+        n === 1
+          ? `${flow.sourceName}: choose 1 card from your hand to discard to Ringside.`
+          : `${flow.sourceName}: choose ${n} cards from your hand to discard to Ringside (${picked}/${n}).`;
+      return {
+        mode: 'hand',
+        count: n,
+        message,
+        selectedIds: [...flow.selectedIds],
+      };
+    }
+
     return null;
   }
 
@@ -585,6 +600,69 @@ window.RawDeal.GameEngine = class GameEngine {
     return { count: discardedCards.length, cards: discardedCards };
   }
 
+  _forceOpponentDiscardFromHand(opponent, count) {
+    const discardedCards = [];
+
+    for (let i = 0; i < count; i++) {
+      if (opponent.hand.length === 0) break;
+      const idx = Math.floor(Math.random() * opponent.hand.length);
+      discardedCards.push(opponent.hand.splice(idx, 1)[0]);
+    }
+
+    for (const card of discardedCards) {
+      opponent.ringside.push(card);
+    }
+
+    return { count: discardedCards.length, cards: discardedCards };
+  }
+
+  _beginOpponentDiscardFromHandPrompt(opponent, opponentIndex, sourceName, count) {
+    if (opponent.hand.length === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: opponent had no cards in hand to discard.`,
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'opponentDiscardFromHand',
+      playerIndex: opponentIndex,
+      sourceName,
+      count,
+      selectedIds: [],
+    };
+    this._notify();
+    return true;
+  }
+
+  async _applyOpponentDiscardFromHandEffect(player, played) {
+    const opponent = this.players[1 - this._playerIndex(player)];
+    const count = played.effectValue || 1;
+    const autoPick = this.engineMode === 'goldfish' || !opponent.isHuman;
+
+    if (autoPick) {
+      const { count: discarded, cards } = this._forceOpponentDiscardFromHand(opponent, count);
+      if (discarded > 0) {
+        const names = cards.map((c) => c.name).join(', ');
+        this.actionLog.push({
+          message: `${played.name}: opponent discarded ${names} to Ringside.`,
+        });
+      } else {
+        this.actionLog.push({
+          message: `${played.name}: opponent had no cards in hand to discard.`,
+        });
+      }
+      return;
+    }
+
+    this._beginOpponentDiscardFromHandPrompt(
+      opponent,
+      this._playerIndex(opponent),
+      played.name,
+      count
+    );
+  }
+
   _beginPreDamageChoice(player, card, playerIndex = 0) {
     if (card.effect !== 'drawOrOpponentDiscard') return false;
 
@@ -620,6 +698,10 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (played.effect === 'nextStrikeBonus') {
       this._applyNextStrikeBonus(player, played.name, played.effectValue || 2);
+    }
+
+    if (played.effect === 'opponentDiscardFromHand') {
+      await this._applyOpponentDiscardFromHandEffect(player, played);
     }
   }
 
@@ -666,6 +748,11 @@ window.RawDeal.GameEngine = class GameEngine {
 
       await this._resolveOnSuccessManeuverEffects(player, played);
 
+      if (this.cardEffectFlow) {
+        this._notify();
+        return true;
+      }
+
       if (damageResult.result === 'pinfall') {
         this.winner = this._playerIndex(player);
         this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
@@ -677,6 +764,10 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (damage <= 0) {
       await this._resolveOnSuccessManeuverEffects(player, played);
+      if (this.cardEffectFlow) {
+        this._notify();
+        return true;
+      }
     }
 
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
@@ -874,7 +965,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const player = this.players[playerIndex];
     const flow = this.cardEffectFlow;
 
-    if (flow.type === 'discardFromHand') {
+    if (flow.type === 'discardFromHand' || flow.type === 'opponentDiscardFromHand') {
       if (flow.selectedIds.includes(instanceId)) return false;
       if (!player.hand.some((c) => c.instanceId === instanceId)) return false;
 
@@ -895,6 +986,16 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       const names = toDiscard.map((c) => c.name).join(', ');
+      if (flow.type === 'opponentDiscardFromHand') {
+        this.actionLog.push({
+          message: `${flow.sourceName}: opponent discarded ${names} to Ringside.`,
+        });
+        this.cardEffectFlow = null;
+        this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
+        this._notify();
+        return true;
+      }
+
       this.actionLog.push({
         message: `${flow.sourceName}: discarded ${names} to Ringside.`,
       });

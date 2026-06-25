@@ -471,6 +471,11 @@ def infer_effect(types_list, rules, name):
         return effect
     if 'when successfully played' in blob and 'discard 1 card of your choice from your hand' in blob:
         return {'effect': 'discardFromHand', 'effectValue': 1}
+    m = re.search(r'when successfully played, opponent must discard (\d+) cards?', blob)
+    if m:
+        return {'effect': 'opponentDiscardFromHand', 'effectValue': int(m.group(1))}
+    if 'when successfully played, opponent discards 1 card' in blob:
+        return {'effect': 'opponentDiscardFromHand', 'effectValue': 1}
     if 'maneuver' in types_list and (
         'draw 2 cards, or force opponent to discard 2' in blob
         or 'either draw 2 cards, or force opponent to discard 2' in blob
