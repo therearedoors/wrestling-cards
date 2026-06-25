@@ -215,6 +215,9 @@ window.RawDeal.CARDS = {
     damage: 5,
     text: "Strike When successfully played, opponent must discard 1 card.",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'spear': {
@@ -494,6 +497,9 @@ window.RawDeal.CARDS = {
     damage: 7,
     text: "Grapple When successfully played, opponent must discard 2 cards.",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 2,
+
     set: "premiere",
   },
   'reverse-ddt': {
@@ -518,6 +524,9 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Grapple When successfully played, opponent must discard 1 card.",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'sit-out-powerbomb': {
@@ -585,6 +594,9 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Grapple When successfully played, opponent must discard 1 card. SV: 1",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'powerbomb': {
@@ -679,6 +691,9 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Submission When successfully played, opponent must discard 1 card.",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'full-nelson': {
@@ -703,6 +718,9 @@ window.RawDeal.CARDS = {
     damage: 5,
     text: "Submission: Heel When successfully played, opponent must discard 1 card.",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'step-over-toe-hold': {
@@ -727,6 +745,9 @@ window.RawDeal.CARDS = {
     damage: 2,
     text: "Submission When successfully played, opponent must discard 1 card.",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'standing-side-headlock': {
@@ -811,6 +832,9 @@ window.RawDeal.CARDS = {
     damage: 8,
     text: "Submission When successfully played, opponent must discard 1 card.",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'guillotine-stretch': {
@@ -848,6 +872,9 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Submission When successfully played, opponent must discard 1 card. SV: 1",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'figure-four-leg-lock': {
@@ -861,6 +888,9 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Submission When successfully played, opponent must discard 1 card. SV: 1",
     flavor: "",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'step-aside': {
@@ -1628,6 +1658,9 @@ window.RawDeal.CARDS = {
     text: "Maneuver: Grapple May not be reversed. When successfully played, opponent must discard 2 cards. Unique",
     flavor: "",
     unique: true,
+    effect: "opponentDiscardFromHand",
+    effectValue: 2,
+
     set: "premiere",
   },
   'hhh': {
@@ -1654,6 +1687,9 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     requiresPlayed: "irish-whip",
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'facebuster': {
@@ -1815,6 +1851,9 @@ window.RawDeal.CARDS = {
     text: "High Risk (Maneuver) Can only be played after a 4D or greater maneuver. When successfully played, opponent must discard 1 card. Unique SV: 2",
     flavor: "",
     unique: true,
+    effect: "opponentDiscardFromHand",
+    effectValue: 1,
+
     set: "premiere",
   },
   'y2j': {
