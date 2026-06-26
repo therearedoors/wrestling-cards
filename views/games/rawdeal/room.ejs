@@ -110,6 +110,15 @@
                     </div>
                 </div>
 
+                <div id="rd-hand-reveal-modal" class="rd-hand-reveal-modal hidden" role="dialog" aria-modal="true">
+                    <div class="rd-hand-reveal-modal__backdrop" aria-hidden="true"></div>
+                    <div class="rd-hand-reveal-modal__panel">
+                        <p class="rd-hand-reveal-modal__message" data-rd-hand-reveal-message></p>
+                        <div class="rd-hand-reveal-modal__scroll" data-rd-hand-reveal-cards></div>
+                        <button type="button" class="rd-btn rd-btn--primary rd-hand-reveal-modal__done" data-rd-hand-reveal-done>Done</button>
+                    </div>
+                </div>
+
                 <div id="rd-game-over" class="rd-game-over hidden">
                     <h2 id="rd-game-over-message">Match Over</h2>
                     <a href="/rawdeal/games" class="rd-btn rd-btn--primary">Back to Lobby</a>
@@ -167,6 +176,7 @@
 <script src="/js/games/rawdeal/ui/cardPreview.js"></script>
 <script src="/js/games/rawdeal/ui/animations.js"></script>
 <script src="/js/games/rawdeal/ui/choiceModal.js"></script>
+<script src="/js/games/rawdeal/ui/handRevealModal.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
 <% if (devMode) { %>
 <script src="/js/games/rawdeal/dev/devCommands.js"></script>

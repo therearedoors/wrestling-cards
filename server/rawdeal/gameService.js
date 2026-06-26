@@ -71,6 +71,9 @@ class RoomGame {
       case 'choiceSelect':
         ok = await engine.selectChoice(seat, action.optionId);
         break;
+      case 'dismissHandReveal':
+        ok = engine.dismissHandReveal(seat);
+        break;
       case 'devCommand': {
         const { loadRawDeal } = require('./bootstrap');
         const RawDeal = loadRawDeal();

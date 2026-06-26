@@ -1050,6 +1050,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Look at opponent’s hand.",
     flavor: "",
+    effect: "lookAtOpponentHand",
     set: "premiere",
   },
   'not-yet': {

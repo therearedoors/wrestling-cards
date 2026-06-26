@@ -1,13 +1,19 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.Board = class Board {
-  constructor(rootEl, cardPreview, choiceModal = null) {
+  constructor(rootEl, cardPreview, choiceModal = null, handRevealModal = null) {
     this.root = rootEl;
     this.cardPreview = cardPreview;
     this.choiceModal = choiceModal;
+    this.handRevealModal = handRevealModal;
     if (this.choiceModal) {
       this.choiceModal.onSelect = (optionId) => {
         if (this.onChoiceSelect) this.onChoiceSelect(optionId);
+      };
+    }
+    if (this.handRevealModal) {
+      this.handRevealModal.onDismiss = () => {
+        if (this.onDismissHandReveal) this.onDismissHandReveal();
       };
     }
     this._state = null;
@@ -111,6 +117,12 @@ window.RawDeal.Board = class Board {
       }
     }
     if (instanceId) {
+      const revealCards = this._state.handReveal?.cards;
+      if (revealCards) {
+        const revealed = revealCards.find((c) => c.instanceId === instanceId);
+        if (revealed) return revealed;
+      }
+
       for (const player of players) {
         if (!player) continue;
         const pools = [
@@ -156,17 +168,19 @@ window.RawDeal.Board = class Board {
     const activePrompt = state.selectionPrompt || ability.prompt;
 
     this._renderChoiceModal(activePrompt);
+    this._renderHandReveal(state.handReveal);
     this._renderSuperstarAbility(player, ability, state.canPlay, activePrompt);
     this._renderAbilityPrompt(activePrompt);
     this._renderReversalPrompt(state.reversalWindow);
-    this._renderHand(player, state.canPlay, activePrompt, state.reversalWindow);
+    this._renderHand(player, state.canPlay, activePrompt, state.reversalWindow, state.handReveal);
     this._renderRing(this.els.playerManeuvers, player.ring.maneuvers);
     this._renderRing(this.els.playerActions, player.ring.actions);
     this._renderRing(this.els.playerReversals, player.ring.reversals);
     this._renderRingside(this.els.opponentRingside, opponent.ringside);
     this._renderRingside(this.els.playerRingside, player.ringside, activePrompt);
 
-    this.els.endTurnBtn.disabled = !state.canPlay || !!activePrompt || !!state.reversalWindow?.canRespond;
+    this.els.endTurnBtn.disabled =
+      !state.canPlay || !!activePrompt || !!state.handReveal || !!state.reversalWindow?.canRespond;
     if (this.els.passPriorityBtn) {
       this.els.passPriorityBtn.classList.toggle('hidden', !state.reversalWindow?.canRespond);
       this.els.passPriorityBtn.disabled = !state.reversalWindow?.canRespond;
@@ -211,6 +225,15 @@ window.RawDeal.Board = class Board {
       this.choiceModal.show(prompt);
     } else {
       this.choiceModal.hide();
+    }
+  }
+
+  _renderHandReveal(handReveal) {
+    if (!this.handRevealModal) return;
+    if (handReveal) {
+      this.handRevealModal.show(handReveal);
+    } else {
+      this.handRevealModal.hide();
     }
   }
 
@@ -302,12 +325,13 @@ window.RawDeal.Board = class Board {
     }
   }
 
-  _renderHand(player, canPlay, abilityPrompt, reversalWindow) {
+  _renderHand(player, canPlay, abilityPrompt, reversalWindow, handReveal = null) {
     const container = this.els.playerHand;
     window.RawDeal.CardRenderer.clearContainer(container);
 
     const abilityHandMode = abilityPrompt?.mode === 'hand';
     const reversalMode = reversalWindow?.canRespond;
+    const handRevealActive = !!handReveal;
 
     const utils = window.RawDeal.CardUtils;
 
@@ -328,11 +352,16 @@ window.RawDeal.Board = class Board {
       const canManeuver =
         canPlay &&
         !abilityPrompt &&
+        !handRevealActive &&
         utils.canPlayFromHandAs(card, 'maneuver') &&
         affordableManeuver &&
         meetsManeuverReq;
       const canAction =
-        canPlay && !abilityPrompt && utils.canPlayFromHandAs(card, 'action') && affordableAction;
+        canPlay &&
+        !abilityPrompt &&
+        !handRevealActive &&
+        utils.canPlayFromHandAs(card, 'action') &&
+        affordableAction;
       const selected = abilityPrompt?.selectedIds?.includes(card.instanceId);
       const selectedCount = abilityPrompt?.selectedIds?.length || 0;
       const selectable =
