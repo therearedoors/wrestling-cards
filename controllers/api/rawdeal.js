@@ -58,6 +58,17 @@ function validateDeckPayload(body) {
   }
 
   if (total !== 60) errors.push(`deck must have 60 cards (has ${total})`);
+
+  const alignments = new Set();
+  for (const [cardId, count] of Object.entries(cards)) {
+    if (!count) continue;
+    const alignment = catalog[cardId]?.alignment;
+    if (alignment) alignments.add(alignment);
+  }
+  if (alignments.has('face') && alignments.has('heel')) {
+    errors.push('deck cannot mix Face and Heel cards');
+  }
+
   return errors;
 }
 
