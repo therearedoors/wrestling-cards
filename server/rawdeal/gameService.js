@@ -74,6 +74,15 @@ class RoomGame {
       case 'dismissHandReveal':
         ok = engine.dismissHandReveal(seat);
         break;
+      case 'skipHandReveal':
+        ok = engine.skipHandReveal(seat);
+        break;
+      case 'confirmHandRevealSelection':
+        ok = engine.confirmHandRevealSelection(seat, action.instanceIds || []);
+        break;
+      case 'toggleHandRevealSelection':
+        ok = engine.toggleHandRevealSelection(seat, action.instanceId);
+        break;
       case 'devCommand': {
         const { loadRawDeal } = require('./bootstrap');
         const RawDeal = loadRawDeal();

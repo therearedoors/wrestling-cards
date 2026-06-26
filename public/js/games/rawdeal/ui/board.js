@@ -15,6 +15,15 @@ window.RawDeal.Board = class Board {
       this.handRevealModal.onDismiss = () => {
         if (this.onDismissHandReveal) this.onDismissHandReveal();
       };
+      this.handRevealModal.onSkip = () => {
+        if (this.onSkipHandReveal) this.onSkipHandReveal();
+      };
+      this.handRevealModal.onConfirm = (instanceIds) => {
+        if (this.onConfirmHandReveal) this.onConfirmHandReveal(instanceIds);
+      };
+      this.handRevealModal.onToggleSelect = (instanceId) => {
+        if (this.onToggleHandRevealSelect) this.onToggleHandRevealSelect(instanceId);
+      };
     }
     this._state = null;
     this._hoveredCardEl = null;

@@ -100,6 +100,18 @@
       engine.dismissHandReveal(0);
     };
 
+    board.onSkipHandReveal = () => {
+      engine.skipHandReveal(0);
+    };
+
+    board.onConfirmHandReveal = (instanceIds) => {
+      engine.confirmHandRevealSelection(0, instanceIds);
+    };
+
+    board.onToggleHandRevealSelect = (instanceId) => {
+      engine.toggleHandRevealSelection(0, instanceId);
+    };
+
     board.onRestart = () => {
       setupScreen.classList.remove('hidden');
       gameScreen.classList.add('hidden');

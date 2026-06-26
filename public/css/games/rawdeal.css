@@ -971,8 +971,22 @@ body:has(.rd-page) {
   );
 }
 
-.rd-hand-reveal-modal__done {
+.rd-hand-reveal-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.rd-hand-reveal-modal__done,
+.rd-hand-reveal-modal__skip,
+.rd-hand-reveal-modal__confirm {
   min-width: 120px;
+}
+
+.rd-hand-reveal-modal .rd-card--selected {
+  outline: 3px solid var(--bg-orange);
+  outline-offset: 2px;
 }
 
 .rd-card--blocked {
