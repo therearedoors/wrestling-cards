@@ -54,7 +54,8 @@
     "unique": false
   },
   "chair-shot": {
-    "unique": false
+    "unique": false,
+    "alignment": "heel"
   },
   "hurricanrana": {
     "unique": false
@@ -159,7 +160,8 @@
     "unique": false
   },
   "choke-hold": {
-    "unique": false
+    "unique": false,
+    "alignment": "heel"
   },
   "step-over-toe-hold": {
     "unique": false
@@ -219,13 +221,16 @@
     "unique": false
   },
   "clean-break": {
-    "unique": false
+    "unique": false,
+    "alignment": "face"
   },
   "manager-interferes": {
-    "unique": false
+    "unique": false,
+    "alignment": "heel"
   },
   "disqualification": {
-    "unique": false
+    "unique": false,
+    "alignment": "face"
   },
   "no-chance-in-hell": {
     "unique": false
@@ -249,31 +254,37 @@
     "unique": false
   },
   "flash-in-the-pan": {
-    "unique": false
+    "unique": false,
+    "alignment": "face"
   },
   "view-of-villainy": {
-    "unique": false
+    "unique": false,
+    "alignment": "heel"
   },
   "shake-it-off": {
     "unique": false
   },
   "offer-handshake": {
-    "unique": false
+    "unique": false,
+    "alignment": "face"
   },
   "roll-out-of-the-ring": {
     "unique": false
   },
   "distract-the-ref": {
-    "unique": false
+    "unique": false,
+    "alignment": "heel"
   },
   "recovery": {
     "unique": false
   },
   "spit-at-opponent": {
-    "unique": false
+    "unique": false,
+    "alignment": "heel"
   },
   "get-crowd-support": {
-    "unique": false
+    "unique": false,
+    "alignment": "face"
   },
   "comeback": {
     "unique": false
@@ -282,7 +293,8 @@
     "unique": false
   },
   "deluding-yourself": {
-    "unique": false
+    "unique": false,
+    "alignment": "heel"
   },
   "stagger": {
     "unique": false
@@ -291,7 +303,8 @@
     "unique": false
   },
   "marking-out": {
-    "unique": false
+    "unique": false,
+    "alignment": "face"
   },
   "puppies-puppies": {
     "unique": false
@@ -303,7 +316,8 @@
     "unique": false
   },
   "pat-and-gerry": {
-    "unique": false
+    "unique": false,
+    "alignment": "face"
   },
   "stone-cold-stunner": {
     "unique": false

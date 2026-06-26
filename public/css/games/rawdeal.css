@@ -1260,6 +1260,24 @@ body:has(.rd-page) {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.rd-db-row--blocked {
+  opacity: 0.45;
+}
+
+.rd-db-alignment-wrap {
+  margin-left: 8px;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.rd-db-alignment--face {
+  color: #5dade2;
+}
+
+.rd-db-alignment--heel {
+  color: #e74c3c;
+}
+
 .rd-db-row__info {
   display: flex;
   flex-direction: column;
