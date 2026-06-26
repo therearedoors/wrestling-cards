@@ -2,11 +2,12 @@ window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.GameEngine = class GameEngine {
   constructor(options = {}) {
+    this.engineMode = options.engineMode || 'goldfish';
     this.onStateChange = options.onStateChange || (() => {});
     this.onDamageStep = options.onDamageStep || (async () => {});
     this.onArsenalToRingside =
       options.onArsenalToRingside || (async ({ onReveal }) => { if (onReveal) onReveal(); });
-    this.stateMachine = new window.RawDeal.StateMachine();
+    this.stateMachine = new window.RawDeal.StateMachine(this.engineMode);
     this.stateMachine.onTransition(() => this._notify());
     this.reset();
   }
@@ -22,6 +23,9 @@ window.RawDeal.GameEngine = class GameEngine {
     this.abilityFlow = null;
     this.cardEffectFlow = null;
     this.pendingManeuverResolution = null;
+    this.reversalWindow = null;
+    this.handRevealFlow = null;
+    this.animationEvents = [];
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
     this.stateMachine.activePlayer = 0;
     this.stateMachine.turnNumber = 0;
@@ -37,11 +41,29 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _emptyTurnState() {
-    return { irishWhipPlayed: false, nextStrikeBonus: 0 };
+    return {
+      irishWhipPlayed: false,
+      nextStrikeBonus: 0,
+      nextGrappleBonus: 0,
+      nextGrappleReversalTax: 0,
+    };
+  }
+
+  _clearTurnSetupEffects(player) {
+    if (!player?.turnState) return;
+    player.turnState.irishWhipPlayed = false;
+    player.turnState.nextStrikeBonus = 0;
+    player.turnState.nextGrappleBonus = 0;
+    player.turnState.nextGrappleReversalTax = 0;
   }
 
   _playerIndex(player) {
+    if (player.seatIndex !== undefined) return player.seatIndex;
     return player.isHuman ? 0 : 1;
+  }
+
+  _activePlayerIndex() {
+    return this.stateMachine.activePlayer;
   }
 
   _addTurnDamageBonus(player, { all = 0, subtype, value = 0, sourceName }) {
@@ -64,24 +86,106 @@ window.RawDeal.GameEngine = class GameEngine {
     }
   }
 
-  getPublicState() {
+  getPublicState(viewerIndex = 0) {
     return {
       phase: this.stateMachine.phase,
       activePlayer: this.stateMachine.activePlayer,
       turnNumber: this.stateMachine.turnNumber,
-      players: this.players.map((p) => (p ? this._publicPlayer(p) : null)),
+      engineMode: this.engineMode,
+      players: this.players.map((p) => (p ? this._publicPlayer(p, viewerIndex) : null)),
       winner: this.winner,
       winReason: this.winReason,
       damageLog: [...this.damageLog],
       actionLog: [...this.actionLog],
-      canPlay: this.stateMachine.canPlayCards(),
-      selectionPrompt: this._publicSelectionPrompt(),
-      superstarAbility: this._publicSuperstarAbility(),
+      canPlay: this.stateMachine.canPlayCards(viewerIndex),
+      selectionPrompt: this._publicSelectionPrompt(viewerIndex),
+      superstarAbility: this._publicSuperstarAbility(viewerIndex),
+      reversalWindow: this._publicReversalWindow(viewerIndex),
+      handReveal: this._publicHandReveal(viewerIndex),
+      animationEvents: this.animationEvents.map((e) => ({ ...e })),
     };
   }
 
-  _publicSelectionPrompt() {
-    if (this.cardEffectFlow?.playerIndex !== 0) return null;
+  _publicHandReveal(viewerIndex) {
+    if (!this.handRevealFlow || this.handRevealFlow.viewerIndex !== viewerIndex) {
+      return null;
+    }
+
+    const { sourceName, cards } = this.handRevealFlow;
+    const n = cards.length;
+    const message =
+      n === 0
+        ? `${sourceName}: opponent has no cards in hand.`
+        : `${sourceName}: opponent's hand (${n} card${n === 1 ? '' : 's'}).`;
+
+    return {
+      message,
+      cards: cards.map((c) => ({ ...c })),
+    };
+  }
+
+  _beginHandReveal(player, sourceName) {
+    const viewerIndex = this._playerIndex(player);
+    const opponent = this.players[1 - viewerIndex];
+    const cards = opponent.hand.map((c) => ({ ...c }));
+
+    this.handRevealFlow = {
+      viewerIndex,
+      opponentIndex: 1 - viewerIndex,
+      sourceName,
+      cards,
+    };
+
+    const n = cards.length;
+    this.actionLog.push({
+      message:
+        n === 0
+          ? `${sourceName}: opponent has no cards in hand.`
+          : `${sourceName}: viewing opponent's hand (${n} card${n === 1 ? '' : 's'}).`,
+    });
+    this._notify();
+  }
+
+  dismissHandReveal(playerIndex) {
+    if (!this.handRevealFlow || this.handRevealFlow.viewerIndex !== playerIndex) {
+      return false;
+    }
+    this.handRevealFlow = null;
+    this._notify();
+    return true;
+  }
+
+  clearAnimationEvents() {
+    this.animationEvents = [];
+  }
+
+  _publicReversalWindow(viewerIndex) {
+    if (!this.reversalWindow) return null;
+    const { attackerIndex, defenderIndex, played, damage, kind = 'maneuver' } = this.reversalWindow;
+    return {
+      active: true,
+      kind,
+      attackerIndex,
+      defenderIndex,
+      canRespond: viewerIndex === defenderIndex,
+      maneuver: {
+        id: played.id,
+        name: played.name,
+        subtype: played.subtype,
+        damage: kind === 'action' ? 0 : damage,
+        afterIrishWhip: kind === 'maneuver'
+          ? !!this.players[attackerIndex]?.turnState?.irishWhipPlayed
+          : false,
+        reversalFortitudeTax:
+          kind === 'maneuver' && played.subtype === 'grapple'
+            ? this.players[attackerIndex]?.turnState?.nextGrappleReversalTax || 0
+            : 0,
+      },
+    };
+  }
+
+  _publicSelectionPrompt(viewerIndex = 0) {
+    if (this.cardEffectFlow?.playerIndex !== viewerIndex) return null;
 
     const flow = this.cardEffectFlow;
     if (flow.type === 'choice') {
@@ -107,11 +211,26 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'opponentDiscardFromHand') {
+      const n = flow.count || 1;
+      const picked = flow.selectedIds.length;
+      const message =
+        n === 1
+          ? `${flow.sourceName}: choose 1 card from your hand to discard to Ringside.`
+          : `${flow.sourceName}: choose ${n} cards from your hand to discard to Ringside (${picked}/${n}).`;
+      return {
+        mode: 'hand',
+        count: n,
+        message,
+        selectedIds: [...flow.selectedIds],
+      };
+    }
+
     return null;
   }
 
-  _publicSuperstarAbility() {
-    const player = this.players[0];
+  _publicSuperstarAbility(viewerIndex = 0) {
+    const player = this.players[viewerIndex];
     if (!player) {
       return { supported: false, canUse: false, used: false, label: null, prompt: null };
     }
@@ -124,7 +243,7 @@ window.RawDeal.GameEngine = class GameEngine {
     };
 
     let prompt = null;
-    if (this.abilityFlow?.playerIndex === 0) {
+    if (this.abilityFlow?.playerIndex === viewerIndex) {
       const flow = this.abilityFlow;
       if (flow.step === 'pickBottom') {
         prompt = {
@@ -152,38 +271,50 @@ window.RawDeal.GameEngine = class GameEngine {
 
     return {
       supported,
-      canUse: this.canUseSuperstarAbility(0),
+      canUse: this.canUseSuperstarAbility(viewerIndex),
       used: player.superstarAbilityUsed,
       label: labels[id] || null,
       prompt,
     };
   }
 
-  _publicPlayer(player) {
+  _publicPlayer(player, viewerIndex = 0) {
+    const seat = this._playerIndex(player);
+    const showHand = this.engineMode === 'multiplayer'
+      ? seat === viewerIndex
+      : player.isHuman;
     return {
       superstar: player.superstar,
       deckId: player.deckId,
+      username: player.username || null,
       handSize: player.hand.length,
       arsenalSize: player.arsenal.length,
       ringsideSize: player.ringside.length,
       fortitude: player.fortitude,
-      hand: player.isHuman ? player.hand : [],
+      hand: showHand ? player.hand : [],
       ring: player.ring,
-      ringside: player.isHuman ? player.ringside : player.ringside.slice(-8),
+      ringside: showHand ? player.ringside : player.ringside.slice(-8),
       arsenal: player.arsenal,
       turnState: player.turnState ? { ...player.turnState } : this._emptyTurnState(),
-      isHuman: player.isHuman,
+      isHuman: showHand,
+      seatIndex: seat,
     };
   }
 
-  startGame(playerDeckId, opponentDeckId = 'austin', decks = null) {
+  startGame(playerDeckId, opponentDeckId = 'austin', decks = null, options = {}) {
     const { CARDS } = window.RawDeal;
     const deckMap = decks || window.RawDeal.DeckStore?.getResolvedDecks() || window.RawDeal.DECKS;
     const playerDeck = deckMap[playerDeckId];
     const opponentDeck = deckMap[opponentDeckId];
 
-    this.players[0] = this._createPlayer(playerDeck, true);
-    this.players[1] = this._createPlayer(opponentDeck, false);
+    const multiplayer = this.engineMode === 'multiplayer';
+    this.players[0] = this._createPlayer(playerDeck, 0, true, options.player0);
+    this.players[1] = this._createPlayer(
+      opponentDeck,
+      1,
+      multiplayer,
+      options.player1
+    );
 
     const firstPlayer =
       this.players[0].superstar.superstarValue >= this.players[1].superstar.superstarValue ? 0 : 1;
@@ -193,7 +324,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this._runAutoPhases();
   }
 
-  _createPlayer(deck, isHuman) {
+  _createPlayer(deck, seatIndex, isHuman, meta = {}) {
     const arsenal = this._shuffle([...deck.arsenal]);
     return {
       superstar: { ...window.RawDeal.CARDS[deck.superstarId] },
@@ -205,7 +336,10 @@ window.RawDeal.GameEngine = class GameEngine {
       superstarAbilityUsed: false,
       turnState: this._emptyTurnState(),
       isHuman,
+      seatIndex,
       deckId: deck.id,
+      username: meta.username || null,
+      userId: meta.userId || null,
     };
   }
 
@@ -287,12 +421,16 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       if (phase === PHASES.OPPONENT_TURN) {
+        if (this.engineMode === 'multiplayer') {
+          break;
+        }
         await this._delay(400);
         this.stateMachine.transition(EVENTS.OPPONENT_DONE);
         continue;
       }
 
       if (phase === PHASES.END_OF_TURN) {
+        this._clearTurnSetupEffects(active);
         const opponent = this.players[1 - this.stateMachine.activePlayer];
         const gameOver = this._checkCountOut(opponent);
         this.stateMachine.transition(null, { gameOver });
@@ -308,10 +446,8 @@ window.RawDeal.GameEngine = class GameEngine {
 
   _checkCountOut(player) {
     if (player.arsenal.length === 0) {
-      this.winner = player.isHuman ? 1 : 0;
-      this.winReason = player.isHuman
-        ? window.RawDeal.WIN_REASONS.COUNT_OUT
-        : window.RawDeal.WIN_REASONS.COUNT_OUT;
+      this.winner = 1 - this._playerIndex(player);
+      this.winReason = window.RawDeal.WIN_REASONS.COUNT_OUT;
       return true;
     }
     return false;
@@ -322,9 +458,16 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   canPlayCard(playerIndex, instanceId, playAs) {
-    if (!this.stateMachine.canPlayCards() || playerIndex !== 0 || this.cardEffectFlow) return false;
+    if (
+      !this.stateMachine.canPlayCards(playerIndex) ||
+      this.cardEffectFlow ||
+      this.reversalWindow ||
+      (this.handRevealFlow && this.handRevealFlow.viewerIndex === playerIndex)
+    ) {
+      return false;
+    }
 
-    const player = this.players[0];
+    const player = this.players[playerIndex];
     const card = player.hand.find((c) => c.instanceId === instanceId);
     if (!card) return false;
 
@@ -338,25 +481,24 @@ window.RawDeal.GameEngine = class GameEngine {
     return player.fortitude >= cost;
   }
 
-  async playCard(instanceId, playAs) {
-    const player = this.players[0];
+  async playCard(playerIndex, instanceId, playAs) {
+    const player = this.players[playerIndex];
     const card = player.hand.find((c) => c.instanceId === instanceId);
     const utils = window.RawDeal.CardUtils;
     const mode =
       playAs || (utils.canPlayFromHandAs(card, 'maneuver') ? 'maneuver' : utils.primaryType(card));
 
-    if (!this.canPlayCard(0, instanceId, mode)) return false;
+    if (!this.canPlayCard(playerIndex, instanceId, mode)) return false;
 
-    const opponent = this.players[1];
+    const opponent = this.players[1 - playerIndex];
     const handIndex = player.hand.findIndex((c) => c.instanceId === instanceId);
     const played = player.hand.splice(handIndex, 1)[0];
 
-    this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD);
-    this._notify();
-
     if (mode === 'action') {
+      if (this._openActionReversalWindowOrPlay(player, opponent, played)) {
+        return true;
+      }
       await this._playFromHandAsAction(player, played);
-      this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
       this._notify();
       return true;
     }
@@ -365,21 +507,10 @@ window.RawDeal.GameEngine = class GameEngine {
       const ringArea = mode === 'reversal' ? player.ring.reversals : player.ring.maneuvers;
       ringArea.push(played);
       this._syncFortitude(player);
-      await this._resolveOnPlayManeuverEffects(player, played);
 
       const damage = this._calcManeuverDamage(player, opponent, played);
 
-      if (this._beginPreDamageDiscardPrompt(player, played)) {
-        this.pendingManeuverResolution = { player, opponent, played, damage };
-        return true;
-      }
-
-      if (this._beginPreDamageChoice(player, played)) {
-        this.pendingManeuverResolution = { player, opponent, played, damage };
-        return true;
-      }
-
-      return await this._applyManeuverDamage(player, opponent, played, damage);
+      return this._openReversalWindowOrApplyDamage(player, opponent, played, damage);
     } else if (window.RawDeal.CardUtils.hasType(played, 'action')) {
       player.ring.actions.push(played);
       this._resolveAction(player, played);
@@ -413,6 +544,14 @@ window.RawDeal.GameEngine = class GameEngine {
       return;
     }
 
+    if (card.actionEffect === 'jockeyingChoice') {
+      this.actionLog.push({
+        message: `${card.name} played as an action.`,
+      });
+      this._beginJockeyingChoice(player, this._playerIndex(player), card.name);
+      return;
+    }
+
     this._resolveAction(player, card);
     this.actionLog.push({
       message: `${card.name} played as an action.`,
@@ -425,19 +564,13 @@ window.RawDeal.GameEngine = class GameEngine {
     return text.includes('take the top card of your arsenal and put it into your ringside pile');
   }
 
-  async _resolveOnPlayManeuverEffects(player, card) {
-    if (!this._hasTopArsenalToRingside(card)) return;
-    await this._topArsenalToRingside(player, card);
-  }
-
-  _calcManeuverDamage(player, opponent, played) {
+  _peekManeuverDamage(player, opponent, played) {
     const idx = this._playerIndex(player);
     let damage = played.damage || 0;
     if (opponent.superstar.id === 'mankind' && damage > 0) {
       damage = Math.max(0, damage - 1);
     }
     damage += this.nextManeuverBonus[idx];
-    this.nextManeuverBonus[idx] = 0;
 
     const turnBonus = this.turnDamageBonus[idx];
     damage += turnBonus.all || 0;
@@ -448,40 +581,152 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (played.subtype === 'strike' && player.turnState?.nextStrikeBonus) {
       damage += player.turnState.nextStrikeBonus;
-      player.turnState.nextStrikeBonus = 0;
+    }
+
+    if (played.subtype === 'grapple' && player.turnState?.nextGrappleBonus) {
+      damage += player.turnState.nextGrappleBonus;
     }
 
     return damage;
   }
 
-  _applyIrishWhipSetup(player, card) {
+  _calcManeuverDamage(player, opponent, played) {
+    const damage = this._peekManeuverDamage(player, opponent, played);
+    const idx = this._playerIndex(player);
+    this.nextManeuverBonus[idx] = 0;
+
+    if (played.subtype === 'strike' && player.turnState?.nextStrikeBonus) {
+      player.turnState.nextStrikeBonus = 0;
+    }
+
+    if (played.subtype === 'grapple' && player.turnState?.nextGrappleBonus) {
+      player.turnState.nextGrappleBonus = 0;
+    }
+
+    return damage;
+  }
+
+  _applyNextStrikeBonus(player, sourceName, bonus) {
     if (!player.turnState) player.turnState = this._emptyTurnState();
-    player.turnState.irishWhipPlayed = true;
-    const bonus = card.actionEffectValue || 5;
     player.turnState.nextStrikeBonus = bonus;
     this.actionLog.push({
-      message: `${card.name}: Irish Whip set up — your next Strike maneuver is +${bonus}D this turn.`,
+      message: `${sourceName}: your next Strike maneuver is +${bonus}D this turn.`,
     });
   }
 
-  _forceOpponentDiscard(opponent, count) {
-    let discarded = 0;
-    for (let i = 0; i < count; i++) {
-      if (opponent.arsenal.length === 0) break;
-      opponent.ringside.push(opponent.arsenal.pop());
-      discarded += 1;
-    }
-    return discarded;
+  _applyIrishWhipSetup(player, card) {
+    if (!player.turnState) player.turnState = this._emptyTurnState();
+    player.turnState.irishWhipPlayed = true;
+    this._applyNextStrikeBonus(player, card.name, card.actionEffectValue || 5);
   }
 
-  _beginPreDamageChoice(player, card) {
+  _beginJockeyingChoice(player, playerIndex, sourceName) {
+    this.cardEffectFlow = {
+      type: 'choice',
+      choiceId: 'jockeyingForPosition',
+      playerIndex,
+      sourceName,
+      message: `${sourceName}: choose an effect for your next Grapple maneuver.`,
+      options: [
+        { id: 'grappleDamage', label: 'Next Grapple +4D' },
+        { id: 'grappleReversalTax', label: "Opponent's reversal to it +8F" },
+      ],
+    };
+    this._notify();
+  }
+
+  _forceOpponentDiscard(opponent, count) {
+    const autoPick = this.engineMode === 'goldfish' || !opponent.isHuman;
+    const discardedCards = [];
+
+    for (let i = 0; i < count; i++) {
+      if (autoPick && opponent.hand.length > 0) {
+        const idx = Math.floor(Math.random() * opponent.hand.length);
+        discardedCards.push(opponent.hand.splice(idx, 1)[0]);
+        continue;
+      }
+      if (opponent.arsenal.length === 0) break;
+      discardedCards.push(opponent.arsenal.pop());
+    }
+
+    for (const card of discardedCards) {
+      opponent.ringside.push(card);
+    }
+
+    return { count: discardedCards.length, cards: discardedCards };
+  }
+
+  _forceOpponentDiscardFromHand(opponent, count) {
+    const discardedCards = [];
+
+    for (let i = 0; i < count; i++) {
+      if (opponent.hand.length === 0) break;
+      const idx = Math.floor(Math.random() * opponent.hand.length);
+      discardedCards.push(opponent.hand.splice(idx, 1)[0]);
+    }
+
+    for (const card of discardedCards) {
+      opponent.ringside.push(card);
+    }
+
+    return { count: discardedCards.length, cards: discardedCards };
+  }
+
+  _beginOpponentDiscardFromHandPrompt(opponent, opponentIndex, sourceName, count) {
+    if (opponent.hand.length === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: opponent had no cards in hand to discard.`,
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'opponentDiscardFromHand',
+      playerIndex: opponentIndex,
+      sourceName,
+      count,
+      selectedIds: [],
+    };
+    this._notify();
+    return true;
+  }
+
+  async _applyOpponentDiscardFromHandEffect(player, played) {
+    const opponent = this.players[1 - this._playerIndex(player)];
+    const count = played.effectValue || 1;
+    const autoPick = this.engineMode === 'goldfish' || !opponent.isHuman;
+
+    if (autoPick) {
+      const { count: discarded, cards } = this._forceOpponentDiscardFromHand(opponent, count);
+      if (discarded > 0) {
+        const names = cards.map((c) => c.name).join(', ');
+        this.actionLog.push({
+          message: `${played.name}: opponent discarded ${names} to Ringside.`,
+        });
+      } else {
+        this.actionLog.push({
+          message: `${played.name}: opponent had no cards in hand to discard.`,
+        });
+      }
+      return;
+    }
+
+    this._beginOpponentDiscardFromHandPrompt(
+      opponent,
+      this._playerIndex(opponent),
+      played.name,
+      count
+    );
+  }
+
+  _beginPreDamageChoice(player, card, playerIndex = 0) {
     if (card.effect !== 'drawOrOpponentDiscard') return false;
 
     const n = card.effectValue || 2;
     this.cardEffectFlow = {
       type: 'choice',
       choiceId: 'drawOrOpponentDiscard',
-      playerIndex: 0,
+      playerIndex,
       sourceName: card.name,
       count: n,
       message: `${card.name}: choose one before damage is applied.`,
@@ -494,7 +739,11 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  _grantOnSuccessManeuverEffects(player, played) {
+  async _resolveOnSuccessManeuverEffects(player, played) {
+    if (this._hasTopArsenalToRingside(played)) {
+      await this._topArsenalToRingside(player, played);
+    }
+
     if (played.effect === 'turnSubtypeDamageBonus') {
       this._addTurnDamageBonus(player, {
         subtype: played.effectSubtype,
@@ -502,9 +751,17 @@ window.RawDeal.GameEngine = class GameEngine {
         sourceName: played.name,
       });
     }
+
+    if (played.effect === 'nextStrikeBonus') {
+      this._applyNextStrikeBonus(player, played.name, played.effectValue || 2);
+    }
+
+    if (played.effect === 'opponentDiscardFromHand') {
+      await this._applyOpponentDiscardFromHandEffect(player, played);
+    }
   }
 
-  _beginPreDamageDiscardPrompt(player, card) {
+  _beginPreDamageDiscardPrompt(player, card, playerIndex = 0) {
     if (card.effect !== 'discardFromHand') return false;
 
     const count = card.effectValue || 1;
@@ -517,7 +774,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     this.cardEffectFlow = {
       type: 'discardFromHand',
-      playerIndex: 0,
+      playerIndex,
       sourceName: card.name,
       count,
       selectedIds: [],
@@ -537,14 +794,6 @@ window.RawDeal.GameEngine = class GameEngine {
         cardsOverturned: damageResult.cardsOverturned,
       });
 
-      if (damageResult.result === 'pinfall') {
-        this.winner = 0;
-        this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
-        this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
-        this._notify();
-        return true;
-      }
-
       if (damageResult.result === 'reversed') {
         this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
         this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
@@ -552,16 +801,56 @@ window.RawDeal.GameEngine = class GameEngine {
         await this._runAutoPhases();
         return true;
       }
+
+      await this._resolveOnSuccessManeuverEffects(player, played);
+
+      if (this.cardEffectFlow) {
+        this._notify();
+        return true;
+      }
+
+      if (damageResult.result === 'pinfall') {
+        this.winner = this._playerIndex(player);
+        this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
+        this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
+        this._notify();
+        return true;
+      }
     }
 
-    this._grantOnSuccessManeuverEffects(player, played);
+    if (damage <= 0) {
+      await this._resolveOnSuccessManeuverEffects(player, played);
+      if (this.cardEffectFlow) {
+        this._notify();
+        return true;
+      }
+    }
 
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
     return true;
   }
 
-  async _continuePendingManeuverDamage() {
+  async _continueManeuverAfterReversal(player, opponent, played, damage) {
+    const playerIndex = this._playerIndex(player);
+    if (played.subtype === 'grapple') {
+      this._clearGrappleJockeyingTax(player);
+    }
+
+    if (this._beginPreDamageDiscardPrompt(player, played, playerIndex)) {
+      this.pendingManeuverResolution = { player, opponent, played, damage };
+      return true;
+    }
+
+    if (this._beginPreDamageChoice(player, played, playerIndex)) {
+      this.pendingManeuverResolution = { player, opponent, played, damage };
+      return true;
+    }
+
+    return this._applyManeuverDamage(player, opponent, played, damage);
+  }
+
+  async _continuePendingManeuverDamage({ afterDiscard = false } = {}) {
     const pending = this.pendingManeuverResolution;
     this.pendingManeuverResolution = null;
     if (!pending) {
@@ -571,13 +860,154 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     const { player, opponent, played, damage } = pending;
+    const playerIndex = this._playerIndex(player);
+
+    if (afterDiscard && this._beginPreDamageChoice(player, played, playerIndex)) {
+      this.pendingManeuverResolution = { player, opponent, played, damage };
+      return;
+    }
+
     await this._applyManeuverDamage(player, opponent, played, damage);
   }
 
-  _finishCardEffectResolution() {
+  _openActionReversalWindowOrPlay(player, opponent, played) {
+    if (this.engineMode !== 'multiplayer') return false;
+
+    this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD, {
+      openReversalWindow: true,
+      isAction: true,
+    });
+    this.reversalWindow = {
+      kind: 'action',
+      attackerIndex: this._playerIndex(player),
+      defenderIndex: this._playerIndex(opponent),
+      player,
+      opponent,
+      played,
+      damage: 0,
+    };
+    this._notify();
+    return true;
+  }
+
+  async _openReversalWindowOrApplyDamage(player, opponent, played, damage) {
+    if (this.engineMode !== 'multiplayer') {
+      return this._continueManeuverAfterReversal(player, opponent, played, damage);
+    }
+
+    this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD, { openReversalWindow: true });
+    this.reversalWindow = {
+      kind: 'maneuver',
+      attackerIndex: this._playerIndex(player),
+      defenderIndex: this._playerIndex(opponent),
+      player,
+      opponent,
+      played,
+      damage,
+    };
+    this._notify();
+    return true;
+  }
+
+  canPlayReversalFromHand(playerIndex, instanceId) {
+    if (this.stateMachine.phase !== window.RawDeal.PHASES.REVERSAL_PRIORITY) return false;
+    if (!this.reversalWindow || this.reversalWindow.defenderIndex !== playerIndex) return false;
+
+    const player = this.players[playerIndex];
+    const card = player.hand.find((c) => c.instanceId === instanceId);
+    if (!card) return false;
+
+    const { played, kind = 'maneuver' } = this.reversalWindow;
+    if (kind === 'action') {
+      return window.RawDeal.CardUtils.canReverseAction(card, played, player.fortitude);
+    }
+
+    const attacker = this.players[this.reversalWindow.attackerIndex];
+    const reversalFortitudeTax =
+      played.subtype === 'grapple' ? attacker.turnState?.nextGrappleReversalTax || 0 : 0;
+    return this._reversalStops(card, played, player, {
+      attacker,
+      effectiveDamage: this.reversalWindow.damage,
+      reversalFortitudeTax,
+    });
+  }
+
+  async playReversalFromHand(playerIndex, instanceId) {
+    if (!this.canPlayReversalFromHand(playerIndex, instanceId)) return false;
+
+    const player = this.players[playerIndex];
+    const { player: attacker, played, kind = 'maneuver' } = this.reversalWindow;
+    const handIndex = player.hand.findIndex((c) => c.instanceId === instanceId);
+    const reversal = player.hand.splice(handIndex, 1)[0];
+
+    player.ringside.push(reversal);
+
+    if (kind === 'action') {
+      attacker.ringside.push(played);
+      const reversalPlayerIndex = this._playerIndex(player);
+      const grantIrishWhipSetup =
+        reversal.id === 'irish-whip' && played.id === 'irish-whip';
+      const grantJockeyingChoice =
+        reversal.id === 'jockeying-for-position' && played.id === 'jockeying-for-position';
+
+      this.actionLog.push({
+        message: `${reversal.name} reversed ${played.name} — action has no effect.`,
+      });
+      this.reversalWindow = null;
+      this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
+      this._notify();
+      await this._runAutoPhases();
+
+      if (grantIrishWhipSetup) {
+        this._applyIrishWhipSetup(player, reversal);
+      } else if (grantJockeyingChoice) {
+        this._beginJockeyingChoice(player, reversalPlayerIndex, reversal.name);
+      }
+      this._notify();
+      return true;
+    }
+
+    this.actionLog.push({
+      message: `${reversal.name} reversed ${played.name} from hand!`,
+    });
+
+    if (played.subtype === 'grapple') {
+      this._clearGrappleJockeyingTax(attacker);
+    }
+
+    this._applyStunValueDraw(attacker, played);
+    this.reversalWindow = null;
+
+    this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
+    this._notify();
+    await this._runAutoPhases();
+    return true;
+  }
+
+  async passPriority(playerIndex) {
+    if (this.stateMachine.phase !== window.RawDeal.PHASES.REVERSAL_PRIORITY) return false;
+    if (!this.reversalWindow || this.reversalWindow.defenderIndex !== playerIndex) return false;
+
+    const { player, opponent, played, damage, kind = 'maneuver' } = this.reversalWindow;
+    this.reversalWindow = null;
+
+    if (kind === 'action') {
+      this.stateMachine.transition(window.RawDeal.EVENTS.PASS_PRIORITY, { isAction: true });
+      this._notify();
+      await this._playFromHandAsAction(player, played);
+      this._notify();
+      return true;
+    }
+
+    this.stateMachine.transition(window.RawDeal.EVENTS.PASS_PRIORITY);
+    this._notify();
+    return await this._continueManeuverAfterReversal(player, opponent, played, damage);
+  }
+
+  async _finishCardEffectResolution({ afterDiscard = false } = {}) {
     this.cardEffectFlow = null;
     if (this.pendingManeuverResolution) {
-      void this._continuePendingManeuverDamage();
+      await this._continuePendingManeuverDamage({ afterDiscard });
       return;
     }
 
@@ -585,13 +1015,13 @@ window.RawDeal.GameEngine = class GameEngine {
     this._notify();
   }
 
-  selectForCardEffect(instanceId) {
-    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== 0) return false;
+  async selectForCardEffect(playerIndex, instanceId) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
 
-    const player = this.players[0];
+    const player = this.players[playerIndex];
     const flow = this.cardEffectFlow;
 
-    if (flow.type === 'discardFromHand') {
+    if (flow.type === 'discardFromHand' || flow.type === 'opponentDiscardFromHand') {
       if (flow.selectedIds.includes(instanceId)) return false;
       if (!player.hand.some((c) => c.instanceId === instanceId)) return false;
 
@@ -612,23 +1042,53 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       const names = toDiscard.map((c) => c.name).join(', ');
+      if (flow.type === 'opponentDiscardFromHand') {
+        this.actionLog.push({
+          message: `${flow.sourceName}: opponent discarded ${names} to Ringside.`,
+        });
+        this.cardEffectFlow = null;
+        this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
+        this._notify();
+        return true;
+      }
+
       this.actionLog.push({
         message: `${flow.sourceName}: discarded ${names} to Ringside.`,
       });
-      this._finishCardEffectResolution();
+      await this._finishCardEffectResolution({ afterDiscard: true });
       return true;
     }
 
     return false;
   }
 
-  selectChoice(optionId) {
-    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== 0) return false;
+  async selectChoice(playerIndex, optionId) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
     if (this.cardEffectFlow.type !== 'choice') return false;
 
     const flow = this.cardEffectFlow;
-    const player = this.players[0];
-    const opponent = this.players[1];
+    const player = this.players[playerIndex];
+    const opponent = this.players[1 - playerIndex];
+
+    if (flow.choiceId === 'jockeyingForPosition') {
+      if (!player.turnState) player.turnState = this._emptyTurnState();
+      if (optionId === 'grappleDamage') {
+        player.turnState.nextGrappleBonus = 4;
+        this.actionLog.push({
+          message: `${flow.sourceName}: your next Grapple maneuver is +4D.`,
+        });
+      } else if (optionId === 'grappleReversalTax') {
+        player.turnState.nextGrappleReversalTax = 8;
+        this.actionLog.push({
+          message: `${flow.sourceName}: opponent's reversal to your next Grapple is +8F.`,
+        });
+      } else {
+        return false;
+      }
+      this.cardEffectFlow = null;
+      this._notify();
+      return true;
+    }
 
     if (flow.choiceId === 'drawOrOpponentDiscard') {
       const n = flow.count || 2;
@@ -639,10 +1099,14 @@ window.RawDeal.GameEngine = class GameEngine {
         this.actionLog.push({
           message: `${flow.sourceName}: drew ${n} cards.`,
         });
+        this._notify();
       } else if (optionId === 'opponentDiscard') {
-        const discarded = this._forceOpponentDiscard(opponent, n);
+        const { count, cards } = this._forceOpponentDiscard(opponent, n);
+        const names = cards.map((c) => c.name).join(', ');
         this.actionLog.push({
-          message: `${flow.sourceName}: opponent discarded ${discarded} card(s) to Ringside.`,
+          message: count
+            ? `${flow.sourceName}: opponent discarded ${names} to Ringside.`
+            : `${flow.sourceName}: opponent had no cards to discard.`,
         });
       } else {
         return false;
@@ -651,7 +1115,8 @@ window.RawDeal.GameEngine = class GameEngine {
       return false;
     }
 
-    this._finishCardEffectResolution();
+    this._notify();
+    await this._finishCardEffectResolution();
     return true;
   }
 
@@ -664,6 +1129,7 @@ window.RawDeal.GameEngine = class GameEngine {
     await this.onArsenalToRingside({
       card: top,
       sourceManeuver: sourceCard,
+      playerSeat: this._playerIndex(player),
       onReveal: () => {
         player.ringside.push(top);
         this.actionLog.push({
@@ -685,14 +1151,14 @@ window.RawDeal.GameEngine = class GameEngine {
         this._drawCard(player);
       }
     } else if (card.effect === 'nextManeuverBonus') {
-      const idx = player.isHuman ? 0 : 1;
+      const idx = this._playerIndex(player);
       this.nextManeuverBonus[idx] += card.effectValue || 0;
     } else if (card.effect === 'smackdownHotel') {
       this._drawCard(player);
-      const idx = player.isHuman ? 0 : 1;
+      const idx = this._playerIndex(player);
       this.nextManeuverBonus[idx] += 6;
     } else if (card.effect === 'iAmTheGame') {
-      const idx = player.isHuman ? 0 : 1;
+      const idx = this._playerIndex(player);
       this.nextManeuverBonus[idx] += 3;
       this._drawCard(player);
       this._drawCard(player);
@@ -701,6 +1167,8 @@ window.RawDeal.GameEngine = class GameEngine {
         all: card.effectValue || 0,
         sourceName: card.name,
       });
+    } else if (card.effect === 'lookAtOpponentHand') {
+      this._beginHandReveal(player, card.name);
     }
   }
 
@@ -716,7 +1184,10 @@ window.RawDeal.GameEngine = class GameEngine {
       cardsOverturned += 1;
       this._notify();
 
-      const reversed = this._reversalStops(overturned, maneuver, opponent);
+      const reversed = this._reversalStops(overturned, maneuver, opponent, {
+        attacker,
+        effectiveDamage: this._peekManeuverDamage(attacker, opponent, maneuver),
+      });
 
       await this.onDamageStep({
         card: overturned,
@@ -724,6 +1195,7 @@ window.RawDeal.GameEngine = class GameEngine {
         total: damage,
         maneuver,
         reversed,
+        playerSeat: this._playerIndex(opponent),
         onReveal: () => {
           opponent.ringside.push(overturned);
           this._notify();
@@ -758,41 +1230,43 @@ window.RawDeal.GameEngine = class GameEngine {
     }
   }
 
-  _reversalStops(card, maneuver, opponent) {
-    const utils = window.RawDeal.CardUtils;
-    const canReverseFromArsenal =
-      utils.hasType(card, 'reversal') || (card.reverses && card.reverses.length > 0);
-    if (!canReverseFromArsenal || !card.reverses) return false;
+  _reversalStops(card, maneuver, opponent, options = {}) {
+    const {
+      attacker = null,
+      effectiveDamage = null,
+      afterIrishWhip = null,
+      reversalFortitudeTax = 0,
+    } = options;
+    const damage =
+      effectiveDamage ??
+      (attacker ? this._peekManeuverDamage(attacker, opponent, maneuver) : (maneuver.damage || 0));
+    const playedAfterIrishWhip =
+      afterIrishWhip ?? !!attacker?.turnState?.irishWhipPlayed;
+    const tax =
+      reversalFortitudeTax ||
+      (maneuver.subtype === 'grapple' ? attacker?.turnState?.nextGrappleReversalTax || 0 : 0);
 
-    const reversalCost = card.fortitude || 0;
-    if (opponent.fortitude < reversalCost) return false;
+    return window.RawDeal.CardUtils.canReverseManeuver(
+      card,
+      maneuver,
+      opponent.fortitude,
+      damage,
+      { afterIrishWhip: playedAfterIrishWhip, reversalFortitudeTax: tax }
+    );
+  }
 
-    if (card.reverses.includes('low-damage') && (maneuver.damage || 0) <= (card.maxDamage || 5)) {
-      return true;
+  _clearGrappleJockeyingTax(player) {
+    if (player?.turnState?.nextGrappleReversalTax) {
+      player.turnState.nextGrappleReversalTax = 0;
     }
-    const subtype = maneuver.subtype || '';
-    if (subtype && card.reverses.includes(subtype)) {
-      return true;
-    }
-    if (card.reverses.includes('strike') && subtype === 'strike') return true;
-    if (card.reverses.includes('grapple') && subtype === 'grapple') return true;
-    if (card.reverses.includes('submission') && subtype === 'submission') return true;
-    if (
-      card.reverses.includes('strike') &&
-      card.reverses.includes('grapple') &&
-      card.reverses.includes('submission')
-    ) {
-      return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
-    }
-    return false;
   }
 
   canUseSuperstarAbility(playerIndex) {
-    if (!this.stateMachine.canPlayCards() || playerIndex !== 0 || this.abilityFlow || this.cardEffectFlow) {
+    if (!this.stateMachine.canPlayCards(playerIndex) || this.abilityFlow || this.cardEffectFlow || this.reversalWindow) {
       return false;
     }
 
-    const player = this.players[0];
+    const player = this.players[playerIndex];
     if (!player || player.superstarAbilityUsed) return false;
 
     const id = player.superstar.id;
@@ -824,10 +1298,10 @@ window.RawDeal.GameEngine = class GameEngine {
     return false;
   }
 
-  selectForAbility(instanceId) {
-    if (!this.abilityFlow || this.abilityFlow.playerIndex !== 0) return false;
+  selectForAbility(playerIndex, instanceId) {
+    if (!this.abilityFlow || this.abilityFlow.playerIndex !== playerIndex) return false;
 
-    const player = this.players[0];
+    const player = this.players[playerIndex];
     const flow = this.abilityFlow;
 
     if (flow.step === 'pickBottom') {
@@ -887,11 +1361,18 @@ window.RawDeal.GameEngine = class GameEngine {
     return false;
   }
 
-  async endTurn() {
-    if (!this.stateMachine.canPlayCards() || this.cardEffectFlow || this.pendingManeuverResolution) {
+  async endTurn(playerIndex) {
+    if (
+      !this.stateMachine.canPlayCards(playerIndex) ||
+      this.cardEffectFlow ||
+      this.pendingManeuverResolution ||
+      this.reversalWindow ||
+      (this.handRevealFlow && this.handRevealFlow.viewerIndex === playerIndex)
+    ) {
       return;
     }
     this.abilityFlow = null;
+    this.handRevealFlow = null;
     this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
     await this._runAutoPhases();
   }

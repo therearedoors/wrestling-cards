@@ -1,13 +1,19 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.Board = class Board {
-  constructor(rootEl, cardPreview, choiceModal = null) {
+  constructor(rootEl, cardPreview, choiceModal = null, handRevealModal = null) {
     this.root = rootEl;
     this.cardPreview = cardPreview;
     this.choiceModal = choiceModal;
+    this.handRevealModal = handRevealModal;
     if (this.choiceModal) {
       this.choiceModal.onSelect = (optionId) => {
         if (this.onChoiceSelect) this.onChoiceSelect(optionId);
+      };
+    }
+    if (this.handRevealModal) {
+      this.handRevealModal.onDismiss = () => {
+        if (this.onDismissHandReveal) this.onDismissHandReveal();
       };
     }
     this._state = null;
@@ -33,6 +39,9 @@ window.RawDeal.Board = class Board {
       playerArsenal: rootEl.querySelector('#rd-player-arsenal'),
       playerRingside: rootEl.querySelector('#rd-player-ringside'),
       endTurnBtn: rootEl.querySelector('#rd-end-turn'),
+      passPriorityBtn: rootEl.querySelector('#rd-pass-priority'),
+      reversalPrompt: rootEl.querySelector('#rd-reversal-prompt'),
+      reversalPromptText: rootEl.querySelector('#rd-reversal-prompt-text'),
       superstarAbilityBtn: rootEl.querySelector('#rd-superstar-ability'),
       abilityPrompt: rootEl.querySelector('#rd-ability-prompt'),
       abilityPromptText: rootEl.querySelector('#rd-ability-prompt-text'),
@@ -50,6 +59,8 @@ window.RawDeal.Board = class Board {
     this.onUseSuperstarAbility = null;
     this.onAbilitySelect = null;
     this.onChoiceSelect = null;
+    this.onPlayReversal = null;
+    this.onPassPriority = null;
     this._lastLogLength = 0;
     this._lastActionLogLength = 0;
     this._reversalBannerTimer = null;
@@ -57,14 +68,21 @@ window.RawDeal.Board = class Board {
     this.els.endTurnBtn.addEventListener('click', () => {
       if (this.onEndTurn) this.onEndTurn();
     });
+    if (this.els.passPriorityBtn) {
+      this.els.passPriorityBtn.addEventListener('click', () => {
+        if (this.onPassPriority) this.onPassPriority();
+      });
+    }
     if (this.els.superstarAbilityBtn) {
       this.els.superstarAbilityBtn.addEventListener('click', () => {
         if (this.onUseSuperstarAbility) this.onUseSuperstarAbility();
       });
     }
-    this.els.restartBtn.addEventListener('click', () => {
-      if (this.onRestart) this.onRestart();
-    });
+    if (this.els.restartBtn) {
+      this.els.restartBtn.addEventListener('click', () => {
+        if (this.onRestart) this.onRestart();
+      });
+    }
 
     const hoverZone = rootEl.closest('.rd-play-layout') || rootEl;
     hoverZone.addEventListener('mouseover', (e) => this._onCardHover(e));
@@ -99,6 +117,12 @@ window.RawDeal.Board = class Board {
       }
     }
     if (instanceId) {
+      const revealCards = this._state.handReveal?.cards;
+      if (revealCards) {
+        const revealed = revealCards.find((c) => c.instanceId === instanceId);
+        if (revealed) return revealed;
+      }
+
       for (const player of players) {
         if (!player) continue;
         const pools = [
@@ -144,16 +168,23 @@ window.RawDeal.Board = class Board {
     const activePrompt = state.selectionPrompt || ability.prompt;
 
     this._renderChoiceModal(activePrompt);
+    this._renderHandReveal(state.handReveal);
     this._renderSuperstarAbility(player, ability, state.canPlay, activePrompt);
     this._renderAbilityPrompt(activePrompt);
-    this._renderHand(player, state.canPlay, activePrompt);
+    this._renderReversalPrompt(state.reversalWindow);
+    this._renderHand(player, state.canPlay, activePrompt, state.reversalWindow, state.handReveal);
     this._renderRing(this.els.playerManeuvers, player.ring.maneuvers);
     this._renderRing(this.els.playerActions, player.ring.actions);
     this._renderRing(this.els.playerReversals, player.ring.reversals);
     this._renderRingside(this.els.opponentRingside, opponent.ringside);
     this._renderRingside(this.els.playerRingside, player.ringside, activePrompt);
 
-    this.els.endTurnBtn.disabled = !state.canPlay || !!activePrompt;
+    this.els.endTurnBtn.disabled =
+      !state.canPlay || !!activePrompt || !!state.handReveal || !!state.reversalWindow?.canRespond;
+    if (this.els.passPriorityBtn) {
+      this.els.passPriorityBtn.classList.toggle('hidden', !state.reversalWindow?.canRespond);
+      this.els.passPriorityBtn.disabled = !state.reversalWindow?.canRespond;
+    }
     this.els.gameOverPanel.classList.toggle('hidden', state.phase !== window.RawDeal.PHASES.GAME_OVER);
 
     if (state.phase === window.RawDeal.PHASES.GAME_OVER) {
@@ -194,6 +225,15 @@ window.RawDeal.Board = class Board {
       this.choiceModal.show(prompt);
     } else {
       this.choiceModal.hide();
+    }
+  }
+
+  _renderHandReveal(handReveal) {
+    if (!this.handRevealModal) return;
+    if (handReveal) {
+      this.handRevealModal.show(handReveal);
+    } else {
+      this.handRevealModal.hide();
     }
   }
 
@@ -241,6 +281,7 @@ window.RawDeal.Board = class Board {
       refresh: 'Refresh Step',
       draw: 'Draw Step',
       main: 'Main Step',
+      reversalPriority: 'Reversal Window',
       resolvingDamage: 'Resolving Damage…',
       endOfTurn: 'End of Turn',
       opponentTurn: "Opponent's Turn",
@@ -250,23 +291,59 @@ window.RawDeal.Board = class Board {
   }
 
   _winMessage(state) {
-    if (state.winner === 0) {
-      return state.winReason === 'pinfall'
-        ? 'PINFALL! You win!'
-        : 'Count-out! You win!';
+    const myIndex = state.myIndex ?? 0;
+    if (state.winner === myIndex) {
+      if (state.winReason === 'pinfall') return 'PINFALL! You win!';
+      if (state.winReason === 'forfeit') return 'Opponent left — you win!';
+      return 'Count-out! You win!';
     }
+    if (state.winReason === 'forfeit') return 'You left the match.';
+    if (state.winReason === 'pinfall') return 'PINFALL! You lose.';
     return 'You got counted out. Try again!';
   }
 
-  _renderHand(player, canPlay, abilityPrompt) {
+  _renderReversalPrompt(reversalWindow) {
+    const panel = this.els.reversalPrompt;
+    const text = this.els.reversalPromptText;
+    if (!panel || !text) return;
+
+    const active = !!reversalWindow?.active;
+    panel.classList.toggle('hidden', !active);
+    if (!active) return;
+
+    const m = reversalWindow.maneuver;
+    if (reversalWindow.canRespond) {
+      if (reversalWindow.kind === 'action') {
+        text.textContent = `Opponent played ${m.name} as an Action — play a Reversal from hand or Pass.`;
+      } else {
+        text.textContent = `Opponent played ${m.name} (${m.damage}D) — play a Reversal from hand or Pass.`;
+      }
+    } else if (reversalWindow.kind === 'action') {
+      text.textContent = `Waiting for opponent to respond to ${m.name} (Action)…`;
+    } else {
+      text.textContent = `Waiting for opponent to respond to ${m.name}…`;
+    }
+  }
+
+  _renderHand(player, canPlay, abilityPrompt, reversalWindow, handReveal = null) {
     const container = this.els.playerHand;
     window.RawDeal.CardRenderer.clearContainer(container);
 
     const abilityHandMode = abilityPrompt?.mode === 'hand';
+    const reversalMode = reversalWindow?.canRespond;
+    const handRevealActive = !!handReveal;
 
     const utils = window.RawDeal.CardUtils;
 
     for (const card of player.hand) {
+      const isReversalCard = utils.hasType(card, 'reversal') || (card.reverses && card.reverses.length > 0);
+      const canReversal =
+        reversalMode &&
+        isReversalCard &&
+        reversalWindow.maneuver &&
+        (reversalWindow.kind === 'action'
+          ? this._canReverseAction(card, reversalWindow.maneuver, player)
+          : this._canReverseManeuver(card, reversalWindow.maneuver, player, reversalWindow));
       const maneuverCost = utils.playFortitudeCost(card, 'maneuver');
       const actionCost = utils.playFortitudeCost(card, 'action');
       const affordableManeuver = player.fortitude >= maneuverCost;
@@ -275,11 +352,16 @@ window.RawDeal.Board = class Board {
       const canManeuver =
         canPlay &&
         !abilityPrompt &&
+        !handRevealActive &&
         utils.canPlayFromHandAs(card, 'maneuver') &&
         affordableManeuver &&
         meetsManeuverReq;
       const canAction =
-        canPlay && !abilityPrompt && utils.canPlayFromHandAs(card, 'action') && affordableAction;
+        canPlay &&
+        !abilityPrompt &&
+        !handRevealActive &&
+        utils.canPlayFromHandAs(card, 'action') &&
+        affordableAction;
       const selected = abilityPrompt?.selectedIds?.includes(card.instanceId);
       const selectedCount = abilityPrompt?.selectedIds?.length || 0;
       const selectable =
@@ -287,25 +369,29 @@ window.RawDeal.Board = class Board {
       const isHybrid = utils.isHybrid(card);
 
       const playZones = isHybrid
-        ? this._buildHybridPlayZones(card, { canManeuver, canAction })
+        ? this._buildHybridPlayZones(card, { canManeuver, canAction, canReversal })
         : null;
 
       const el = window.RawDeal.CardRenderer.createCardEl(card, {
-        clickable: !isHybrid && (canManeuver || canAction || selectable),
+        clickable: !isHybrid && (canManeuver || canAction || selectable || canReversal),
         playZones,
-        onClick: !isHybrid && canManeuver
+        onClick: !isHybrid && canReversal
           ? () => {
-              if (this.onPlayCard) this.onPlayCard(card.instanceId, 'maneuver');
+              if (this.onPlayReversal) this.onPlayReversal(card.instanceId);
             }
-          : !isHybrid && canAction
+          : !isHybrid && canManeuver
             ? () => {
-                if (this.onPlayCard) this.onPlayCard(card.instanceId, 'action');
+                if (this.onPlayCard) this.onPlayCard(card.instanceId, 'maneuver');
               }
-            : selectable
+            : !isHybrid && canAction
               ? () => {
-                  if (this.onAbilitySelect) this.onAbilitySelect(card.instanceId);
+                  if (this.onPlayCard) this.onPlayCard(card.instanceId, 'action');
                 }
-              : undefined,
+              : selectable
+                ? () => {
+                    if (this.onAbilitySelect) this.onAbilitySelect(card.instanceId);
+                  }
+                : undefined,
       });
 
       if (
@@ -329,7 +415,7 @@ window.RawDeal.Board = class Board {
       if (selected) {
         el.classList.add('rd-card--selected');
       }
-      if (selectable) {
+      if (selectable || canReversal) {
         el.classList.add('rd-card--ability-target');
       }
       container.appendChild(el);
@@ -347,11 +433,23 @@ window.RawDeal.Board = class Board {
     });
   }
 
-  _buildHybridPlayZones(card, { canManeuver, canAction }) {
+  _buildHybridPlayZones(card, { canManeuver, canAction, canReversal = false }) {
     const zones = {};
     const utils = window.RawDeal.CardUtils;
 
     for (const type of utils.getTypes(card)) {
+      if (type === 'reversal') {
+        zones[type] = {
+          playable: canReversal,
+          onClick: canReversal
+            ? () => {
+                if (this.onPlayReversal) this.onPlayReversal(card.instanceId);
+              }
+            : undefined,
+        };
+        continue;
+      }
+
       if (!utils.HAND_PLAY_MODES.includes(type)) {
         zones[type] = { playable: false };
         continue;
@@ -371,6 +469,27 @@ window.RawDeal.Board = class Board {
 
   _cardCost(player, card, playAs = 'maneuver') {
     return window.RawDeal.CardUtils.playFortitudeCost(card, playAs);
+  }
+
+  _canReverseManeuver(card, maneuver, player, reversalWindow = null) {
+    return window.RawDeal.CardUtils.canReverseManeuver(
+      card,
+      maneuver,
+      player.fortitude,
+      maneuver.damage,
+      {
+        afterIrishWhip: reversalWindow?.maneuver?.afterIrishWhip ?? false,
+        reversalFortitudeTax: reversalWindow?.maneuver?.reversalFortitudeTax ?? 0,
+      }
+    );
+  }
+
+  _canReverseAction(card, action, player) {
+    return window.RawDeal.CardUtils.canReverseAction(
+      card,
+      { id: action.id, types: action.types || ['action'] },
+      player.fortitude
+    );
   }
 
   _renderSuperstarCard(container, superstar) {
@@ -420,6 +539,37 @@ window.RawDeal.Board = class Board {
     this.els.log.prepend(entry);
     while (this.els.log.children.length > 4) {
       this.els.log.removeChild(this.els.log.lastChild);
+    }
+  }
+
+  /**
+   * Append one card to ringside when a flip animation reveals it (multiplayer).
+   * viewerPlayerIndex: 0 = you, 1 = opponent (remapped viewer coordinates).
+   */
+  revealFlippedCard(viewerPlayerIndex, card) {
+    const container =
+      viewerPlayerIndex === 0 ? this.els.playerRingside : this.els.opponentRingside;
+    const arsenalCountEl =
+      viewerPlayerIndex === 0 ? this.els.playerArsenalCount : this.els.opponentArsenalCount;
+
+    const el = window.RawDeal.CardRenderer.createCardEl(card, { small: true });
+    container.appendChild(el);
+
+    const cards = container.querySelectorAll('.rd-card');
+    const excess = cards.length - 6;
+    for (let i = 0; i < excess; i++) {
+      cards[i].remove();
+    }
+
+    if (arsenalCountEl) {
+      const n = parseInt(arsenalCountEl.textContent, 10) || 0;
+      arsenalCountEl.textContent = Math.max(0, n - 1);
+    }
+
+    const player = this._state?.players?.[viewerPlayerIndex];
+    if (player) {
+      player.ringside = [...(player.ringside || []), card];
+      player.arsenalSize = Math.max(0, (player.arsenalSize || 0) - 1);
     }
   }
 

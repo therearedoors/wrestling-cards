@@ -66,4 +66,66 @@ window.RawDeal.CardUtils = {
     }
     return 'Action';
   },
+
+  /**
+   * Whether a reversal card can stop a maneuver. effectiveDamage should include
+   * all modifiers (Haymaker, Irish Whip, etc.) when known.
+   * options.afterIrishWhip — attacker played Irish Whip before this maneuver this turn.
+   */
+  canReverseManeuver(reversalCard, maneuver, defenderFortitude, effectiveDamage = null, options = {}) {
+    const canReverse =
+      this.hasType(reversalCard, 'reversal') ||
+      (reversalCard.reverses && reversalCard.reverses.length > 0);
+    if (!canReverse || !reversalCard.reverses) return false;
+
+    const { afterIrishWhip = false, reversalFortitudeTax = 0 } = options;
+    const reversalCost = (reversalCard.fortitude || 0) + reversalFortitudeTax;
+    if (defenderFortitude < reversalCost) return false;
+
+    const damage = effectiveDamage ?? (maneuver.damage || 0);
+    const reverses = reversalCard.reverses;
+
+    if (reverses.includes('irish-whip') && maneuver.id === 'irish-whip') return true;
+
+    if (reverses.includes('after-irish-whip') && afterIrishWhip) {
+      return true;
+    }
+
+    if (reverses.includes('low-damage') && damage <= (reversalCard.maxDamage ?? 7)) {
+      return true;
+    }
+
+    const subtype = maneuver.subtype || '';
+    if (subtype && reverses.includes(subtype)) return true;
+    if (reverses.includes('strike') && subtype === 'strike') return true;
+    if (reverses.includes('grapple') && subtype === 'grapple') return true;
+    if (reverses.includes('submission') && subtype === 'submission') return true;
+    if (
+      reverses.includes('strike') &&
+      reverses.includes('grapple') &&
+      reverses.includes('submission')
+    ) {
+      return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
+    }
+    return false;
+  },
+
+  /** Whether a reversal can stop an action played from hand. */
+  canReverseAction(reversalCard, actionCard, defenderFortitude) {
+    const canReverse =
+      this.hasType(reversalCard, 'reversal') ||
+      (reversalCard.reverses && reversalCard.reverses.length > 0);
+    if (!canReverse || !this.hasType(actionCard, 'action')) return false;
+
+    const reversalCost = reversalCard.fortitude || 0;
+    if (defenderFortitude < reversalCost) return false;
+
+    const reverses = reversalCard.reverses || [];
+    if (reverses.includes('action')) return true;
+    if (reverses.includes('irish-whip') && actionCard.id === 'irish-whip') return true;
+    if (reverses.includes('jockeying-for-position') && actionCard.id === 'jockeying-for-position') {
+      return true;
+    }
+    return false;
+  },
 };
