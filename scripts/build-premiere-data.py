@@ -298,6 +298,8 @@ def parse_cards(text: str):
         unique = bool(re.search(r'^Unique$', rules, re.M)) or num >= 123
 
         types_list = parse_types_list(types_blob)
+        alignment = parse_alignment(types_blob)
+        types_for_text = strip_alignment_from_types(types_blob)
 
         entry = {
             'id': card_id,
@@ -306,10 +308,12 @@ def parse_cards(text: str):
             'types': types_list,
             'fortitude': fort if fort is not None else 0,
             'damage': dmg or 0,
-            'text': build_text(types_blob, rules),
+            'text': build_text(types_for_text, rules),
             'flavor': flavor.strip('"'),
             'set': 'premiere',
         }
+        if alignment:
+            entry['alignment'] = alignment
         if subtype:
             entry['subtype'] = subtype
         if sv is not None:
@@ -453,6 +457,21 @@ def parse_stun_value(stats, rules):
     return None
 
 
+def parse_alignment(types_blob: str):
+    """Return 'face' or 'heel' when the type line declares alignment, else None."""
+    if re.search(r':\s*Heel\b', types_blob):
+        return 'heel'
+    if re.search(r':\s*Face\b', types_blob):
+        return 'face'
+    return None
+
+
+def strip_alignment_from_types(types_blob: str) -> str:
+    """Remove ': Face' / ': Heel' suffixes from the type line for display text."""
+    stripped = re.sub(r':\s*(Face|Heel)\b', '', types_blob)
+    return re.sub(r'\s+', ' ', stripped).strip()
+
+
 def build_text(types_blob, rules):
     parts = []
     if types_blob:
@@ -471,6 +490,11 @@ def infer_effect(types_list, rules, name):
         return effect
     if 'when successfully played' in blob and 'discard 1 card of your choice from your hand' in blob:
         return {'effect': 'discardFromHand', 'effectValue': 1}
+    m = re.search(r'when successfully played, opponent must discard (\d+) cards?', blob)
+    if m:
+        return {'effect': 'opponentDiscardFromHand', 'effectValue': int(m.group(1))}
+    if 'when successfully played, opponent discards 1 card' in blob:
+        return {'effect': 'opponentDiscardFromHand', 'effectValue': 1}
     if 'maneuver' in types_list and (
         'draw 2 cards, or force opponent to discard 2' in blob
         or 'either draw 2 cards, or force opponent to discard 2' in blob
@@ -491,6 +515,10 @@ def infer_effect(types_list, rules, name):
     if m:
         return {'effect': 'turnDamageBonus', 'effectValue': int(m.group(1))}
     if 'action' in types_list:
+        if blob.strip().endswith("look at opponent's hand.") or blob.strip().endswith(
+            'look at opponent’s hand.'
+        ):
+            return {'effect': 'lookAtOpponentHand'}
         if 'draw 2' in blob or 'draw up to 2' in blob:
             return {'effect': 'draw', 'effectValue': 2}
         if 'draw 1' in blob or 'draw a card' in blob:
@@ -523,7 +551,7 @@ def emit_cards(cards):
     items = sorted(cards.values(), key=lambda c: c['num'])
     for i, card in enumerate(items):
         parts = [f"  '{card['id']}': {{"]
-        for key in ['id', 'num', 'name', 'types', 'subtype', 'handSize', 'superstarValue',
+        for key in ['id', 'num', 'name', 'types', 'subtype', 'alignment', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
                     'unique', 'hybrid', 'reverses', 'requiresPlayed', 'effect', 'effectValue', 'effectSubtype', 'actionEffect',
                     'actionEffectValue', 'alsoDraw', 'set']:
@@ -541,6 +569,19 @@ def emit_cards(cards):
         lines.append('\n'.join(parts))
     lines.append('};')
     return '\n'.join(lines)
+
+
+def validate_deck_alignment(deck_id, counts, cards):
+    """Raise if a starter deck mixes Face and Heel aligned cards."""
+    seen = set()
+    for cid, cnt in counts.items():
+        if cnt <= 0:
+            continue
+        alignment = cards.get(cid, {}).get('alignment')
+        if alignment:
+            seen.add(alignment)
+    if 'face' in seen and 'heel' in seen:
+        raise ValueError(f'{deck_id}: deck mixes Face and Heel cards')
 
 
 def emit_decks(cards, deck_defs):
@@ -568,6 +609,7 @@ def emit_decks(cards, deck_defs):
         total = sum(counts.values())
         if total != 60:
             raise ValueError(f'{deck_id} has {total} cards, expected 60')
+        validate_deck_alignment(deck_id, counts, cards)
         for cid, cnt in counts.items():
             if cnt > 3:
                 raise ValueError(f'{deck_id}: {cid} has {cnt} copies (max 3)')
@@ -628,10 +670,12 @@ def main():
     cards_out.write_text(emit_cards(cards), encoding='utf-8')
     decks_out.write_text(emit_decks(cards, DECK_DEFS), encoding='utf-8')
     catalog_out = ROOT / 'data/rawdeal-card-catalog.json'
-    catalog = {
-        cid: {'unique': bool(card.get('unique'))}
-        for cid, card in cards.items()
-    }
+    catalog = {}
+    for cid, card in cards.items():
+        entry = {'unique': bool(card.get('unique'))}
+        if card.get('alignment'):
+            entry['alignment'] = card['alignment']
+        catalog[cid] = entry
     catalog_out.write_text(json.dumps(catalog, indent=2), encoding='utf-8')
     print(f'Wrote {len(cards)} cards -> {cards_out}')
     print(f'Wrote {len(DECK_DEFS)} decks -> {decks_out}')

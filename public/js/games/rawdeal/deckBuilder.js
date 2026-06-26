@@ -6,6 +6,7 @@
   const searchInput = document.getElementById('rd-db-search');
   const catalogEl = document.getElementById('rd-db-catalog');
   const totalEl = document.getElementById('rd-db-total');
+  const alignmentEl = document.getElementById('rd-db-alignment');
   const statusEl = document.getElementById('rd-db-status');
   const errorsEl = document.getElementById('rd-db-errors');
   const saveBtn = document.getElementById('rd-db-save');
@@ -58,33 +59,57 @@
     counts[cardId] = Math.max(0, Math.min(max, value));
     if (counts[cardId] === 0) delete counts[cardId];
     updateValidation();
-    updateRow(cardId);
   }
 
-  function updateRow(cardId) {
+  function formatAlignmentLabel(alignment) {
+    if (alignment === 'face') return 'Face';
+    if (alignment === 'heel') return 'Heel';
+    return '—';
+  }
+
+  function cardConflictsWithDeck(card, deckAlignment) {
+    if (!deckAlignment || deckAlignment === 'mixed' || !card?.alignment) return false;
+    return card.alignment !== deckAlignment;
+  }
+
+  function updateRow(cardId, deckAlignment) {
     const row = catalogEl.querySelector(`[data-card-id="${cardId}"]`);
     if (!row) return;
     const count = counts[cardId] || 0;
+    const card = window.RawDeal.CARDS[cardId];
     const countEl = row.querySelector('[data-rd-count]');
     const minusBtn = row.querySelector('[data-rd-minus]');
     const plusBtn = row.querySelector('[data-rd-plus]');
+    const blocked = cardConflictsWithDeck(card, deckAlignment);
     if (countEl) countEl.textContent = String(count);
     if (minusBtn) minusBtn.disabled = count <= 0;
     if (plusBtn) {
-      const card = window.RawDeal.CARDS[cardId];
       const max = card?.unique ? 1 : 3;
-      plusBtn.disabled = count >= max;
+      plusBtn.disabled = count >= max || blocked;
     }
     row.classList.toggle('rd-db-row--active', count > 0);
+    row.classList.toggle('rd-db-row--blocked', blocked && count === 0);
   }
 
   function updateValidation() {
     const errors = store.validateDeck(counts);
     const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    const deckAlignment = store.getDeckAlignment(counts);
 
     totalEl.textContent = String(total);
     totalEl.classList.toggle('rd-db-total--valid', total === 60);
     totalEl.classList.toggle('rd-db-total--invalid', total !== 60);
+
+    if (alignmentEl) {
+      alignmentEl.textContent = formatAlignmentLabel(deckAlignment);
+      alignmentEl.classList.remove('rd-db-alignment--face', 'rd-db-alignment--heel');
+      if (deckAlignment === 'face') alignmentEl.classList.add('rd-db-alignment--face');
+      if (deckAlignment === 'heel') alignmentEl.classList.add('rd-db-alignment--heel');
+    }
+
+    for (const row of catalogEl.querySelectorAll('[data-card-id]')) {
+      updateRow(row.dataset.cardId, deckAlignment);
+    }
 
     if (errors.length) {
       errorsEl.textContent = errors.join(' · ');
@@ -95,11 +120,12 @@
     }
 
     saveBtn.disabled = errors.length > 0;
-    return errors;
+    return { errors, deckAlignment };
   }
 
   function renderCatalog() {
     catalogEl.innerHTML = '';
+    const deckAlignment = store.getDeckAlignment(counts);
     const cards = sortedCards().filter((card) => {
       if (!filter) return true;
       const q = filter.toLowerCase();
@@ -126,7 +152,10 @@
       const meta = document.createElement('span');
       meta.className = 'rd-db-row__meta';
       const types = (card.types || []).join(', ');
-      meta.textContent = `${card.id}${card.unique ? ' · unique' : ''} · ${types}`;
+      const alignmentPart = card.alignment
+        ? ` · ${card.alignment.charAt(0).toUpperCase() + card.alignment.slice(1)}`
+        : '';
+      meta.textContent = `${card.id}${card.unique ? ' · unique' : ''} · ${types}${alignmentPart}`;
 
       info.append(name, meta);
 
@@ -152,12 +181,14 @@
       plusBtn.dataset.rdPlus = '';
       plusBtn.textContent = '+';
       const max = card.unique ? 1 : 3;
-      plusBtn.disabled = count >= max;
+      const blocked = cardConflictsWithDeck(card, deckAlignment);
+      plusBtn.disabled = count >= max || blocked;
       plusBtn.addEventListener('click', () => setCount(card.id, (counts[card.id] || 0) + 1));
 
       stepper.append(minusBtn, countEl, plusBtn);
 
       row.append(info, stepper);
+      if (blocked && count === 0) row.classList.add('rd-db-row--blocked');
       row.addEventListener('mouseenter', () => cardPreview?.show(card));
       catalogEl.appendChild(row);
     }
@@ -178,7 +209,7 @@
   });
 
   saveBtn?.addEventListener('click', async () => {
-    const errors = updateValidation();
+    const { errors } = updateValidation();
     if (errors.length) return;
 
     saveBtn.disabled = true;

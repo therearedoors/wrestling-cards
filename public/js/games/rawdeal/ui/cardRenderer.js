@@ -2,7 +2,7 @@ window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.CardRenderer = {
   NAME_LIMIT_DEFAULT: 22,
-  NAME_LIMIT_SMALL: 14,
+  NAME_LIMIT_SMALL: 17,
 
   _formatDisplayName(name, { preview = false, small = false } = {}) {
     if (preview || !name) {

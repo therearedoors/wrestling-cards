@@ -10,9 +10,12 @@ window.RawDeal.DevCommands = {
     return { cardId };
   },
 
-  execute(engine, line) {
+  execute(engine, line, options = {}) {
     const trimmed = (line || '').trim();
     if (!trimmed) return { ok: false, message: '' };
+
+    const mySeat = options.mySeat ?? 0;
+    const oppSeat = 1 - mySeat;
 
     const parts = trimmed.split(/\s+/);
     const cmd = parts[0].toLowerCase();
@@ -38,7 +41,7 @@ window.RawDeal.DevCommands = {
     if (cmd === 'draw') {
       const resolved = this.resolveCardId(parts[1]);
       if (resolved.error) return { ok: false, message: resolved.error };
-      const ok = engine.devGiveCard(0, resolved.cardId);
+      const ok = engine.devGiveCard(mySeat, resolved.cardId);
       return ok
         ? { ok: true, message: `Drew ${resolved.cardId} to hand.` }
         : { ok: false, message: 'Could not draw card.' };
@@ -51,7 +54,7 @@ window.RawDeal.DevCommands = {
       if (!Number.isFinite(count) || count < 1) {
         return { ok: false, message: 'Count must be a positive number.' };
       }
-      const stacked = engine.devStackArsenal(1, resolved.cardId, count);
+      const stacked = engine.devStackArsenal(oppSeat, resolved.cardId, count);
       return {
         ok: true,
         message: `Stacked ${stacked}× ${resolved.cardId} on opponent Arsenal.`,

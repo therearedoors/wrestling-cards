@@ -15,6 +15,7 @@ const viewRoutes = require('./routes/views')
 const userRoutes = require('./routes/api/user')
 const rawdealRoutes = require('./routes/api/rawdeal')
 const { createRoom, joinRoom, removeRoom } = require('./utils/room')
+const { attachRawDealHandlers, handleRawDealDisconnect } = require('./server/rawdeal/sockets')
 
 const app = express()
 
@@ -71,6 +72,7 @@ function sendRoomAndUserCounts(targetSocket = null) {
 }
 
 io.on('connection', (socket) => {
+    attachRawDealHandlers(socket, io, redisClient, sendRoomAndUserCounts);
 
     socket.on('user-connected', (user, roomId=null, password=null) => {
     if (roomId) {
@@ -311,6 +313,8 @@ io.on('connection', (socket) => {
     })
 
     socket.on('disconnect', () => {
+        handleRawDealDisconnect(io, socket, redisClient, sendRoomAndUserCounts);
+
         let socketId = socket.id;
         redisClient.get(socketId, (err, reply) => {
             if (err) throw err;
@@ -321,12 +325,18 @@ io.on('connection', (socket) => {
                         if (err) throw err;
                         if (reply) {
                             let room = JSON.parse(reply);
+                            if (room.gameType === 'rawdeal') return;
                             if (!room.gameFinished) {
                                 io.to(user.room).emit('error', 'The other player has left the game');
                             }
                         }
                     });
-                    removeRoom(user.room, user.user_rank);
+                    redisClient.get(user.room, (err, reply) => {
+                        if (err || !reply) return;
+                        const room = JSON.parse(reply);
+                        if (room.gameType === 'rawdeal') return;
+                        removeRoom(user.room, user.user_rank);
+                    });
                 }
             }
         });

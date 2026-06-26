@@ -1,0 +1,102 @@
+<%- include('../../include/header') %>
+<link rel="stylesheet" href="/css/games/rawdeal.css">
+
+<div class="container rd-lobby">
+    <%- include('../../include/partials/responseMessage') %>
+    <%- include('../../include/partials/spinner') %>
+
+    <div class="rd-lobby-main hidden" id="rd-games">
+        <div class="rd-lobby-header">
+            <h1>Raw Deal — Multiplayer</h1>
+            <a href="/rawdeal/goldfish" class="rd-btn rd-btn--secondary">Solo Practice</a>
+        </div>
+
+        <p class="hidden" id="rd-no-games-message">No open rooms. Create one below.</p>
+        <ul class="rd-games-list hidden" id="rd-games-list"></ul>
+
+        <div class="rd-lobby-actions">
+            <button id="rd-create-room" class="rd-btn rd-btn--primary">Create Room</button>
+            <button id="rd-join-random" class="rd-btn rd-btn--secondary">Join Random</button>
+        </div>
+    </div>
+</div>
+
+<div class="fixed-element-container form-container hidden" id="rd-create-form-container">
+    <form id="rd-create-form">
+        <div class="input-group">
+            <label>Room ID</label>
+            <input type="text" id="rd-room-id" placeholder="Enter a room name…" required>
+        </div>
+        <div class="input-group">
+            <label>Your Deck</label>
+            <select id="rd-create-deck" class="rd-select" required>
+                <option value="rock">The Rock</option>
+                <option value="austin">"Stone Cold" Steve Austin</option>
+                <option value="undertaker">The Undertaker</option>
+                <option value="mankind">Mankind</option>
+                <option value="hhh">Triple H</option>
+                <option value="kane">Kane</option>
+                <option value="jericho">Chris Jericho</option>
+            </select>
+        </div>
+        <div class="input-group input-group-checkbox">
+            <label><input type="checkbox" id="rd-add-password"> Add Password</label>
+        </div>
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="rd-room-password" placeholder="Optional password" disabled>
+        </div>
+        <button type="submit" class="rd-btn rd-btn--primary">Create</button>
+        <span class="close-form" id="rd-close-create">&#x2715;</span>
+    </form>
+</div>
+
+<div class="fixed-element-container form-container hidden" id="rd-join-form-container">
+    <form id="rd-join-form">
+        <div class="input-group">
+            <label>Your Deck</label>
+            <select id="rd-join-deck" class="rd-select" required>
+                <option value="rock">The Rock</option>
+                <option value="austin">"Stone Cold" Steve Austin</option>
+                <option value="undertaker">The Undertaker</option>
+                <option value="mankind">Mankind</option>
+                <option value="hhh">Triple H</option>
+                <option value="kane">Kane</option>
+                <option value="jericho">Chris Jericho</option>
+            </select>
+        </div>
+        <div class="input-group hidden" id="rd-join-password-group">
+            <label>Room Password</label>
+            <input type="password" id="rd-join-password" placeholder="Room password">
+        </div>
+        <button type="submit" class="rd-btn rd-btn--primary">Join</button>
+        <span class="close-form" id="rd-close-join">&#x2715;</span>
+    </form>
+</div>
+
+<div class="fixed-element-container form-container hidden" id="rd-random-form-container">
+    <form id="rd-random-form">
+        <div class="input-group">
+            <label>Your Deck</label>
+            <select id="rd-random-deck" class="rd-select" required>
+                <option value="rock">The Rock</option>
+                <option value="austin">"Stone Cold" Steve Austin</option>
+                <option value="undertaker">The Undertaker</option>
+                <option value="mankind">Mankind</option>
+                <option value="hhh">Triple H</option>
+                <option value="kane">Kane</option>
+                <option value="jericho">Chris Jericho</option>
+            </select>
+        </div>
+        <button type="submit" class="rd-btn rd-btn--primary">Find Game</button>
+        <span class="close-form" id="rd-close-random">&#x2715;</span>
+    </form>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/index.js"></script>
+<script src="/js/spinner.js"></script>
+<script src="/js/responseMessage.js"></script>
+<script src="/js/games/rawdeal/lobby.js"></script>
+
+<%- include('../../include/footer') %>

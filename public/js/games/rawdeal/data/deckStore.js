@@ -28,6 +28,26 @@ window.RawDeal.DeckStore = {
     return counts;
   },
 
+  getDeckAlignment(counts) {
+    const alignments = new Set();
+    for (const [cardId, count] of Object.entries(counts)) {
+      if (!count) continue;
+      const alignment = window.RawDeal.CARDS[cardId]?.alignment;
+      if (alignment) alignments.add(alignment);
+    }
+    if (alignments.has('face') && alignments.has('heel')) return 'mixed';
+    if (alignments.has('face')) return 'face';
+    if (alignments.has('heel')) return 'heel';
+    return null;
+  },
+
+  validateDeckAlignment(counts) {
+    if (this.getDeckAlignment(counts) === 'mixed') {
+      return ['Deck cannot mix Face and Heel cards'];
+    }
+    return [];
+  },
+
   validateDeck(counts) {
     const errors = [];
     let total = 0;
@@ -51,6 +71,7 @@ window.RawDeal.DeckStore = {
     }
 
     if (total !== 60) errors.push(`Deck must have 60 cards (has ${total})`);
+    errors.push(...this.validateDeckAlignment(counts));
     return errors;
   },
 

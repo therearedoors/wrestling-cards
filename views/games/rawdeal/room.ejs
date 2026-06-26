@@ -2,32 +2,17 @@
 <link rel="stylesheet" href="/css/games/rawdeal.css">
 
 <div class="rd-page" data-rd-dev="<%= devMode ? '1' : '0' %>">
-    <section id="rd-setup" class="rd-setup">
+    <section id="rd-waiting" class="rd-setup">
         <div class="rd-setup-card">
-            <h2>Choose Your Superstar</h2>
-            <label for="rd-deck-select">Starter Deck</label>
-            <select id="rd-deck-select" class="rd-select">
-                <option value="rock">The Rock</option>
-                <option value="austin">"Stone Cold" Steve Austin</option>
-                <option value="undertaker">The Undertaker</option>
-                <option value="mankind">Mankind</option>
-                <option value="hhh">Triple H</option>
-                <option value="kane">Kane</option>
-                <option value="jericho">Chris Jericho</option>
-            </select>
-            <p class="rd-setup-note">
-                You'll face the rival starter deck. The opponent won't play cards — overturn reversals from their Arsenal still work.
-            </p>
-            <p id="rd-override-note" class="rd-setup-note rd-setup-note--override hidden">
-                Using your saved deck customizations from the <a href="/rawdeal/decks">Deck Builder</a>.
-            </p>
+            <h2>Waiting for Opponent</h2>
+            <p id="rd-waiting-text" class="rd-setup-note">Connecting to room…</p>
             <p class="rd-setup-links">
-                <a href="/rawdeal/decks">Edit Decks</a>
+                <a href="/rawdeal/games">Back to Lobby</a>
                 <% if (!devMode) { %>
-                    · <a href="/rawdeal/goldfish?dev=1">Dev Mode</a>
+                    · <a id="rd-dev-mode-link" href="#">Dev Mode</a>
                 <% } %>
             </p>
-            <button id="rd-start-btn" class="rd-btn rd-btn--primary">Start Match</button>
+            <a href="/rawdeal/games" class="rd-btn rd-btn--secondary">Back to Lobby</a>
         </div>
     </section>
 
@@ -39,11 +24,16 @@
                     <span id="rd-turn" class="rd-turn">Turn 1</span>
                     <button id="rd-superstar-ability" class="rd-btn rd-btn--ability hidden" type="button" title="">Superstar Ability</button>
                     <div id="rd-log" class="rd-log"></div>
+                    <button id="rd-pass-priority" class="rd-btn rd-btn--secondary hidden" type="button">Pass</button>
                     <button id="rd-end-turn" class="rd-btn rd-btn--secondary">End Turn</button>
                 </div>
 
                 <div id="rd-ability-prompt" class="rd-ability-prompt hidden" aria-live="polite">
                     <span id="rd-ability-prompt-text"></span>
+                </div>
+
+                <div id="rd-reversal-prompt" class="rd-reversal-prompt hidden" aria-live="polite">
+                    <span id="rd-reversal-prompt-text"></span>
                 </div>
 
                 <div id="rd-reversal-banner" class="rd-reversal-banner hidden" aria-live="polite">
@@ -130,8 +120,8 @@
                 </div>
 
                 <div id="rd-game-over" class="rd-game-over hidden">
-                    <h2 id="rd-game-over-message">PINFALL!</h2>
-                    <button id="rd-restart" class="rd-btn rd-btn--primary">New Match</button>
+                    <h2 id="rd-game-over-message">Match Over</h2>
+                    <a href="/rawdeal/games" class="rd-btn rd-btn--primary">Back to Lobby</a>
                 </div>
             </div>
 
@@ -180,11 +170,8 @@
 
 <script src="/js/games/rawdeal/data/cards.js"></script>
 <script src="/js/games/rawdeal/data/decks.js"></script>
-<script src="/js/games/rawdeal/data/deckStore.js"></script>
 <script src="/js/games/rawdeal/engine/constants.js"></script>
 <script src="/js/games/rawdeal/engine/cardUtils.js"></script>
-<script src="/js/games/rawdeal/engine/stateMachine.js"></script>
-<script src="/js/games/rawdeal/engine/gameEngine.js"></script>
 <script src="/js/games/rawdeal/ui/cardRenderer.js"></script>
 <script src="/js/games/rawdeal/ui/cardPreview.js"></script>
 <script src="/js/games/rawdeal/ui/animations.js"></script>
@@ -195,6 +182,8 @@
 <script src="/js/games/rawdeal/dev/devCommands.js"></script>
 <script src="/js/games/rawdeal/dev/devConsole.js"></script>
 <% } %>
-<script src="/js/games/rawdeal/goldfish.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/index.js"></script>
+<script src="/js/games/rawdeal/multiplayer.js"></script>
 
 <%- include('../../include/footer') %>
