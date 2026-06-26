@@ -24,6 +24,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.cardEffectFlow = null;
     this.pendingManeuverResolution = null;
     this.reversalWindow = null;
+    this.handRevealFlow = null;
     this.animationEvents = [];
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
     this.stateMachine.activePlayer = 0;
@@ -100,8 +101,58 @@ window.RawDeal.GameEngine = class GameEngine {
       selectionPrompt: this._publicSelectionPrompt(viewerIndex),
       superstarAbility: this._publicSuperstarAbility(viewerIndex),
       reversalWindow: this._publicReversalWindow(viewerIndex),
+      handReveal: this._publicHandReveal(viewerIndex),
       animationEvents: this.animationEvents.map((e) => ({ ...e })),
     };
+  }
+
+  _publicHandReveal(viewerIndex) {
+    if (!this.handRevealFlow || this.handRevealFlow.viewerIndex !== viewerIndex) {
+      return null;
+    }
+
+    const { sourceName, cards } = this.handRevealFlow;
+    const n = cards.length;
+    const message =
+      n === 0
+        ? `${sourceName}: opponent has no cards in hand.`
+        : `${sourceName}: opponent's hand (${n} card${n === 1 ? '' : 's'}).`;
+
+    return {
+      message,
+      cards: cards.map((c) => ({ ...c })),
+    };
+  }
+
+  _beginHandReveal(player, sourceName) {
+    const viewerIndex = this._playerIndex(player);
+    const opponent = this.players[1 - viewerIndex];
+    const cards = opponent.hand.map((c) => ({ ...c }));
+
+    this.handRevealFlow = {
+      viewerIndex,
+      opponentIndex: 1 - viewerIndex,
+      sourceName,
+      cards,
+    };
+
+    const n = cards.length;
+    this.actionLog.push({
+      message:
+        n === 0
+          ? `${sourceName}: opponent has no cards in hand.`
+          : `${sourceName}: viewing opponent's hand (${n} card${n === 1 ? '' : 's'}).`,
+    });
+    this._notify();
+  }
+
+  dismissHandReveal(playerIndex) {
+    if (!this.handRevealFlow || this.handRevealFlow.viewerIndex !== playerIndex) {
+      return false;
+    }
+    this.handRevealFlow = null;
+    this._notify();
+    return true;
   }
 
   clearAnimationEvents() {
@@ -407,7 +458,12 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   canPlayCard(playerIndex, instanceId, playAs) {
-    if (!this.stateMachine.canPlayCards(playerIndex) || this.cardEffectFlow || this.reversalWindow) {
+    if (
+      !this.stateMachine.canPlayCards(playerIndex) ||
+      this.cardEffectFlow ||
+      this.reversalWindow ||
+      (this.handRevealFlow && this.handRevealFlow.viewerIndex === playerIndex)
+    ) {
       return false;
     }
 
@@ -1111,6 +1167,8 @@ window.RawDeal.GameEngine = class GameEngine {
         all: card.effectValue || 0,
         sourceName: card.name,
       });
+    } else if (card.effect === 'lookAtOpponentHand') {
+      this._beginHandReveal(player, card.name);
     }
   }
 
@@ -1304,10 +1362,17 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async endTurn(playerIndex) {
-    if (!this.stateMachine.canPlayCards(playerIndex) || this.cardEffectFlow || this.pendingManeuverResolution || this.reversalWindow) {
+    if (
+      !this.stateMachine.canPlayCards(playerIndex) ||
+      this.cardEffectFlow ||
+      this.pendingManeuverResolution ||
+      this.reversalWindow ||
+      (this.handRevealFlow && this.handRevealFlow.viewerIndex === playerIndex)
+    ) {
       return;
     }
     this.abilityFlow = null;
+    this.handRevealFlow = null;
     this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
     await this._runAutoPhases();
   }

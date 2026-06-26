@@ -33,6 +33,10 @@
   const cardPreview = previewRoot ? new window.RawDeal.CardPreview(previewRoot) : null;
   const choiceModalRoot = document.getElementById('rd-choice-modal');
   const choiceModal = choiceModalRoot ? new window.RawDeal.ChoiceModal(choiceModalRoot) : null;
+  const handRevealModalRoot = document.getElementById('rd-hand-reveal-modal');
+  const handRevealModal = handRevealModalRoot
+    ? new window.RawDeal.HandRevealModal(handRevealModalRoot)
+    : null;
 
   function emitAction(action) {
     socket.emit('rd-action', roomId, action);
@@ -82,7 +86,7 @@
   }
 
   function setupBoard() {
-    board = new window.RawDeal.Board(boardRoot, cardPreview, choiceModal);
+    board = new window.RawDeal.Board(boardRoot, cardPreview, choiceModal, handRevealModal);
 
     board.onPlayCard = (instanceId, playAs) => {
       emitAction({ type: 'playCard', instanceId, playAs });
@@ -110,6 +114,10 @@
 
     board.onPassPriority = () => {
       emitAction({ type: 'passPriority' });
+    };
+
+    board.onDismissHandReveal = () => {
+      emitAction({ type: 'dismissHandReveal' });
     };
   }
 

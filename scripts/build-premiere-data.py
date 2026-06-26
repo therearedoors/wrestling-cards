@@ -496,6 +496,10 @@ def infer_effect(types_list, rules, name):
     if m:
         return {'effect': 'turnDamageBonus', 'effectValue': int(m.group(1))}
     if 'action' in types_list:
+        if blob.strip().endswith("look at opponent's hand.") or blob.strip().endswith(
+            'look at opponent’s hand.'
+        ):
+            return {'effect': 'lookAtOpponentHand'}
         if 'draw 2' in blob or 'draw up to 2' in blob:
             return {'effect': 'draw', 'effectValue': 2}
         if 'draw 1' in blob or 'draw a card' in blob:

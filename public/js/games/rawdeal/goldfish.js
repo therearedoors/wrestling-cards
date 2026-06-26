@@ -19,6 +19,10 @@
   const cardPreview = previewRoot ? new window.RawDeal.CardPreview(previewRoot) : null;
   const choiceModalRoot = document.getElementById('rd-choice-modal');
   const choiceModal = choiceModalRoot ? new window.RawDeal.ChoiceModal(choiceModalRoot) : null;
+  const handRevealModalRoot = document.getElementById('rd-hand-reveal-modal');
+  const handRevealModal = handRevealModalRoot
+    ? new window.RawDeal.HandRevealModal(handRevealModalRoot)
+    : null;
 
   async function loadDecks() {
     await window.RawDeal.DeckStore.load();
@@ -32,7 +36,7 @@
   function initGame(playerDeckId) {
     const resolvedDecks = window.RawDeal.DeckStore.getResolvedDecks();
 
-    board = new window.RawDeal.Board(boardRoot, cardPreview, choiceModal);
+    board = new window.RawDeal.Board(boardRoot, cardPreview, choiceModal, handRevealModal);
 
     engine = new window.RawDeal.GameEngine({
       onStateChange: (state) => board.render(state),
@@ -90,6 +94,10 @@
 
     board.onChoiceSelect = async (optionId) => {
       await engine.selectChoice(0, optionId);
+    };
+
+    board.onDismissHandReveal = () => {
+      engine.dismissHandReveal(0);
     };
 
     board.onRestart = () => {
