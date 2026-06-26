@@ -119,6 +119,18 @@
     board.onDismissHandReveal = () => {
       emitAction({ type: 'dismissHandReveal' });
     };
+
+    board.onSkipHandReveal = () => {
+      emitAction({ type: 'skipHandReveal' });
+    };
+
+    board.onConfirmHandReveal = (instanceIds) => {
+      emitAction({ type: 'confirmHandRevealSelection', instanceIds });
+    };
+
+    board.onToggleHandRevealSelect = (instanceId) => {
+      emitAction({ type: 'toggleHandRevealSelection', instanceId });
+    };
   }
 
   function initDevConsole() {

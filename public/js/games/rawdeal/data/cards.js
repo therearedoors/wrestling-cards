@@ -396,6 +396,7 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Grapple When successfully played, you may look at your opponent’s hand.",
     flavor: "",
+    onSuccessEffects: [{"op": "revealOpponentHand", "optional": true}],
     set: "premiere",
   },
   'headlock-takedown': {
@@ -547,6 +548,7 @@ window.RawDeal.CARDS = {
     damage: 8,
     text: "Grapple When successfully played, discard 1 card of your choice from your hand. Look at opponent’s hand, then choose and discard 1 card from his hand.",
     flavor: "",
+    onSuccessEffects: [{"op": "revealOpponentHand", "selectCount": 1}, {"op": "discardFromOpponentHand", "mode": "chosen"}],
     effect: "discardFromHand",
     effectValue: 1,
     set: "premiere",
@@ -1043,7 +1045,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Look at opponent’s hand.",
     flavor: "",
-    effect: "lookAtOpponentHand",
+    actionEffects: [{"op": "revealOpponentHand"}],
     set: "premiere",
   },
   'not-yet': {
@@ -1098,8 +1100,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 1 card. Look at opponent’s hand, and then make him discard all HEEL cards.",
     flavor: "",
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}, {"op": "revealOpponentHand"}, {"op": "discardFromOpponentHand", "filter": {"alignment": "heel"}, "mode": "all"}],
     set: "premiere",
   },
   'view-of-villainy': {
@@ -1112,8 +1113,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 1 card. Look at opponent’s hand, and then make him discard all FACE cards.",
     flavor: "",
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}, {"op": "revealOpponentHand"}, {"op": "discardFromOpponentHand", "filter": {"alignment": "face"}, "mode": "all"}],
     set: "premiere",
   },
   'shake-it-off': {
@@ -1160,8 +1160,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 1 card. Look at opponent's hand. If he has any cards titled Disqualification! he must discard them.",
     flavor: "",
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}, {"op": "revealOpponentHand"}, {"op": "discardFromOpponentHand", "filter": {"cardId": "disqualification"}, "mode": "all"}],
     set: "premiere",
   },
   'recovery': {
@@ -1500,6 +1499,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Look at your opponent’s hand. For the rest of this turn, your opponent’s reversals revealed from his Arsenal while applying damage may not reverse your maneuvers. Unique",
     flavor: "",
+    actionEffects: [{"op": "revealOpponentHand"}, {"op": "blockOpponentReversals"}],
     set: "premiere",
   },
   'stone-cold': {
@@ -1740,8 +1740,7 @@ window.RawDeal.CARDS = {
     text: "Action Draw 1 card. Look at your opponent’s hand. Your next maneuver this turn is +6D. Unique",
     flavor: "",
     unique: true,
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}, {"op": "revealOpponentHand"}, {"op": "nextManeuverBonus", "value": 6}],
     set: "premiere",
   },
   'take-that-move': {

@@ -16,6 +16,7 @@ function loadRawDeal() {
     'engine/constants.js',
     'engine/cardUtils.js',
     'engine/stateMachine.js',
+    'engine/effectPipeline.js',
     'engine/gameEngine.js',
     'dev/devCommands.js',
   ];

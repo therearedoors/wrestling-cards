@@ -25,6 +25,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.pendingManeuverResolution = null;
     this.reversalWindow = null;
     this.handRevealFlow = null;
+    this.effectPipelineFlow = null;
     this.animationEvents = [];
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
     this.stateMachine.activePlayer = 0;
@@ -46,6 +47,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextStrikeBonus: 0,
       nextGrappleBonus: 0,
       nextGrappleReversalTax: 0,
+      opponentReversalsBlocked: false,
     };
   }
 
@@ -55,6 +57,7 @@ window.RawDeal.GameEngine = class GameEngine {
     player.turnState.nextStrikeBonus = 0;
     player.turnState.nextGrappleBonus = 0;
     player.turnState.nextGrappleReversalTax = 0;
+    player.turnState.opponentReversalsBlocked = false;
   }
 
   _playerIndex(player) {
@@ -107,52 +110,27 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _publicHandReveal(viewerIndex) {
-    if (!this.handRevealFlow || this.handRevealFlow.viewerIndex !== viewerIndex) {
-      return null;
-    }
-
-    const { sourceName, cards } = this.handRevealFlow;
-    const n = cards.length;
-    const message =
-      n === 0
-        ? `${sourceName}: opponent has no cards in hand.`
-        : `${sourceName}: opponent's hand (${n} card${n === 1 ? '' : 's'}).`;
-
-    return {
-      message,
-      cards: cards.map((c) => ({ ...c })),
-    };
+    return window.RawDeal.EffectPipeline.publicHandReveal(this, viewerIndex);
   }
 
-  _beginHandReveal(player, sourceName) {
-    const viewerIndex = this._playerIndex(player);
-    const opponent = this.players[1 - viewerIndex];
-    const cards = opponent.hand.map((c) => ({ ...c }));
-
-    this.handRevealFlow = {
-      viewerIndex,
-      opponentIndex: 1 - viewerIndex,
-      sourceName,
-      cards,
-    };
-
-    const n = cards.length;
-    this.actionLog.push({
-      message:
-        n === 0
-          ? `${sourceName}: opponent has no cards in hand.`
-          : `${sourceName}: viewing opponent's hand (${n} card${n === 1 ? '' : 's'}).`,
-    });
-    this._notify();
+  _startEffectPipeline(player, sourceName, steps, timing = 'action') {
+    return window.RawDeal.EffectPipeline.start(this, player, sourceName, steps, timing);
   }
 
   dismissHandReveal(playerIndex) {
-    if (!this.handRevealFlow || this.handRevealFlow.viewerIndex !== playerIndex) {
-      return false;
-    }
-    this.handRevealFlow = null;
-    this._notify();
-    return true;
+    return window.RawDeal.EffectPipeline.resume(this, playerIndex, { skipped: false });
+  }
+
+  skipHandReveal(playerIndex) {
+    return window.RawDeal.EffectPipeline.resume(this, playerIndex, { skipped: true });
+  }
+
+  confirmHandRevealSelection(playerIndex, instanceIds) {
+    return window.RawDeal.EffectPipeline.resume(this, playerIndex, { selectedIds: instanceIds });
+  }
+
+  toggleHandRevealSelection(playerIndex, instanceId) {
+    return window.RawDeal.EffectPipeline.toggleSelection(this, playerIndex, instanceId);
   }
 
   clearAnimationEvents() {
@@ -462,7 +440,7 @@ window.RawDeal.GameEngine = class GameEngine {
       !this.stateMachine.canPlayCards(playerIndex) ||
       this.cardEffectFlow ||
       this.reversalWindow ||
-      (this.handRevealFlow && this.handRevealFlow.viewerIndex === playerIndex)
+      window.RawDeal.EffectPipeline.isPaused(this, playerIndex)
     ) {
       return false;
     }
@@ -549,6 +527,14 @@ window.RawDeal.GameEngine = class GameEngine {
         message: `${card.name} played as an action.`,
       });
       this._beginJockeyingChoice(player, this._playerIndex(player), card.name);
+      return;
+    }
+
+    if (card.actionEffects?.length) {
+      this.actionLog.push({
+        message: `${card.name} played as an action.`,
+      });
+      this._startEffectPipeline(player, card.name, card.actionEffects, 'action');
       return;
     }
 
@@ -759,6 +745,10 @@ window.RawDeal.GameEngine = class GameEngine {
     if (played.effect === 'opponentDiscardFromHand') {
       await this._applyOpponentDiscardFromHandEffect(player, played);
     }
+
+    if (played.onSuccessEffects?.length) {
+      this._startEffectPipeline(player, played.name, played.onSuccessEffects, 'onSuccess');
+    }
   }
 
   _beginPreDamageDiscardPrompt(player, card, playerIndex = 0) {
@@ -804,7 +794,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
       await this._resolveOnSuccessManeuverEffects(player, played);
 
-      if (this.cardEffectFlow) {
+      if (this.cardEffectFlow || this.handRevealFlow) {
         this._notify();
         return true;
       }
@@ -820,7 +810,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (damage <= 0) {
       await this._resolveOnSuccessManeuverEffects(player, played);
-      if (this.cardEffectFlow) {
+      if (this.cardEffectFlow || this.handRevealFlow) {
         this._notify();
         return true;
       }
@@ -1168,7 +1158,7 @@ window.RawDeal.GameEngine = class GameEngine {
         sourceName: card.name,
       });
     } else if (card.effect === 'lookAtOpponentHand') {
-      this._beginHandReveal(player, card.name);
+      this._startEffectPipeline(player, card.name, [{ op: 'revealOpponentHand' }], 'action');
     }
   }
 
@@ -1237,6 +1227,10 @@ window.RawDeal.GameEngine = class GameEngine {
       afterIrishWhip = null,
       reversalFortitudeTax = 0,
     } = options;
+
+    if (attacker?.turnState?.opponentReversalsBlocked) {
+      return false;
+    }
     const damage =
       effectiveDamage ??
       (attacker ? this._peekManeuverDamage(attacker, opponent, maneuver) : (maneuver.damage || 0));
@@ -1367,12 +1361,13 @@ window.RawDeal.GameEngine = class GameEngine {
       this.cardEffectFlow ||
       this.pendingManeuverResolution ||
       this.reversalWindow ||
-      (this.handRevealFlow && this.handRevealFlow.viewerIndex === playerIndex)
+      window.RawDeal.EffectPipeline.isPaused(this, playerIndex)
     ) {
       return;
     }
     this.abilityFlow = null;
     this.handRevealFlow = null;
+    this.effectPipelineFlow = null;
     this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
     await this._runAutoPhases();
   }

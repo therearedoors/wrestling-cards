@@ -325,10 +325,23 @@ def parse_cards(text: str):
         if len(types_list) > 1:
             entry['hybrid'] = True
 
-        # goldfish effect hints
+        action_effects = infer_action_effects(types_list, rules)
+        if action_effects:
+            entry['actionEffects'] = action_effects
+        on_success_effects = infer_on_success_effects(types_list, rules)
+        if on_success_effects:
+            entry['onSuccessEffects'] = on_success_effects
+
+        # goldfish effect hints (legacy single-effect keys)
         effect = infer_effect(types_list, rules, name)
         if effect:
-            entry.update(effect)
+            skip = False
+            if action_effects:
+                legacy = effect.get('effect')
+                if legacy in ('draw', 'lookAtOpponentHand', 'nextManeuverBonus', 'smackdownHotel'):
+                    skip = True
+            if not skip:
+                entry.update(effect)
         action_effect = infer_action_effect(rules)
         if action_effect:
             entry.update(action_effect)
@@ -481,6 +494,62 @@ def build_text(types_blob, rules):
     return ' '.join(parts)
 
 
+def infer_action_effects(types_list, rules):
+    if 'action' not in types_list:
+        return None
+    blob = rules.lower()
+    has_look = "look at opponent" in blob or "look at your opponent" in blob
+    if not has_look:
+        return None
+
+    effects = []
+    if 'draw 1' in blob or 'draw a card' in blob:
+        effects.append({'op': 'draw', 'count': 1})
+    effects.append({'op': 'revealOpponentHand'})
+
+    if 'discard all heel' in blob:
+        effects.append({
+            'op': 'discardFromOpponentHand',
+            'filter': {'alignment': 'heel'},
+            'mode': 'all',
+        })
+    elif 'discard all face' in blob:
+        effects.append({
+            'op': 'discardFromOpponentHand',
+            'filter': {'alignment': 'face'},
+            'mode': 'all',
+        })
+    elif 'disqualification' in blob and 'discard' in blob:
+        effects.append({
+            'op': 'discardFromOpponentHand',
+            'filter': {'cardId': 'disqualification'},
+            'mode': 'all',
+        })
+    elif 'next maneuver' in blob and '+6d' in blob:
+        effects.append({'op': 'nextManeuverBonus', 'value': 6})
+    elif 'may not reverse your maneuvers' in blob:
+        effects.append({'op': 'blockOpponentReversals'})
+
+    return effects
+
+
+def infer_on_success_effects(types_list, rules):
+    if 'maneuver' not in types_list:
+        return None
+    blob = rules.lower()
+
+    if 'you may look at your opponent' in blob or 'you may look at opponent' in blob:
+        return [{'op': 'revealOpponentHand', 'optional': True}]
+
+    if 'look at opponent' in blob and 'choose and discard 1 card from his hand' in blob:
+        return [
+            {'op': 'revealOpponentHand', 'selectCount': 1},
+            {'op': 'discardFromOpponentHand', 'mode': 'chosen'},
+        ]
+
+    return None
+
+
 def infer_effect(types_list, rules, name):
     blob = rules.lower()
     if 'take the top card of your arsenal and put it into your ringside pile' in blob:
@@ -515,18 +584,12 @@ def infer_effect(types_list, rules, name):
     if m:
         return {'effect': 'turnDamageBonus', 'effectValue': int(m.group(1))}
     if 'action' in types_list:
-        if blob.strip().endswith("look at opponent's hand.") or blob.strip().endswith(
-            'look at opponent’s hand.'
-        ):
-            return {'effect': 'lookAtOpponentHand'}
         if 'draw 2' in blob or 'draw up to 2' in blob:
             return {'effect': 'draw', 'effectValue': 2}
         if 'draw 1' in blob or 'draw a card' in blob:
             return {'effect': 'draw', 'effectValue': 1}
         if 'draw up to 5' in blob:
             return {'effect': 'draw', 'effectValue': 5}
-        if 'next maneuver' in blob and '+6d' in blob:
-            return {'effect': 'nextManeuverBonus', 'effectValue': 6}
         if 'next maneuver' in blob and '+3d' in blob:
             return {'effect': 'nextManeuverBonus', 'effectValue': 3}
         if 'next maneuver' in blob and '+2d' in blob:
@@ -535,8 +598,6 @@ def infer_effect(types_list, rules, name):
             return {'effect': 'turnManeuverBonus', 'effectValue': 3}
     if 'open up a can' in name.lower():
         return {'effect': 'nextManeuverBonus', 'effectValue': 5}
-    if 'smackdown hotel' in name.lower():
-        return {'effect': 'smackdownHotel'}
     if 'i am the game' in name.lower():
         return {'effect': 'iAmTheGame'}
     return None
@@ -553,7 +614,8 @@ def emit_cards(cards):
         parts = [f"  '{card['id']}': {{"]
         for key in ['id', 'num', 'name', 'types', 'subtype', 'alignment', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
-                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'effect', 'effectValue', 'effectSubtype', 'actionEffect',
+                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'actionEffects', 'onSuccessEffects',
+                    'effect', 'effectValue', 'effectSubtype', 'actionEffect',
                     'actionEffectValue', 'alsoDraw', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]
