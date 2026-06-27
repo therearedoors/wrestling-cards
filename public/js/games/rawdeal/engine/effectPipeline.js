@@ -85,9 +85,9 @@ window.RawDeal.EffectPipeline = {
 
     engine.handRevealFlow = null;
     pipeline.paused = false;
-    engine._notify();
 
-    return this._runUntilPause(engine);
+    this._runUntilPause(engine);
+    return true;
   },
 
   toggleSelection(engine, playerIndex, instanceId) {
