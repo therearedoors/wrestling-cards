@@ -132,8 +132,14 @@ window.RawDeal.EffectPipeline = {
       }
     }
 
+    const timing = pipeline.timing;
     engine.effectPipelineFlow = null;
     engine._notify();
+
+    if (timing === 'onSuccess' && engine.pendingManeuverResolution?.resumeAt === 'onSuccess') {
+      void engine._continuePendingManeuverDamage();
+    }
+
     return false;
   },
 
