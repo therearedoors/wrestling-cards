@@ -379,6 +379,24 @@ window.RawDeal.GameEngine = class GameEngine {
     player.fortitude = this._calcFortitude(player);
   }
 
+  _placeManeuverInRing(player, played) {
+    if (!player.ring.maneuvers.some((c) => c.instanceId === played.instanceId)) {
+      player.ring.maneuvers.push(played);
+    }
+    this._syncFortitude(player);
+  }
+
+  _sendReversedManeuverToRingside(attacker, played) {
+    const idx = attacker.ring.maneuvers.findIndex((c) => c.instanceId === played.instanceId);
+    if (idx >= 0) {
+      attacker.ring.maneuvers.splice(idx, 1);
+    }
+    if (!attacker.ringside.some((c) => c.instanceId === played.instanceId)) {
+      attacker.ringside.push(played);
+    }
+    this._syncFortitude(attacker);
+  }
+
   _drawCard(player) {
     if (player.arsenal.length === 0) return null;
     const card = player.arsenal.pop();
@@ -509,9 +527,14 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     if (mode === 'maneuver' || mode === 'reversal') {
-      const ringArea = mode === 'reversal' ? player.ring.reversals : player.ring.maneuvers;
-      ringArea.push(played);
-      this._syncFortitude(player);
+      const deferManeuverToRing =
+        mode === 'maneuver' && this.engineMode === 'multiplayer';
+
+      if (!deferManeuverToRing) {
+        const ringArea = mode === 'reversal' ? player.ring.reversals : player.ring.maneuvers;
+        ringArea.push(played);
+        this._syncFortitude(player);
+      }
 
       const damage = this._calcManeuverDamage(player, opponent, played);
 
@@ -923,6 +946,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     player.ring.reversals.push(reversal);
     this._syncFortitude(player);
+    this._sendReversedManeuverToRingside(attacker, played);
 
     this.actionLog.push({
       message: `${reversal.name} reversed ${played.name} from hand!`,
@@ -998,6 +1022,7 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     this.stateMachine.transition(window.RawDeal.EVENTS.PASS_PRIORITY);
+    this._placeManeuverInRing(player, played);
     this._notify();
     return await this._continueManeuverAfterReversal(player, opponent, played, damage);
   }
