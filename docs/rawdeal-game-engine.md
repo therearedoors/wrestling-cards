@@ -167,7 +167,20 @@ actionEffectValue: 1,
 - **Maneuver (left/yellow):** Goes to Ring, deals damage, costs printed F
 - **Action (right/blue):** Discarded to Ringside, draws cards — no Ring placement, no damage, F cost 0
 
-Reversals are not played from hand in goldfish; they are only revealed from the opponent Arsenal during damage.
+In goldfish mode, reversals are only revealed from the opponent Arsenal during maneuver damage. In **multiplayer**, the defender may play a reversal from hand during `REVERSAL_PRIORITY` before the maneuver resolves.
+
+### Hand reversals (multiplayer)
+
+`playReversalFromHand` during a maneuver reversal window:
+
+1. Reversal → `ring.reversals` (not Ringside) + `_syncFortitude` on the reversal player
+2. Stun-value draw on the **maneuver owner** (maneuver was reversed)
+3. If the reversal has `reversalEffects` with `dealDamage` (printed D > 0), overturn that many cards from the **original attacker's** Arsenal
+4. Hand-reversal damage **cannot** be stopped by Arsenal reversals (`allowArsenalReversals: false`)
+5. Pinfall if the attacker's Arsenal empties during step 3
+6. `PLAY_REVERSAL` → `END_OF_TURN` → auto-phases
+
+Cards with printed D but ring-only damage (e.g. Break the Hold, `D: #`) have `damage: 0` in data and no `reversalEffects`.
 
 ## Playing a card
 
@@ -226,7 +239,7 @@ Cards with `effect: 'topArsenalToRingside'` or matching text trigger `_topArsena
 
 ## Damage resolution
 
-`_resolveDamage(opponent, maneuver, damage)` overturns cards one at a time from the **top** of the opponent Arsenal (pop from end of array):
+`_resolveDamage(attacker, opponent, maneuver, damage, { allowArsenalReversals })` overturns cards one at a time from the **top** of the opponent Arsenal (pop from end of array). When `allowArsenalReversals` is `false` (hand-reversal damage), the loop skips `_reversalStops`:
 
 ```
 for each damage step:
@@ -258,7 +271,7 @@ When a reversal fires, damage stops immediately, the turn ends, and auto-phases 
 
 | Reason | Trigger |
 |--------|---------|
-| `pinfall` | Opponent Arsenal empty while applying maneuver damage |
+| `pinfall` | Opponent Arsenal empty while applying maneuver or hand-reversal damage |
 | `countOut` | Opponent Arsenal empty at `END_OF_TURN` check |
 
 Winner is player 0 on pinfall; on count-out, the player who **ran out** loses (human empty → opponent wins).

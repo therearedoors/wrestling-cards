@@ -12,10 +12,7 @@ window.RawDeal.CARDS = {
     text: "Strike / Action As an action, you may discard this card to draw 1 card. Doing this will not cause any damage to opponent.",
     flavor: "",
     hybrid: true,
-    effect: "draw",
-    effectValue: 1,
-    actionEffect: "discardToDraw",
-    actionEffectValue: 1,
+    actionEffects: [{"op": "discardSelfToDraw", "count": 1}],
     set: "premiere",
   },
   'punch': {
@@ -40,8 +37,7 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Strike When successfully played, discard 1 card of your choice from your hand.",
     flavor: "",
-    effect: "discardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "discardFromHand", "count": 1}],
     set: "premiere",
   },
   'roundhouse-punch': {
@@ -66,9 +62,7 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Strike When successfully played, all Strike maneuvers are +1D for the rest of this turn.",
     flavor: "",
-    effect: "turnSubtypeDamageBonus",
-    effectValue: 1,
-    effectSubtype: "strike",
+    maneuverEffects: [{"op": "turnSubtypeDamageBonus", "subtype": "strike", "value": 1}],
     set: "premiere",
   },
   'back-body-drop': {
@@ -83,8 +77,7 @@ window.RawDeal.CARDS = {
     text: "Strike The card titled Irish Whip must be played before playing this card. When successfully played, you may either draw 2 cards, or force opponent to discard 2 cards. SV: 1",
     flavor: "",
     requiresPlayed: "irish-whip",
-    effect: "drawOrOpponentDiscard",
-    effectValue: 2,
+    maneuverEffects: [{"op": "drawOrOpponentChoice", "count": 2}],
     set: "premiere",
   },
   'big-boot': {
@@ -111,6 +104,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     hybrid: true,
     reverses: ["after-irish-whip"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'kick': {
@@ -123,7 +117,7 @@ window.RawDeal.CARDS = {
     damage: 5,
     text: "Strike When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile.",
     flavor: "",
-    effect: "topArsenalToRingside",
+    maneuverEffects: [{"op": "topArsenalToRingside"}],
     set: "premiere",
   },
   'cross-body-block': {
@@ -139,6 +133,7 @@ window.RawDeal.CARDS = {
     hybrid: true,
     reverses: ["after-irish-whip"],
     requiresPlayed: "irish-whip",
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'ensugiri': {
@@ -152,6 +147,7 @@ window.RawDeal.CARDS = {
     text: "Strike / Reversal: Special May only reverse the maneuver titled Kick.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'running-elbow-smash': {
@@ -164,7 +160,7 @@ window.RawDeal.CARDS = {
     damage: 6,
     text: "Strike When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile.",
     flavor: "",
-    effect: "topArsenalToRingside",
+    maneuverEffects: [{"op": "topArsenalToRingside"}],
     set: "premiere",
   },
   'drop-kick': {
@@ -178,6 +174,7 @@ window.RawDeal.CARDS = {
     text: "Strike / Reversal: Special May only reverse the maneuver titled Drop Kick.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'discus-punch': {
@@ -215,8 +212,7 @@ window.RawDeal.CARDS = {
     damage: 5,
     text: "Strike When successfully played, opponent must discard 1 card.",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'spear': {
@@ -231,6 +227,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     hybrid: true,
     reverses: ["after-irish-whip"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'clothesline': {
@@ -282,10 +279,7 @@ window.RawDeal.CARDS = {
     text: "Grapple / Action As an action, you may discard this card to draw 1 card. Doing this will not cause any damage to opponent.",
     flavor: "",
     hybrid: true,
-    effect: "draw",
-    effectValue: 1,
-    actionEffect: "discardToDraw",
-    actionEffectValue: 1,
+    actionEffects: [{"op": "discardSelfToDraw", "count": 1}],
     set: "premiere",
   },
   'hip-toss': {
@@ -310,8 +304,7 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Grapple When successfully played, discard 1 card of your choice from your hand.",
     flavor: "",
-    effect: "discardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "discardFromHand", "count": 1}],
     set: "premiere",
   },
   'russian-leg-sweep': {
@@ -396,6 +389,7 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Grapple When successfully played, you may look at your opponent’s hand.",
     flavor: "",
+    maneuverEffects: [{"op": "revealOpponentHand", "optional": true}],
     set: "premiere",
   },
   'headlock-takedown': {
@@ -408,6 +402,7 @@ window.RawDeal.CARDS = {
     damage: 5,
     text: "Grapple When successfully played, opponent must draw 1 card.",
     flavor: "",
+    maneuverEffects: [{"op": "opponentDraw", "count": 1}],
     set: "premiere",
   },
   'belly-to-belly-suplex': {
@@ -421,6 +416,7 @@ window.RawDeal.CARDS = {
     text: "Grapple / Reversal: Special May only reverse the maneuver titled Belly to Belly Suplex.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'atomic-facebuster': {
@@ -470,6 +466,7 @@ window.RawDeal.CARDS = {
     text: "Grapple / Reversal: Special May only reverse the maneuver titled Vertical Suplex.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'belly-to-back-suplex': {
@@ -483,6 +480,7 @@ window.RawDeal.CARDS = {
     text: "Grapple / Reversal: Special May only reverse the maneuver titled Belly to Back Suplex.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'pump-handle-slam': {
@@ -495,8 +493,7 @@ window.RawDeal.CARDS = {
     damage: 7,
     text: "Grapple When successfully played, opponent must discard 2 cards.",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 2,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 2}],
     set: "premiere",
   },
   'reverse-ddt': {
@@ -521,8 +518,7 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Grapple When successfully played, opponent must discard 1 card.",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'sit-out-powerbomb': {
@@ -547,8 +543,7 @@ window.RawDeal.CARDS = {
     damage: 8,
     text: "Grapple When successfully played, discard 1 card of your choice from your hand. Look at opponent’s hand, then choose and discard 1 card from his hand.",
     flavor: "",
-    effect: "discardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "discardFromHand", "count": 1}, {"op": "revealOpponentHand", "selectCount": 1}, {"op": "discardFromOpponentHand", "mode": "chosen"}],
     set: "premiere",
   },
   'fisherman-s-suplex': {
@@ -561,8 +556,7 @@ window.RawDeal.CARDS = {
     damage: 10,
     text: "Grapple When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. You may draw 1 card.",
     flavor: "",
-    effect: "topArsenalToRingside",
-    alsoDraw: 1,
+    maneuverEffects: [{"op": "topArsenalToRingside"}, {"op": "draw", "count": 1}],
     set: "premiere",
   },
   'ddt': {
@@ -576,7 +570,7 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Grapple When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. Opponent must discard 2 cards. SV: 1",
     flavor: "",
-    effect: "topArsenalToRingside",
+    maneuverEffects: [{"op": "topArsenalToRingside"}],
     set: "premiere",
   },
   'power-slam': {
@@ -590,8 +584,7 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Grapple When successfully played, opponent must discard 1 card. SV: 1",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'powerbomb': {
@@ -618,7 +611,7 @@ window.RawDeal.CARDS = {
     stunValue: 2,
     text: "Grapple When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. Opponent must discard 2 cards. SV: 2",
     flavor: "",
-    effect: "topArsenalToRingside",
+    maneuverEffects: [{"op": "topArsenalToRingside"}],
     set: "premiere",
   },
   'collar-elbow-lockup': {
@@ -632,10 +625,7 @@ window.RawDeal.CARDS = {
     text: "Submission / Action As an action, you may discard this card to draw 1 card. Doing this will not cause any damage to opponent.",
     flavor: "",
     hybrid: true,
-    effect: "draw",
-    effectValue: 1,
-    actionEffect: "discardToDraw",
-    actionEffectValue: 1,
+    actionEffects: [{"op": "discardSelfToDraw", "count": 1}],
     set: "premiere",
   },
   'wrist-lock': {
@@ -660,8 +650,7 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Submission When successfully played, discard 1 card of your choice from your hand.",
     flavor: "",
-    effect: "discardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "discardFromHand", "count": 1}],
     set: "premiere",
   },
   'chin-lock': {
@@ -686,8 +675,7 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Submission When successfully played, opponent must discard 1 card.",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'full-nelson': {
@@ -713,8 +701,7 @@ window.RawDeal.CARDS = {
     damage: 5,
     text: "Submission When successfully played, opponent must discard 1 card.",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'step-over-toe-hold': {
@@ -739,8 +726,7 @@ window.RawDeal.CARDS = {
     damage: 2,
     text: "Submission When successfully played, opponent must discard 1 card.",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'standing-side-headlock': {
@@ -753,6 +739,7 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Submission When successfully played, opponent must draw 1 card.",
     flavor: "",
+    maneuverEffects: [{"op": "opponentDraw", "count": 1}],
     set: "premiere",
   },
   'cobra-clutch': {
@@ -825,8 +812,7 @@ window.RawDeal.CARDS = {
     damage: 8,
     text: "Submission When successfully played, opponent must discard 1 card.",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'guillotine-stretch': {
@@ -839,8 +825,7 @@ window.RawDeal.CARDS = {
     damage: 8,
     text: "Submission When successfully played, opponent must discard 1 card and you may draw 1 card.",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'abdominal-stretch': {
@@ -866,8 +851,7 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Submission When successfully played, opponent must discard 1 card. SV: 1",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'figure-four-leg-lock': {
@@ -881,8 +865,7 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Submission When successfully played, opponent must discard 1 card. SV: 1",
     flavor: "",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'step-aside': {
@@ -960,6 +943,7 @@ window.RawDeal.CARDS = {
     text: "Reversal: Special May reverse any maneuver that does 7D or less. End your opponent’s turn.",
     flavor: "",
     reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'clean-break': {
@@ -985,6 +969,7 @@ window.RawDeal.CARDS = {
     text: "Reversal: Special Reverse any maneuver and end your opponent’s turn. If played from your hand draw 1 card.",
     flavor: "",
     reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'disqualification': {
@@ -1043,7 +1028,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Look at opponent’s hand.",
     flavor: "",
-    effect: "lookAtOpponentHand",
+    actionEffects: [{"op": "revealOpponentHand"}],
     set: "premiere",
   },
   'not-yet': {
@@ -1055,8 +1040,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Take a card in your hand, shuffle it into your Arsenal, then draw 2 cards.",
     flavor: "",
-    effect: "draw",
-    effectValue: 2,
+    actionEffects: [{"op": "draw", "count": 2}],
     set: "premiere",
   },
   'jockeying-for-position': {
@@ -1070,6 +1054,7 @@ window.RawDeal.CARDS = {
     text: "Action: Set-up / Reversal: Special As an action, if your next card played is a Grapple maneuver, declare whether it will be +4D or your opponent’s reversal to it will be +8F. As a reversal, may only reverse the card titled Jockeying for Position. If so, you end opponent’s turn; and if your next card played on your turn is a Grapple maneuver, declare whether it will be +4D or your opponent’s reversal to it will be +8F.",
     flavor: "",
     hybrid: true,
+    actionEffects: [{"op": "jockeyingChoice"}],
     set: "premiere",
   },
   'irish-whip': {
@@ -1084,8 +1069,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     hybrid: true,
     reverses: ["after-irish-whip"],
-    actionEffect: "nextStrikeBonus",
-    actionEffectValue: 5,
+    actionEffects: [{"op": "setupIrishWhip", "strikeBonus": 5}],
     set: "premiere",
   },
   'flash-in-the-pan': {
@@ -1098,8 +1082,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 1 card. Look at opponent’s hand, and then make him discard all HEEL cards.",
     flavor: "",
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}, {"op": "revealOpponentHand"}, {"op": "discardFromOpponentHand", "filter": {"alignment": "heel"}, "mode": "all"}],
     set: "premiere",
   },
   'view-of-villainy': {
@@ -1112,8 +1095,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 1 card. Look at opponent’s hand, and then make him discard all FACE cards.",
     flavor: "",
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}, {"op": "revealOpponentHand"}, {"op": "discardFromOpponentHand", "filter": {"alignment": "face"}, "mode": "all"}],
     set: "premiere",
   },
   'shake-it-off': {
@@ -1160,8 +1142,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 1 card. Look at opponent's hand. If he has any cards titled Disqualification! he must discard them.",
     flavor: "",
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}, {"op": "revealOpponentHand"}, {"op": "discardFromOpponentHand", "filter": {"cardId": "disqualification"}, "mode": "all"}],
     set: "premiere",
   },
   'recovery': {
@@ -1173,8 +1154,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Shuffle any 2 cards from your Ringside pile back into your Arsenal. Then draw 1 card.",
     flavor: "",
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}],
     set: "premiere",
   },
   'spit-at-opponent': {
@@ -1199,8 +1179,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 1 card. Your next maneuver this turn is +4D and opponent’s reversals are +12F.",
     flavor: "",
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}],
     set: "premiere",
   },
   'comeback': {
@@ -1223,8 +1202,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Your next card played is -5F. If opponent forces you to discard a card from your hand, you may choose to discard this card from your hand and then draw up to 2 cards.",
     flavor: "",
-    effect: "draw",
-    effectValue: 2,
+    actionEffects: [{"op": "draw", "count": 2}],
     set: "premiere",
   },
   'deluding-yourself': {
@@ -1282,8 +1260,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Shuffle up to 5 cards from your Ringside pile into your Arsenal. Then draw 2 cards.",
     flavor: "",
-    effect: "draw",
-    effectValue: 2,
+    actionEffects: [{"op": "draw", "count": 2}],
     set: "premiere",
   },
   'shane-omac': {
@@ -1343,8 +1320,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Your next maneuver this turn is +6D, and your opponent's reversal to it is +20F. Draw a card. Unique",
     flavor: "",
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "nextManeuverBonus", "value": 6}, {"op": "nextManeuverReversalTax", "value": 20}, {"op": "draw", "count": 1}],
     set: "premiere",
   },
   'undertakers-tombstone-piledriver': {
@@ -1359,10 +1335,7 @@ window.RawDeal.CARDS = {
     text: "Trademark Finisher / Action (Maneuver) As an action, you may discard this card to draw 1 card. Doing this will not cause any damage to opponent. Unique SV: 3",
     flavor: "",
     hybrid: true,
-    effect: "draw",
-    effectValue: 1,
-    actionEffect: "discardToDraw",
-    actionEffectValue: 1,
+    actionEffects: [{"op": "discardSelfToDraw", "count": 1}],
     set: "premiere",
   },
   'power-of-darkness': {
@@ -1414,6 +1387,7 @@ window.RawDeal.CARDS = {
     text: "Trademark Finisher / Reversal: Special (Maneuver) When successfully played, +2D if played after a Strike maneuver. May only reverse the maneuver titled Back Body Drop. Unique SV: 3",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'chyna-interferes': {
@@ -1425,6 +1399,7 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Reversal: Special / Reverses any maneuver and ends your opponent’s turn. If played from your hand, draw 2 cards. Unique",
     flavor: "",
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'peoples-eyebrow': {
@@ -1450,8 +1425,7 @@ window.RawDeal.CARDS = {
     text: "Trademark Finisher / Action (Maneuver) As a maneuver, this card can only be played if the card titled Rock Bottom is in your Ring area. As an action, place this card back in your Arsenal, shuffle, then draw 2 cards. Doing this will not cause any damage to opponent. Unique SV: 3",
     flavor: "",
     hybrid: true,
-    effect: "draw",
-    effectValue: 2,
+    actionEffects: [{"op": "draw", "count": 2}],
     set: "premiere",
   },
   'kanes-tombstone-piledriver': {
@@ -1500,6 +1474,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Look at your opponent’s hand. For the rest of this turn, your opponent’s reversals revealed from his Arsenal while applying damage may not reverse your maneuvers. Unique",
     flavor: "",
+    actionEffects: [{"op": "revealOpponentHand"}, {"op": "blockOpponentReversals"}],
     set: "premiere",
   },
   'stone-cold': {
@@ -1538,6 +1513,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     reverses: ["after-irish-whip"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'double-digits': {
@@ -1646,6 +1622,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'tree-of-woe': {
@@ -1659,8 +1636,7 @@ window.RawDeal.CARDS = {
     text: "Maneuver: Grapple May not be reversed. When successfully played, opponent must discard 2 cards. Unique",
     flavor: "",
     unique: true,
-    effect: "opponentDiscardFromHand",
-    effectValue: 2,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 2}],
     set: "premiere",
   },
   'hhh': {
@@ -1687,8 +1663,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     requiresPlayed: "irish-whip",
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'facebuster': {
@@ -1702,6 +1677,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     reverses: ["after-irish-whip"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'i-am-the-game': {
@@ -1714,8 +1690,7 @@ window.RawDeal.CARDS = {
     text: "Action All your maneuvers are +3D for the rest of this turn. Draw 2 cards, or force opponent to discard 2 cards. Unique",
     flavor: "",
     unique: true,
-    effect: "turnDamageBonus",
-    effectValue: 3,
+    actionEffects: [{"op": "turnDamageBonus", "value": 3}],
     set: "premiere",
   },
   'the-rock': {
@@ -1740,8 +1715,7 @@ window.RawDeal.CARDS = {
     text: "Action Draw 1 card. Look at your opponent’s hand. Your next maneuver this turn is +6D. Unique",
     flavor: "",
     unique: true,
-    effect: "draw",
-    effectValue: 1,
+    actionEffects: [{"op": "draw", "count": 1}, {"op": "revealOpponentHand"}, {"op": "nextManeuverBonus", "value": 6}],
     set: "premiere",
   },
   'take-that-move': {
@@ -1771,6 +1745,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'kane': {
@@ -1850,8 +1825,7 @@ window.RawDeal.CARDS = {
     text: "High Risk (Maneuver) Can only be played after a 4D or greater maneuver. When successfully played, opponent must discard 1 card. Unique SV: 2",
     flavor: "",
     unique: true,
-    effect: "opponentDiscardFromHand",
-    effectValue: 1,
+    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
   'y2j': {
@@ -1864,8 +1838,7 @@ window.RawDeal.CARDS = {
     text: "Action Draw up to 5 Cards or force opponent to discard up to 5 cards. Unique",
     flavor: "",
     unique: true,
-    effect: "draw",
-    effectValue: 5,
+    actionEffects: [{"op": "draw", "count": 5}],
     set: "premiere",
   },
   'dont-you-never-ever': {
