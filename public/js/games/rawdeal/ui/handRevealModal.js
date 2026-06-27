@@ -35,14 +35,6 @@ window.RawDeal.HandRevealModal = class HandRevealModal {
       this.hide();
       if (this.onConfirm) this.onConfirm(selected);
     });
-
-    this.cardsEl?.addEventListener('click', (e) => {
-      if (!this._prompt || this._prompt.mode !== 'select') return;
-      const cardEl = e.target.closest('.rd-card[data-instance-id]');
-      if (!cardEl || !this.onToggleSelect) return;
-      const instanceId = cardEl.dataset.instanceId;
-      if (instanceId) this.onToggleSelect(instanceId);
-    });
   }
 
   show(prompt) {
@@ -90,7 +82,8 @@ window.RawDeal.HandRevealModal = class HandRevealModal {
           small: true,
           clickable,
           onClick: clickable
-            ? () => {
+            ? (e) => {
+                e.stopPropagation();
                 if (this.onToggleSelect) this.onToggleSelect(card.instanceId);
               }
             : undefined,
