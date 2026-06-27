@@ -23,6 +23,10 @@
   const handRevealModal = handRevealModalRoot
     ? new window.RawDeal.HandRevealModal(handRevealModalRoot)
     : null;
+  const pileViewModalRoot = document.getElementById('rd-pile-view-modal');
+  const pileViewModal = pileViewModalRoot
+    ? new window.RawDeal.PileViewModal(pileViewModalRoot)
+    : null;
 
   async function loadDecks() {
     await window.RawDeal.DeckStore.load();
@@ -36,7 +40,13 @@
   function initGame(playerDeckId) {
     const resolvedDecks = window.RawDeal.DeckStore.getResolvedDecks();
 
-    board = new window.RawDeal.Board(boardRoot, cardPreview, choiceModal, handRevealModal);
+    board = new window.RawDeal.Board(
+      boardRoot,
+      cardPreview,
+      choiceModal,
+      handRevealModal,
+      pileViewModal
+    );
 
     engine = new window.RawDeal.GameEngine({
       onStateChange: (state) => board.render(state),

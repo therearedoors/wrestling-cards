@@ -1,11 +1,12 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.Board = class Board {
-  constructor(rootEl, cardPreview, choiceModal = null, handRevealModal = null) {
+  constructor(rootEl, cardPreview, choiceModal = null, handRevealModal = null, pileViewModal = null) {
     this.root = rootEl;
     this.cardPreview = cardPreview;
     this.choiceModal = choiceModal;
     this.handRevealModal = handRevealModal;
+    this.pileViewModal = pileViewModal;
     if (this.choiceModal) {
       this.choiceModal.onSelect = (optionId) => {
         if (this.onChoiceSelect) this.onChoiceSelect(optionId);
@@ -44,9 +45,11 @@ window.RawDeal.Board = class Board {
       playerActions: rootEl.querySelector('#rd-player-actions'),
       playerReversals: rootEl.querySelector('#rd-player-reversals'),
       opponentArsenal: rootEl.querySelector('#rd-opponent-arsenal'),
+      opponentRing: rootEl.querySelector('#rd-opponent-ring'),
       opponentRingside: rootEl.querySelector('#rd-opponent-ringside'),
       playerArsenal: rootEl.querySelector('#rd-player-arsenal'),
       playerRingside: rootEl.querySelector('#rd-player-ringside'),
+      playerRingZone: rootEl.querySelector('.rd-ring-zone'),
       endTurnBtn: rootEl.querySelector('#rd-end-turn'),
       passPriorityBtn: rootEl.querySelector('#rd-pass-priority'),
       reversalPrompt: rootEl.querySelector('#rd-reversal-prompt'),
@@ -101,12 +104,101 @@ window.RawDeal.Board = class Board {
     });
 
     window.addEventListener('resize', () => this._updateHandScroll());
+    this._bindPileInspectListeners();
+  }
+
+  _bindPileInspectListeners() {
+    const piles = this.root.querySelectorAll('[data-rd-pile-type]');
+    for (const pile of piles) {
+      pile.addEventListener('click', (e) => this._onPileInspectClick(e, pile));
+    }
+  }
+
+  _onPileInspectClick(e, pileEl) {
+    if (e.target.closest('.rd-card')) return;
+    if (pileEl.classList.contains('rd-ring-zone') && e.target.closest('.rd-pile')) return;
+
+    const type = pileEl.dataset.rdPileType;
+    const seat = parseInt(pileEl.dataset.rdPileSeat, 10);
+    if (!type || Number.isNaN(seat)) return;
+
+    this._openPileView(type, seat);
+  }
+
+  _canOpenPileView() {
+    if (!this._state || !this.pileViewModal) return false;
+    if (this._state.handReveal) return false;
+    if (this._state.selectionPrompt) return false;
+    return true;
+  }
+
+  _openPileView(type, seatIndex) {
+    if (!this._canOpenPileView()) return;
+
+    const player = this._state.players[seatIndex];
+    if (!player) return;
+
+    const who = seatIndex === 0 ? 'Your' : `${player.superstar?.name || 'Opponent'}'s`;
+
+    if (type === 'ringside') {
+      const cards = player.ringside || [];
+      const count = player.ringsideSize ?? cards.length;
+      this.pileViewModal.show({
+        title: `${who} Ringside (${count} card${count === 1 ? '' : 's'})`,
+        sections: [{ label: null, cards }],
+      });
+      return;
+    }
+
+    if (type === 'ring') {
+      const ring = player.ring || { maneuvers: [], reversals: [], actions: [] };
+      const sections = [
+        { label: 'Maneuvers', cards: ring.maneuvers || [] },
+        { label: 'Reversals', cards: ring.reversals || [] },
+        { label: 'Actions', cards: ring.actions || [] },
+      ].filter((s) => s.cards.length > 0);
+
+      const total =
+        (ring.maneuvers?.length || 0) +
+        (ring.reversals?.length || 0) +
+        (ring.actions?.length || 0);
+
+      this.pileViewModal.show({
+        title: `${who} Ring (${total} card${total === 1 ? '' : 's'})`,
+        sections: sections.length ? sections : [{ label: null, cards: [] }],
+      });
+    }
+  }
+
+  _updatePileLabels(player, opponent) {
+    this._setPileLabel(this.els.playerRingside, 'Your Ringside', player.ringside?.length || 0, 6);
+    this._setPileLabel(this.els.opponentRingside, 'Ringside', opponent.ringside?.length || 0, 6);
+
+    const oppRingTotal =
+      (opponent.ring?.maneuvers?.length || 0) +
+      (opponent.ring?.reversals?.length || 0) +
+      (opponent.ring?.actions?.length || 0);
+    this._setPileLabel(this.els.opponentRing, 'Ring', oppRingTotal, 0);
+  }
+
+  _setPileLabel(pileEl, baseLabel, total, visibleCap) {
+    if (!pileEl) return;
+    const labelEl = pileEl.querySelector('[data-rd-pile-label]');
+    if (!labelEl) return;
+    if (total > visibleCap && visibleCap > 0) {
+      labelEl.textContent = `${baseLabel} (${total})`;
+    } else if (total > 0 && visibleCap === 0) {
+      labelEl.textContent = `${baseLabel} (${total})`;
+    } else {
+      labelEl.textContent = baseLabel;
+    }
   }
 
   _onCardHover(e) {
     const cardEl = e.target.closest('.rd-card[data-card-id]');
     if (!cardEl || cardEl.classList.contains('rd-card--preview')) return;
-    if (!this.root.contains(cardEl)) return;
+    const hoverRoot = this.root.closest('.rd-play-layout') || this.root;
+    if (!hoverRoot.contains(cardEl)) return;
     if (cardEl === this._hoveredCardEl) return;
 
     this._hoveredCardEl = cardEl;
@@ -187,6 +279,7 @@ window.RawDeal.Board = class Board {
     this._renderRing(this.els.playerReversals, player.ring.reversals);
     this._renderRingside(this.els.opponentRingside, opponent.ringside);
     this._renderRingside(this.els.playerRingside, player.ringside, activePrompt);
+    this._updatePileLabels(player, opponent);
 
     this.els.endTurnBtn.disabled =
       !state.canPlay || !!activePrompt || !!state.handReveal || !!state.reversalWindow?.canRespond;
@@ -519,7 +612,8 @@ window.RawDeal.Board = class Board {
   }
 
   _renderRingside(container, cards, abilityPrompt) {
-    window.RawDeal.CardRenderer.clearContainer(container);
+    if (!container) return;
+    container.querySelectorAll('.rd-card').forEach((el) => el.remove());
     const ringsideMode = abilityPrompt?.mode === 'ringside';
     const visible = ringsideMode ? cards : cards.slice(-6);
 

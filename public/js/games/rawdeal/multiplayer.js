@@ -37,6 +37,10 @@
   const handRevealModal = handRevealModalRoot
     ? new window.RawDeal.HandRevealModal(handRevealModalRoot)
     : null;
+  const pileViewModalRoot = document.getElementById('rd-pile-view-modal');
+  const pileViewModal = pileViewModalRoot
+    ? new window.RawDeal.PileViewModal(pileViewModalRoot)
+    : null;
 
   function emitAction(action) {
     socket.emit('rd-action', roomId, action);
@@ -86,7 +90,13 @@
   }
 
   function setupBoard() {
-    board = new window.RawDeal.Board(boardRoot, cardPreview, choiceModal, handRevealModal);
+    board = new window.RawDeal.Board(
+      boardRoot,
+      cardPreview,
+      choiceModal,
+      handRevealModal,
+      pileViewModal
+    );
 
     board.onPlayCard = (instanceId, playAs) => {
       emitAction({ type: 'playCard', instanceId, playAs });
