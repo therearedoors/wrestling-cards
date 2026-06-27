@@ -326,6 +326,90 @@ async function testReversalSvBeforeDamage() {
   );
 }
 
+async function testAtomicDropNextCardManeuverBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const atomicDrop = cloneCard(RawDeal, 'atomic-drop', 'atomic-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  player.hand = [atomicDrop, punch];
+  player.fortitude = 20;
+  opponent.hand = [];
+  for (let i = 0; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  let punchDamage = null;
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    if (args[2]?.instanceId === punch.instanceId) {
+      punchDamage = args[3];
+    }
+    return origDamage(...args);
+  };
+
+  await engine.playCard(0, atomicDrop.instanceId, 'maneuver');
+  assert(
+    player.turnState?.nextCardManeuverBonus === 2,
+    'Atomic Drop sets +2D on next card if it is a maneuver'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(punchDamage === 5, 'Next maneuver gets +2D after Atomic Drop (Punch 3D + 2)');
+  assert(
+    !player.turnState?.nextCardManeuverBonus,
+    'Next-card maneuver bonus is consumed after use'
+  );
+}
+
+async function testAtomicDropBonusLostOnNonManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const atomicDrop = cloneCard(RawDeal, 'atomic-drop', 'atomic-0');
+  const chop = cloneCard(RawDeal, 'chop', 'chop-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  player.hand = [atomicDrop, chop, punch];
+  player.fortitude = 20;
+  opponent.hand = [];
+  for (let i = 0; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  let punchDamage = null;
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    if (args[2]?.instanceId === punch.instanceId) {
+      punchDamage = args[3];
+    }
+    return origDamage(...args);
+  };
+
+  await engine.playCard(0, atomicDrop.instanceId, 'maneuver');
+  await engine.playCard(0, chop.instanceId, 'action');
+  assert(
+    !player.turnState?.nextCardManeuverBonus,
+    'Playing an action as the next card clears the pending bonus'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(punchDamage === 3, 'Later maneuver does not get +2D after a non-maneuver was played next');
+}
+
 async function testWhoopCanReversalTaxFromHand() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -409,6 +493,8 @@ async function main() {
   await testShoulderBlockReversalDamage();
   await testReversalDamagePinfall();
   await testReversalSvBeforeDamage();
+  await testAtomicDropNextCardManeuverBonus();
+  await testAtomicDropBonusLostOnNonManeuver();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
 

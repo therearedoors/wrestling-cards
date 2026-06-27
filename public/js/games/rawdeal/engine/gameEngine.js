@@ -48,6 +48,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextGrappleBonus: 0,
       nextGrappleReversalTax: 0,
       nextManeuverReversalTax: 0,
+      nextCardManeuverBonus: 0,
       opponentReversalsBlocked: false,
     };
   }
@@ -59,7 +60,14 @@ window.RawDeal.GameEngine = class GameEngine {
     player.turnState.nextGrappleBonus = 0;
     player.turnState.nextGrappleReversalTax = 0;
     player.turnState.nextManeuverReversalTax = 0;
+    player.turnState.nextCardManeuverBonus = 0;
     player.turnState.opponentReversalsBlocked = false;
+  }
+
+  _expireNextCardManeuverBonusIfNotManeuver(player, mode) {
+    if (mode !== 'maneuver' && player.turnState?.nextCardManeuverBonus) {
+      player.turnState.nextCardManeuverBonus = 0;
+    }
   }
 
   _getManeuverReversalFortitudeTax(attacker, maneuver) {
@@ -516,6 +524,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const opponent = this.players[1 - playerIndex];
     const handIndex = player.hand.findIndex((c) => c.instanceId === instanceId);
     const played = player.hand.splice(handIndex, 1)[0];
+    this._expireNextCardManeuverBonusIfNotManeuver(player, mode);
 
     if (mode === 'action') {
       if (this._openActionReversalWindowOrPlay(player, opponent, played)) {
@@ -596,6 +605,10 @@ window.RawDeal.GameEngine = class GameEngine {
       damage += player.turnState.nextGrappleBonus;
     }
 
+    if (player.turnState?.nextCardManeuverBonus) {
+      damage += player.turnState.nextCardManeuverBonus;
+    }
+
     return damage;
   }
 
@@ -610,6 +623,10 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (played.subtype === 'grapple' && player.turnState?.nextGrappleBonus) {
       player.turnState.nextGrappleBonus = 0;
+    }
+
+    if (player.turnState?.nextCardManeuverBonus) {
+      player.turnState.nextCardManeuverBonus = 0;
     }
 
     return damage;

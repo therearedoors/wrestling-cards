@@ -241,6 +241,7 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Strike When successfully played, if your next card played this turn is a maneuver it is +2D. SV: 1",
     flavor: "",
+    maneuverEffects: [{"op": "nextCardManeuverBonus", "value": 2}],
     set: "premiere",
   },
   'chair-shot': {
@@ -441,6 +442,7 @@ window.RawDeal.CARDS = {
     damage: 6,
     text: "Grapple When successfully played, if your next card played this turn is a maneuver it is +2D.",
     flavor: "",
+    maneuverEffects: [{"op": "nextCardManeuverBonus", "value": 2}],
     set: "premiere",
   },
   'inverse-atomic-drop': {
