@@ -64,6 +64,13 @@ window.RawDeal.CardUtils = {
     return card?.stunValue || 0;
   },
 
+  /** Printed damage dealt when this reversal is played from hand. */
+  getReversalFromHandDamage(card) {
+    if (!this.hasType(card, 'reversal')) return 0;
+    if (card.reversalEffects?.some((s) => s.op === 'dealDamage')) return card.damage || 0;
+    return 0;
+  },
+
   actionHint(card) {
     const step = card.actionEffects?.find((s) => s.op === 'discardSelfToDraw');
     if (step) {

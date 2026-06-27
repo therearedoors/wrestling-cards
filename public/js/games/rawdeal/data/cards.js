@@ -104,6 +104,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     hybrid: true,
     reverses: ["after-irish-whip"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'kick': {
@@ -132,6 +133,7 @@ window.RawDeal.CARDS = {
     hybrid: true,
     reverses: ["after-irish-whip"],
     requiresPlayed: "irish-whip",
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'ensugiri': {
@@ -145,6 +147,7 @@ window.RawDeal.CARDS = {
     text: "Strike / Reversal: Special May only reverse the maneuver titled Kick.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'running-elbow-smash': {
@@ -171,6 +174,7 @@ window.RawDeal.CARDS = {
     text: "Strike / Reversal: Special May only reverse the maneuver titled Drop Kick.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'discus-punch': {
@@ -223,6 +227,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     hybrid: true,
     reverses: ["after-irish-whip"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'clothesline': {
@@ -411,6 +416,7 @@ window.RawDeal.CARDS = {
     text: "Grapple / Reversal: Special May only reverse the maneuver titled Belly to Belly Suplex.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'atomic-facebuster': {
@@ -460,6 +466,7 @@ window.RawDeal.CARDS = {
     text: "Grapple / Reversal: Special May only reverse the maneuver titled Vertical Suplex.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'belly-to-back-suplex': {
@@ -473,6 +480,7 @@ window.RawDeal.CARDS = {
     text: "Grapple / Reversal: Special May only reverse the maneuver titled Belly to Back Suplex.",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'pump-handle-slam': {
@@ -935,6 +943,7 @@ window.RawDeal.CARDS = {
     text: "Reversal: Special May reverse any maneuver that does 7D or less. End your opponent’s turn.",
     flavor: "",
     reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'clean-break': {
@@ -960,6 +969,7 @@ window.RawDeal.CARDS = {
     text: "Reversal: Special Reverse any maneuver and end your opponent’s turn. If played from your hand draw 1 card.",
     flavor: "",
     reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'disqualification': {
@@ -1377,6 +1387,7 @@ window.RawDeal.CARDS = {
     text: "Trademark Finisher / Reversal: Special (Maneuver) When successfully played, +2D if played after a Strike maneuver. May only reverse the maneuver titled Back Body Drop. Unique SV: 3",
     flavor: "",
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'chyna-interferes': {
@@ -1388,6 +1399,7 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Reversal: Special / Reverses any maneuver and ends your opponent’s turn. If played from your hand, draw 2 cards. Unique",
     flavor: "",
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'peoples-eyebrow': {
@@ -1501,6 +1513,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     reverses: ["after-irish-whip"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'double-digits': {
@@ -1609,6 +1622,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'tree-of-woe': {
@@ -1663,6 +1677,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     reverses: ["after-irish-whip"],
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'i-am-the-game': {
@@ -1730,6 +1745,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     hybrid: true,
+    reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
   'kane': {

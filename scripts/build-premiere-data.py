@@ -331,6 +331,9 @@ def parse_cards(text: str):
         action_effects = infer_action_effects(types_list, rules, name)
         if action_effects:
             entry['actionEffects'] = action_effects
+        reversal_effects = infer_reversal_effects(types_list, rules, dmg or 0)
+        if reversal_effects:
+            entry['reversalEffects'] = reversal_effects
         requires = infer_requires_played(rules)
         if requires:
             entry.update(requires)
@@ -527,6 +530,18 @@ def infer_maneuver_effects(types_list, rules):
     return effects or None
 
 
+def infer_reversal_effects(types_list, rules, damage):
+    """Effects when a reversal is played from hand during the reversal window."""
+    if 'reversal' not in types_list:
+        return None
+    blob = rules.lower()
+    if damage <= 0:
+        return None
+    if 'read as 0 when in your ring' in blob:
+        return None
+    return [{'op': 'dealDamage'}]
+
+
 def infer_action_effects(types_list, rules, name=''):
     if 'action' not in types_list:
         return None
@@ -614,7 +629,8 @@ def emit_cards(cards):
         parts = [f"  '{card['id']}': {{"]
         for key in ['id', 'num', 'name', 'types', 'subtype', 'alignment', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
-                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'actionEffects', 'maneuverEffects', 'set']:
+                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'actionEffects', 'maneuverEffects',
+                    'reversalEffects', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]
                 if isinstance(val, bool):

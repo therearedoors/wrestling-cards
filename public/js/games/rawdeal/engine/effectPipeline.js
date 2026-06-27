@@ -1,10 +1,10 @@
 window.RawDeal = window.RawDeal || {};
 
 /**
- * Sequential effect runner for actionEffects / maneuverEffects step arrays.
+ * Sequential effect runner for actionEffects / maneuverEffects / reversalEffects step arrays.
  */
 window.RawDeal.EffectPipeline = {
-  async start(engine, player, sourceName, steps, timing = 'action') {
+  async start(engine, player, sourceName, steps, timing = 'action', sourceCard = null) {
     if (!steps?.length) return false;
 
     const playerIndex = engine._playerIndex(player);
@@ -14,6 +14,7 @@ window.RawDeal.EffectPipeline = {
       playerIndex,
       opponentIndex,
       sourceName,
+      sourceCard,
       steps: steps.map((s) => ({ ...s })),
       timing,
       snapshotInstanceIds: null,
@@ -146,6 +147,11 @@ window.RawDeal.EffectPipeline = {
 
     if (timing === 'maneuver' && engine.pendingManeuverResolution?.resumeAt === 'maneuver') {
       await engine._continuePendingManeuverDamage();
+    } else if (
+      timing === 'reversal' &&
+      engine.stateMachine.phase !== window.RawDeal.PHASES.GAME_OVER
+    ) {
+      await engine._finishHandReversalTurn();
     }
 
     return false;
@@ -239,6 +245,21 @@ window.RawDeal.EffectPipeline = {
 
       case 'nextStrikeBonus': {
         engine._applyNextStrikeBonus(player, sourceName, step.value || 2);
+        return false;
+      }
+
+      case 'dealDamage': {
+        const sourceCard = pipeline.sourceCard;
+        const damage = step.count ?? sourceCard?.damage ?? 0;
+        const result = await engine._applyReversalFromHandDamage(
+          player,
+          opponent,
+          sourceCard,
+          damage
+        );
+        if (result.gameOver) {
+          engine.effectPipelineFlow = null;
+        }
         return false;
       }
 
