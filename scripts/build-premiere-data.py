@@ -325,26 +325,12 @@ def parse_cards(text: str):
         if len(types_list) > 1:
             entry['hybrid'] = True
 
-        action_effects = infer_action_effects(types_list, rules)
+        maneuver_effects = infer_maneuver_effects(types_list, rules)
+        if maneuver_effects:
+            entry['maneuverEffects'] = maneuver_effects
+        action_effects = infer_action_effects(types_list, rules, name)
         if action_effects:
             entry['actionEffects'] = action_effects
-        on_success_effects = infer_on_success_effects(types_list, rules)
-        if on_success_effects:
-            entry['onSuccessEffects'] = on_success_effects
-
-        # goldfish effect hints (legacy single-effect keys)
-        effect = infer_effect(types_list, rules, name)
-        if effect:
-            skip = False
-            if action_effects:
-                legacy = effect.get('effect')
-                if legacy in ('draw', 'lookAtOpponentHand', 'nextManeuverBonus', 'smackdownHotel'):
-                    skip = True
-            if not skip:
-                entry.update(effect)
-        action_effect = infer_action_effect(rules)
-        if action_effect:
-            entry.update(action_effect)
         requires = infer_requires_played(rules)
         if requires:
             entry.update(requires)
@@ -405,16 +391,6 @@ def parse_types_list(types_blob: str) -> list:
             seen.add(t)
             ordered.append(t)
     return ordered
-
-
-def infer_action_effect(rules):
-    blob = rules.lower()
-    if 'as an action' in blob and 'discard this card to draw 1' in blob:
-        return {'actionEffect': 'discardToDraw', 'actionEffectValue': 1}
-    m = re.search(r'next card played(?: on your turn)? is a strike maneuver it is \+(\d+)d', blob)
-    if m:
-        return {'actionEffect': 'nextStrikeBonus', 'actionEffectValue': int(m.group(1))}
-    return None
 
 
 def infer_requires_played(rules):
@@ -494,119 +470,138 @@ def build_text(types_blob, rules):
     return ' '.join(parts)
 
 
-def infer_action_effects(types_list, rules):
-    if 'action' not in types_list:
-        return None
-    blob = rules.lower()
-    has_look = "look at opponent" in blob or "look at your opponent" in blob
-    if not has_look:
-        return None
-
-    effects = []
-    if 'draw 1' in blob or 'draw a card' in blob:
-        effects.append({'op': 'draw', 'count': 1})
-    effects.append({'op': 'revealOpponentHand'})
-
-    if 'discard all heel' in blob:
-        effects.append({
-            'op': 'discardFromOpponentHand',
-            'filter': {'alignment': 'heel'},
-            'mode': 'all',
-        })
-    elif 'discard all face' in blob:
-        effects.append({
-            'op': 'discardFromOpponentHand',
-            'filter': {'alignment': 'face'},
-            'mode': 'all',
-        })
-    elif 'disqualification' in blob and 'discard' in blob:
-        effects.append({
-            'op': 'discardFromOpponentHand',
-            'filter': {'cardId': 'disqualification'},
-            'mode': 'all',
-        })
-    elif 'next maneuver' in blob and '+6d' in blob:
-        effects.append({'op': 'nextManeuverBonus', 'value': 6})
-    elif 'may not reverse your maneuvers' in blob:
-        effects.append({'op': 'blockOpponentReversals'})
-
-    return effects
-
-
-def infer_on_success_effects(types_list, rules):
+def infer_maneuver_effects(types_list, rules):
     if 'maneuver' not in types_list:
         return None
     blob = rules.lower()
+    effects = []
 
-    if 'you may look at your opponent' in blob or 'you may look at opponent' in blob:
-        return [{'op': 'revealOpponentHand', 'optional': True}]
-
-    if 'look at opponent' in blob and 'choose and discard 1 card from his hand' in blob:
-        return [
-            {'op': 'revealOpponentHand', 'selectCount': 1},
-            {'op': 'discardFromOpponentHand', 'mode': 'chosen'},
-        ]
-
-    return None
-
-
-def infer_effect(types_list, rules, name):
-    blob = rules.lower()
-    if 'take the top card of your arsenal and put it into your ringside pile' in blob:
-        effect = {'effect': 'topArsenalToRingside'}
-        if 'you may draw 1' in blob:
-            effect['alsoDraw'] = 1
-        return effect
     if 'when successfully played' in blob and 'discard 1 card of your choice from your hand' in blob:
-        return {'effect': 'discardFromHand', 'effectValue': 1}
-    m = re.search(r'when successfully played, opponent must draw (\d+) cards?', blob)
-    if m:
-        return {'effect': 'opponentDraw', 'effectValue': int(m.group(1))}
-    if 'when successfully played, opponent must draw 1 card' in blob:
-        return {'effect': 'opponentDraw', 'effectValue': 1}
-    m = re.search(r'when successfully played, opponent must discard (\d+) cards?', blob)
-    if m:
-        return {'effect': 'opponentDiscardFromHand', 'effectValue': int(m.group(1))}
-    if 'when successfully played, opponent discards 1 card' in blob:
-        return {'effect': 'opponentDiscardFromHand', 'effectValue': 1}
-    if 'maneuver' in types_list and (
+        effects.append({'op': 'discardFromHand', 'count': 1})
+
+    if (
         'draw 2 cards, or force opponent to discard 2' in blob
         or 'either draw 2 cards, or force opponent to discard 2' in blob
     ):
-        return {'effect': 'drawOrOpponentDiscard', 'effectValue': 2}
+        effects.append({'op': 'drawOrOpponentChoice', 'count': 2})
+
+    if 'take the top card of your arsenal and put it into your ringside pile' in blob:
+        effects.append({'op': 'topArsenalToRingside'})
+        if 'you may draw 1' in blob:
+            effects.append({'op': 'draw', 'count': 1})
+
+    m = re.search(r'when successfully played, opponent must draw (\d+) cards?', blob)
+    if m:
+        effects.append({'op': 'opponentDraw', 'count': int(m.group(1))})
+    elif 'when successfully played, opponent must draw 1 card' in blob:
+        effects.append({'op': 'opponentDraw', 'count': 1})
+
+    m = re.search(r'when successfully played, opponent must discard (\d+) cards?', blob)
+    if m:
+        effects.append({'op': 'opponentDiscardFromHand', 'count': int(m.group(1))})
+    elif 'when successfully played, opponent discards 1 card' in blob:
+        effects.append({'op': 'opponentDiscardFromHand', 'count': 1})
+
     for subtype in ('strike', 'grapple', 'submission'):
         m = re.search(
             rf'when successfully played.*all {subtype} maneuvers are \+(\d+)d for the rest of this turn',
             blob,
         )
         if m:
-            return {
-                'effect': 'turnSubtypeDamageBonus',
-                'effectSubtype': subtype,
-                'effectValue': int(m.group(1)),
-            }
-    m = re.search(r'all your maneuvers are \+(\d+)d for the rest of this turn', blob)
-    if m:
-        return {'effect': 'turnDamageBonus', 'effectValue': int(m.group(1))}
-    if 'action' in types_list:
-        if 'draw 2' in blob or 'draw up to 2' in blob:
-            return {'effect': 'draw', 'effectValue': 2}
-        if 'draw 1' in blob or 'draw a card' in blob:
-            return {'effect': 'draw', 'effectValue': 1}
-        if 'draw up to 5' in blob:
-            return {'effect': 'draw', 'effectValue': 5}
-        if 'next maneuver' in blob and '+3d' in blob:
-            return {'effect': 'nextManeuverBonus', 'effectValue': 3}
-        if 'next maneuver' in blob and '+2d' in blob:
-            return {'effect': 'nextManeuverBonus', 'effectValue': 2}
-        if 'all your maneuvers are +3d' in blob:
-            return {'effect': 'turnManeuverBonus', 'effectValue': 3}
-    if 'open up a can' in name.lower():
-        return {'effect': 'nextManeuverBonus', 'effectValue': 5}
-    if 'i am the game' in name.lower():
-        return {'effect': 'iAmTheGame'}
-    return None
+            effects.append({
+                'op': 'turnSubtypeDamageBonus',
+                'subtype': subtype,
+                'value': int(m.group(1)),
+            })
 
+    if (
+        ('you may look at your opponent' in blob or 'you may look at opponent' in blob)
+        and 'choose and discard 1 card from his hand' not in blob
+    ):
+        effects.append({'op': 'revealOpponentHand', 'optional': True})
+
+    if 'look at opponent' in blob and 'choose and discard 1 card from his hand' in blob:
+        effects.append({'op': 'revealOpponentHand', 'selectCount': 1})
+        effects.append({'op': 'discardFromOpponentHand', 'mode': 'chosen'})
+
+    return effects or None
+
+
+def infer_action_effects(types_list, rules, name=''):
+    if 'action' not in types_list:
+        return None
+    blob = rules.lower()
+    card_name = name.lower()
+
+    if 'as an action' in blob and 'discard this card to draw 1' in blob:
+        return [{'op': 'discardSelfToDraw', 'count': 1}]
+
+    if 'irish whip' in card_name or (
+        'as an action' in blob
+        and 'next card played' in blob
+        and 'strike maneuver it is' in blob
+    ):
+        m = re.search(r'strike maneuver it is \+(\d+)d', blob)
+        if m:
+            return [{'op': 'setupIrishWhip', 'strikeBonus': int(m.group(1))}]
+
+    if 'jockeying' in card_name and 'as an action' in blob:
+        return [{'op': 'jockeyingChoice'}]
+
+    has_look = 'look at opponent' in blob or 'look at your opponent' in blob
+    if has_look:
+        effects = []
+        if 'draw 1' in blob or 'draw a card' in blob:
+            effects.append({'op': 'draw', 'count': 1})
+        effects.append({'op': 'revealOpponentHand'})
+
+        if 'discard all heel' in blob:
+            effects.append({
+                'op': 'discardFromOpponentHand',
+                'filter': {'alignment': 'heel'},
+                'mode': 'all',
+            })
+        elif 'discard all face' in blob:
+            effects.append({
+                'op': 'discardFromOpponentHand',
+                'filter': {'alignment': 'face'},
+                'mode': 'all',
+            })
+        elif 'disqualification' in blob and 'discard' in blob:
+            effects.append({
+                'op': 'discardFromOpponentHand',
+                'filter': {'cardId': 'disqualification'},
+                'mode': 'all',
+            })
+        elif 'next maneuver' in blob and '+6d' in blob:
+            effects.append({'op': 'nextManeuverBonus', 'value': 6})
+        elif 'may not reverse your maneuvers' in blob:
+            effects.append({'op': 'blockOpponentReversals'})
+        return effects
+
+    if 'i am the game' in card_name:
+        return [{'op': 'turnDamageBonus', 'value': 3}]
+
+    if 'open up a can' in card_name:
+        effects = [{'op': 'draw', 'count': 1}]
+        if '+6d' in blob:
+            effects.append({'op': 'nextManeuverBonus', 'value': 6})
+        return effects
+
+    if 'draw up to 5' in blob:
+        return [{'op': 'draw', 'count': 5}]
+    if 'draw 2' in blob or 'draw up to 2' in blob:
+        return [{'op': 'draw', 'count': 2}]
+    if 'draw 1' in blob or 'draw a card' in blob:
+        return [{'op': 'draw', 'count': 1}]
+    if 'next maneuver' in blob and '+3d' in blob:
+        return [{'op': 'nextManeuverBonus', 'value': 3}]
+    if 'next maneuver' in blob and '+2d' in blob:
+        return [{'op': 'nextManeuverBonus', 'value': 2}]
+    if 'all your maneuvers are +3d' in blob:
+        return [{'op': 'turnDamageBonus', 'value': 3}]
+
+    return None
 
 def js_str(s):
     return json.dumps(s, ensure_ascii=False)
@@ -619,9 +614,7 @@ def emit_cards(cards):
         parts = [f"  '{card['id']}': {{"]
         for key in ['id', 'num', 'name', 'types', 'subtype', 'alignment', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
-                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'actionEffects', 'onSuccessEffects',
-                    'effect', 'effectValue', 'effectSubtype', 'actionEffect',
-                    'actionEffectValue', 'alsoDraw', 'set']:
+                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'actionEffects', 'maneuverEffects', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]
                 if isinstance(val, bool):
