@@ -47,9 +47,14 @@ window.RawDeal.CardUtils = {
     return true;
   },
 
+
+  _hasDiscardSelfToDraw(card) {
+    return card.actionEffects?.some((step) => step.op === 'discardSelfToDraw');
+  },
+
   /** Fortitude required to play from hand. Hybrid discard-to-draw actions cost 0. */
   playFortitudeCost(card, playAs = 'maneuver') {
-    if (playAs === 'action' && this.isHybrid(card) && card.actionEffect === 'discardToDraw') {
+    if (playAs === 'action' && this.isHybrid(card) && this._hasDiscardSelfToDraw(card)) {
       return 0;
     }
     return card.fortitude || 0;
@@ -59,9 +64,17 @@ window.RawDeal.CardUtils = {
     return card?.stunValue || 0;
   },
 
+  /** Printed damage dealt when this reversal is played from hand. */
+  getReversalFromHandDamage(card) {
+    if (!this.hasType(card, 'reversal')) return 0;
+    if (card.reversalEffects?.some((s) => s.op === 'dealDamage')) return card.damage || 0;
+    return 0;
+  },
+
   actionHint(card) {
-    if (card.actionEffect === 'discardToDraw') {
-      const n = card.actionEffectValue || 1;
+    const step = card.actionEffects?.find((s) => s.op === 'discardSelfToDraw');
+    if (step) {
+      const n = step.count || 1;
       return `Discard · Draw ${n}`;
     }
     return 'Action';
