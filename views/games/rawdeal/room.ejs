@@ -53,12 +53,14 @@
                                 <span class="rd-pile__label">Arsenal</span>
                                 <div class="rd-pile__stack"></div>
                             </div>
-                            <div class="rd-pile rd-pile--inspect" id="rd-opponent-ring" data-rd-pile-type="ring" data-rd-pile-seat="1" title="Click empty space to view all cards">
-                                <span class="rd-pile__label" data-rd-pile-label>Ring</span>
-                                <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
-                            </div>
                             <div class="rd-pile rd-pile--inspect" id="rd-opponent-ringside" data-rd-pile-type="ringside" data-rd-pile-seat="1" title="Click empty space to view all cards">
                                 <span class="rd-pile__label" data-rd-pile-label>Ringside</span>
+                                <div class="rd-pile__cards" id="rd-opponent-ringside-cards"></div>
+                                <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
+                            </div>
+                            <div class="rd-pile rd-pile--inspect" id="rd-opponent-ring" data-rd-pile-type="ring" data-rd-pile-seat="1" title="Click empty space to view all cards">
+                                <span class="rd-pile__label" data-rd-pile-label>Ring</span>
+                                <div class="rd-pile__cards" id="rd-opponent-ring-cards"></div>
                                 <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
                             </div>
                         </div>
@@ -66,26 +68,15 @@
 
                     <div class="rd-ring-zone rd-ring-zone--inspect" data-rd-pile-type="ring" data-rd-pile-seat="0" title="Click empty space to view all cards">
                         <div class="rd-ring-header">
-                            <span class="rd-zone-title">Your Ring</span>
+                            <span class="rd-zone-title" id="rd-player-ring-title" data-rd-ring-title>Your Ring</span>
                             <div class="rd-player-stats">
                                 <span id="rd-player-superstar" class="rd-player-name">You</span>
                                 <span class="rd-fortitude">Fortitude: <strong id="rd-player-fortitude">0</strong></span>
                                 <span class="rd-arsenal-label">Arsenal: <strong id="rd-player-arsenal-count">0</strong> · Hand: <strong id="rd-player-hand-count">0</strong></span>
                             </div>
                         </div>
-                        <div class="rd-ring-areas">
-                            <div class="rd-ring-area rd-ring-area--maneuvers">
-                                <span class="rd-ring-area__label">Maneuvers</span>
-                                <div id="rd-player-maneuvers" class="rd-ring-area__cards"></div>
-                            </div>
-                            <div class="rd-ring-area rd-ring-area--reversals">
-                                <span class="rd-ring-area__label">Reversals (+ Fortitude)</span>
-                                <div id="rd-player-reversals" class="rd-ring-area__cards"></div>
-                            </div>
-                            <div class="rd-ring-area rd-ring-area--actions">
-                                <span class="rd-ring-area__label">Actions</span>
-                                <div id="rd-player-actions" class="rd-ring-area__cards"></div>
-                            </div>
+                        <div class="rd-ring-compact" id="rd-player-ring-compact">
+                            <div class="rd-ring-compact__cards" id="rd-player-ring-cards"></div>
                         </div>
                         <div class="rd-piles rd-piles--player">
                             <div class="rd-superstar-slot" id="rd-player-superstar-card" title="Your Superstar"></div>
@@ -95,6 +86,7 @@
                             </div>
                             <div class="rd-pile rd-pile--compact rd-pile--inspect" id="rd-player-ringside" data-rd-pile-type="ringside" data-rd-pile-seat="0" title="Click empty space to view all cards">
                                 <span class="rd-pile__label" data-rd-pile-label>Your Ringside</span>
+                                <div class="rd-pile__cards" id="rd-player-ringside-cards"></div>
                                 <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
                             </div>
                         </div>

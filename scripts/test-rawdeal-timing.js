@@ -162,7 +162,6 @@ function createHandReversalTest(RawDeal, options = {}) {
   const maneuver = cloneCard(RawDeal, maneuverId, 'maneuver-test');
   const reversal = cloneCard(RawDeal, reversalId, 'reversal-test');
 
-  attacker.ring.maneuvers.push(maneuver);
   if (afterIrishWhip) {
     attacker.turnState = engine._emptyTurnState();
     attacker.turnState.irishWhipPlayed = true;
@@ -192,7 +191,7 @@ function createHandReversalTest(RawDeal, options = {}) {
 
 async function testElbowReversalRingPlacementAndDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, attacker, defender, reversal } = createHandReversalTest(RawDeal);
+  const { engine, attacker, defender, maneuver, reversal } = createHandReversalTest(RawDeal);
   const arsenalBefore = attacker.arsenal.length;
 
   await engine.playReversalFromHand(1, reversal.instanceId);
@@ -205,10 +204,71 @@ async function testElbowReversalRingPlacementAndDamage() {
     !defender.ringside.some((c) => c.instanceId === reversal.instanceId),
     'Elbow reversal is not in Ringside'
   );
+  assert(
+    attacker.ringside.some((c) => c.instanceId === maneuver.instanceId),
+    'Reversed maneuver goes to attacker Ringside'
+  );
+  assert(
+    !attacker.ring.maneuvers.some((c) => c.instanceId === maneuver.instanceId),
+    'Reversed maneuver is not left in Ring'
+  );
   assert(defender.fortitude === 2, 'Elbow in Ring adds +2F');
   assert(
     attacker.arsenal.length === arsenalBefore - 2,
     'Elbow deals 2D to attacker Arsenal'
+  );
+}
+
+async function testDeferredManeuverNotInRingDuringWindow() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 20;
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Maneuver opens reversal priority window'
+  );
+  assert(
+    !attacker.ring.maneuvers.some((c) => c.instanceId === punch.instanceId),
+    'Maneuver is not placed in Ring during reversal window'
+  );
+}
+
+async function testPassPriorityPlacesManeuverInRing() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 20;
+  defender.hand = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `def-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.passPriority(1);
+
+  assert(
+    attacker.ring.maneuvers.some((c) => c.instanceId === punch.instanceId),
+    'Maneuver enters Ring after defender passes priority'
   );
 }
 
@@ -343,6 +403,8 @@ async function main() {
   await testSpinningHeelKickDiscardBeforeDamage();
   await testHeadlockTakedownOpponentDrawBeforeDamage();
   await testBulldogChainBeforeDamage();
+  await testDeferredManeuverNotInRingDuringWindow();
+  await testPassPriorityPlacesManeuverInRing();
   await testElbowReversalRingPlacementAndDamage();
   await testShoulderBlockReversalDamage();
   await testReversalDamagePinfall();
