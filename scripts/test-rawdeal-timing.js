@@ -23,17 +23,16 @@ function createTestEngine(RawDeal) {
 
 function trackEffectOrder(engine) {
   const order = [];
-  const origTop = engine._topArsenalToRingside.bind(engine);
-  const origDiscard = engine._applyOpponentDiscardFromHandEffect.bind(engine);
+  const pipeline = window.RawDeal.EffectPipeline;
+  const origStep = pipeline._runStep.bind(pipeline);
   const origDamage = engine._resolveDamage.bind(engine);
 
-  engine._topArsenalToRingside = async (...args) => {
-    order.push('topArsenal');
-    return origTop(...args);
-  };
-  engine._applyOpponentDiscardFromHandEffect = async (...args) => {
-    order.push('opponentDiscard');
-    return origDiscard(...args);
+  pipeline._runStep = async (...args) => {
+    const step = args[2];
+    if (step?.op === 'topArsenalToRingside') order.push('topArsenal');
+    if (step?.op === 'opponentDiscardFromHand') order.push('opponentDiscard');
+    if (step?.op === 'opponentDraw') order.push('opponentDraw');
+    return origStep(...args);
   };
   engine._resolveDamage = async (...args) => {
     order.push('damage');
@@ -93,18 +92,7 @@ async function testHeadlockTakedownOpponentDrawBeforeDamage() {
   const RawDeal = loadRawDeal();
   const { engine, player, opponent } = createTestEngine(RawDeal);
 
-  const order = [];
-  const origDraw = engine._applyOpponentDrawEffect.bind(engine);
-  const origDamage = engine._resolveDamage.bind(engine);
-  engine._applyOpponentDrawEffect = (...args) => {
-    order.push('opponentDraw');
-    return origDraw(...args);
-  };
-  engine._resolveDamage = async (...args) => {
-    order.push('damage');
-    return origDamage(...args);
-  };
-
+  const order = trackEffectOrder(engine);
   const handSizeBefore = opponent.hand.length;
   const card = cloneCard(RawDeal, 'headlock-takedown', 'headlock-test');
   player.hand.push(card);
@@ -149,7 +137,7 @@ async function testBulldogChainBeforeDamage() {
   engine.confirmHandRevealSelection(0, [opponent.hand[0].instanceId]);
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert(damageResolved, 'Bulldog resolves damage after onSuccess pipeline completes');
+  assert(damageResolved, 'Bulldog resolves damage after maneuverEffects pipeline completes');
 }
 
 async function main() {

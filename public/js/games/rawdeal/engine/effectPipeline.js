@@ -1,10 +1,10 @@
 window.RawDeal = window.RawDeal || {};
 
 /**
- * Sequential effect runner for actionEffects / onSuccessEffects step arrays.
+ * Sequential effect runner for actionEffects / maneuverEffects step arrays.
  */
 window.RawDeal.EffectPipeline = {
-  start(engine, player, sourceName, steps, timing = 'action') {
+  async start(engine, player, sourceName, steps, timing = 'action') {
     if (!steps?.length) return false;
 
     const playerIndex = engine._playerIndex(player);
@@ -22,7 +22,7 @@ window.RawDeal.EffectPipeline = {
       allowSkip: false,
     };
 
-    return this._runUntilPause(engine);
+    return await this._runUntilPause(engine);
   },
 
   isPaused(engine, playerIndex) {
@@ -86,7 +86,7 @@ window.RawDeal.EffectPipeline = {
     engine.handRevealFlow = null;
     pipeline.paused = false;
 
-    this._runUntilPause(engine);
+    void this._runUntilPause(engine);
     return true;
   },
 
@@ -118,13 +118,21 @@ window.RawDeal.EffectPipeline = {
     return true;
   },
 
-  _runUntilPause(engine) {
+  async resumeAfterCardEffect(engine) {
+    const pipeline = engine.effectPipelineFlow;
+    if (!pipeline?.paused) return false;
+    pipeline.paused = false;
+    await this._runUntilPause(engine);
+    return true;
+  },
+
+  async _runUntilPause(engine) {
     const pipeline = engine.effectPipelineFlow;
     if (!pipeline) return false;
 
     while (pipeline.steps.length > 0) {
       const step = pipeline.steps.shift();
-      const paused = this._runStep(engine, pipeline, step);
+      const paused = await this._runStep(engine, pipeline, step);
       if (paused) {
         pipeline.paused = true;
         engine._notify();
@@ -136,14 +144,14 @@ window.RawDeal.EffectPipeline = {
     engine.effectPipelineFlow = null;
     engine._notify();
 
-    if (timing === 'onSuccess' && engine.pendingManeuverResolution?.resumeAt === 'onSuccess') {
-      void engine._continuePendingManeuverDamage();
+    if (timing === 'maneuver' && engine.pendingManeuverResolution?.resumeAt === 'maneuver') {
+      await engine._continuePendingManeuverDamage();
     }
 
     return false;
   },
 
-  _runStep(engine, pipeline, step) {
+  async _runStep(engine, pipeline, step) {
     const player = engine.players[pipeline.playerIndex];
     const opponent = engine.players[pipeline.opponentIndex];
     const { sourceName } = pipeline;
@@ -182,6 +190,55 @@ window.RawDeal.EffectPipeline = {
         engine.actionLog.push({
           message: `${sourceName}: opponent's Arsenal reversals cannot reverse your maneuvers this turn.`,
         });
+        return false;
+      }
+
+      case 'setupIrishWhip': {
+        engine._applyIrishWhipSetup(player, { name: sourceName }, step.strikeBonus || 5);
+        return false;
+      }
+
+      case 'jockeyingChoice':
+        return engine._beginJockeyingChoice(player, pipeline.playerIndex, sourceName);
+
+      case 'turnDamageBonus': {
+        engine._addTurnDamageBonus(player, {
+          all: step.value || 0,
+          sourceName,
+        });
+        return false;
+      }
+
+      case 'discardFromHand':
+        return engine._beginDiscardFromHandPrompt(player, pipeline.playerIndex, sourceName, step.count || 1);
+
+      case 'drawOrOpponentChoice':
+        return engine._beginDrawOrOpponentChoice(player, pipeline.playerIndex, sourceName, step.count || 2);
+
+      case 'topArsenalToRingside': {
+        await engine._topArsenalToRingside(player, { name: sourceName });
+        return false;
+      }
+
+      case 'opponentDiscardFromHand':
+        return engine._beginOpponentDiscardFromHandEffect(player, opponent, sourceName, step.count || 1);
+
+      case 'opponentDraw': {
+        engine._drawForOpponent(player, sourceName, step.count || 1);
+        return false;
+      }
+
+      case 'turnSubtypeDamageBonus': {
+        engine._addTurnDamageBonus(player, {
+          subtype: step.subtype,
+          value: step.value || 1,
+          sourceName,
+        });
+        return false;
+      }
+
+      case 'nextStrikeBonus': {
+        engine._applyNextStrikeBonus(player, sourceName, step.value || 2);
         return false;
       }
 
