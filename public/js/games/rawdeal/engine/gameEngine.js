@@ -47,6 +47,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextStrikeBonus: 0,
       nextGrappleBonus: 0,
       nextGrappleReversalTax: 0,
+      nextManeuverReversalTax: 0,
       opponentReversalsBlocked: false,
     };
   }
@@ -57,7 +58,23 @@ window.RawDeal.GameEngine = class GameEngine {
     player.turnState.nextStrikeBonus = 0;
     player.turnState.nextGrappleBonus = 0;
     player.turnState.nextGrappleReversalTax = 0;
+    player.turnState.nextManeuverReversalTax = 0;
     player.turnState.opponentReversalsBlocked = false;
+  }
+
+  _getManeuverReversalFortitudeTax(attacker, maneuver) {
+    if (!attacker?.turnState) return 0;
+    let tax = attacker.turnState.nextManeuverReversalTax || 0;
+    if (maneuver.subtype === 'grapple') {
+      tax += attacker.turnState.nextGrappleReversalTax || 0;
+    }
+    return tax;
+  }
+
+  _clearNextManeuverReversalTax(player) {
+    if (player?.turnState?.nextManeuverReversalTax) {
+      player.turnState.nextManeuverReversalTax = 0;
+    }
   }
 
   _playerIndex(player) {
@@ -162,8 +179,11 @@ window.RawDeal.GameEngine = class GameEngine {
           ? !!this.players[attackerIndex]?.turnState?.irishWhipPlayed
           : false,
         reversalFortitudeTax:
-          kind === 'maneuver' && played.subtype === 'grapple'
-            ? this.players[attackerIndex]?.turnState?.nextGrappleReversalTax || 0
+          kind === 'maneuver'
+            ? this._getManeuverReversalFortitudeTax(
+                this.players[attackerIndex],
+                played
+              )
             : 0,
       },
     };
@@ -742,6 +762,7 @@ window.RawDeal.GameEngine = class GameEngine {
   async _applyManeuverDamage(player, opponent, played, damage) {
     if (damage > 0) {
       const damageResult = await this._resolveDamage(player, opponent, played, damage);
+      this._clearNextManeuverReversalTax(player);
       this.damageLog.push({
         card: played.name,
         damage,
@@ -767,6 +788,7 @@ window.RawDeal.GameEngine = class GameEngine {
       }
     }
 
+    this._clearNextManeuverReversalTax(player);
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
     return true;
@@ -859,12 +881,9 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     const attacker = this.players[this.reversalWindow.attackerIndex];
-    const reversalFortitudeTax =
-      played.subtype === 'grapple' ? attacker.turnState?.nextGrappleReversalTax || 0 : 0;
     return this._reversalStops(card, played, player, {
       attacker,
       effectiveDamage: this.reversalWindow.damage,
-      reversalFortitudeTax,
     });
   }
 
@@ -912,6 +931,7 @@ window.RawDeal.GameEngine = class GameEngine {
     if (played.subtype === 'grapple') {
       this._clearGrappleJockeyingTax(attacker);
     }
+    this._clearNextManeuverReversalTax(attacker);
 
     this._applyStunValueDraw(attacker, played);
     this.reversalWindow = null;
@@ -1200,9 +1220,9 @@ window.RawDeal.GameEngine = class GameEngine {
       (attacker ? this._peekManeuverDamage(attacker, opponent, maneuver) : (maneuver.damage || 0));
     const playedAfterIrishWhip =
       afterIrishWhip ?? !!attacker?.turnState?.irishWhipPlayed;
-    const tax =
-      reversalFortitudeTax ||
-      (maneuver.subtype === 'grapple' ? attacker?.turnState?.nextGrappleReversalTax || 0 : 0);
+    const tax = attacker
+      ? this._getManeuverReversalFortitudeTax(attacker, maneuver)
+      : reversalFortitudeTax || 0;
 
     return window.RawDeal.CardUtils.canReverseManeuver(
       card,
