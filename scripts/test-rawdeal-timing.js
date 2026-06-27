@@ -89,6 +89,41 @@ async function testSpinningHeelKickDiscardBeforeDamage() {
   );
 }
 
+async function testHeadlockTakedownOpponentDrawBeforeDamage() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = createTestEngine(RawDeal);
+
+  const order = [];
+  const origDraw = engine._applyOpponentDrawEffect.bind(engine);
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._applyOpponentDrawEffect = (...args) => {
+    order.push('opponentDraw');
+    return origDraw(...args);
+  };
+  engine._resolveDamage = async (...args) => {
+    order.push('damage');
+    return origDamage(...args);
+  };
+
+  const handSizeBefore = opponent.hand.length;
+  const card = cloneCard(RawDeal, 'headlock-takedown', 'headlock-test');
+  player.hand.push(card);
+
+  await engine.playCard(0, card.instanceId, 'maneuver');
+
+  assert(order.indexOf('opponentDraw') >= 0, 'Headlock Takedown triggers opponent draw');
+  assert(order.indexOf('damage') >= 0, 'Headlock Takedown resolves damage');
+  assert(
+    order.indexOf('opponentDraw') < order.indexOf('damage'),
+    'Headlock Takedown opponent draw runs before damage'
+  );
+  assert(opponent.hand.length === handSizeBefore + 1, 'Opponent drew 1 card into hand');
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('opponent drew 1 card')),
+    'Headlock Takedown logs opponent draw'
+  );
+}
+
 async function testBulldogChainBeforeDamage() {
   const RawDeal = loadRawDeal();
   const { engine, player, opponent } = createTestEngine(RawDeal);
@@ -120,6 +155,7 @@ async function testBulldogChainBeforeDamage() {
 async function main() {
   await testKickArsenalBeforeDamage();
   await testSpinningHeelKickDiscardBeforeDamage();
+  await testHeadlockTakedownOpponentDrawBeforeDamage();
   await testBulldogChainBeforeDamage();
 
   if (process.exitCode) {

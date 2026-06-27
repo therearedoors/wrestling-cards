@@ -409,6 +409,8 @@ window.RawDeal.CARDS = {
     damage: 5,
     text: "Grapple When successfully played, opponent must draw 1 card.",
     flavor: "",
+    effect: "opponentDraw",
+    effectValue: 1,
     set: "premiere",
   },
   'belly-to-belly-suplex': {
@@ -755,6 +757,8 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Submission When successfully played, opponent must draw 1 card.",
     flavor: "",
+    effect: "opponentDraw",
+    effectValue: 1,
     set: "premiere",
   },
   'cobra-clutch': {
