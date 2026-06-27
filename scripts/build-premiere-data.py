@@ -482,6 +482,9 @@ def infer_maneuver_effects(types_list, rules):
     if 'when successfully played' in blob and 'discard 1 card of your choice from your hand' in blob:
         effects.append({'op': 'discardFromHand', 'count': 1})
 
+    if 'next card played this turn is a maneuver' in blob and '+2d' in blob:
+        effects.append({'op': 'nextCardManeuverBonus', 'value': 2})
+
     if (
         'draw 2 cards, or force opponent to discard 2' in blob
         or 'either draw 2 cards, or force opponent to discard 2' in blob
