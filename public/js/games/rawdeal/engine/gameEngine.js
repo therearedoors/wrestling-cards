@@ -298,7 +298,7 @@ window.RawDeal.GameEngine = class GameEngine {
       fortitude: player.fortitude,
       hand: showHand ? player.hand : [],
       ring: player.ring,
-      ringside: showHand ? player.ringside : player.ringside.slice(-8),
+      ringside: player.ringside,
       arsenal: player.arsenal,
       turnState: player.turnState ? { ...player.turnState } : this._emptyTurnState(),
       isHuman: showHand,

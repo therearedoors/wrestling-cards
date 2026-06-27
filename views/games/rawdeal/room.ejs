@@ -53,13 +53,18 @@
                                 <span class="rd-pile__label">Arsenal</span>
                                 <div class="rd-pile__stack"></div>
                             </div>
-                            <div class="rd-pile" id="rd-opponent-ringside" title="Opponent Ringside">
-                                <span class="rd-pile__label">Ringside</span>
+                            <div class="rd-pile rd-pile--inspect" id="rd-opponent-ring" data-rd-pile-type="ring" data-rd-pile-seat="1" title="Click empty space to view all cards">
+                                <span class="rd-pile__label" data-rd-pile-label>Ring</span>
+                                <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
+                            </div>
+                            <div class="rd-pile rd-pile--inspect" id="rd-opponent-ringside" data-rd-pile-type="ringside" data-rd-pile-seat="1" title="Click empty space to view all cards">
+                                <span class="rd-pile__label" data-rd-pile-label>Ringside</span>
+                                <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="rd-ring-zone">
+                    <div class="rd-ring-zone rd-ring-zone--inspect" data-rd-pile-type="ring" data-rd-pile-seat="0" title="Click empty space to view all cards">
                         <div class="rd-ring-header">
                             <span class="rd-zone-title">Your Ring</span>
                             <div class="rd-player-stats">
@@ -88,8 +93,9 @@
                                 <span class="rd-pile__label">Your Arsenal</span>
                                 <div class="rd-pile__stack"></div>
                             </div>
-                            <div class="rd-pile rd-pile--compact" id="rd-player-ringside" title="Your Ringside">
-                                <span class="rd-pile__label">Your Ringside</span>
+                            <div class="rd-pile rd-pile--compact rd-pile--inspect" id="rd-player-ringside" data-rd-pile-type="ringside" data-rd-pile-seat="0" title="Click empty space to view all cards">
+                                <span class="rd-pile__label" data-rd-pile-label>Your Ringside</span>
+                                <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
                             </div>
                         </div>
                     </div>
@@ -107,6 +113,15 @@
                     <div class="rd-choice-modal__panel">
                         <p id="rd-choice-modal-message" class="rd-choice-modal__message" data-rd-choice-message></p>
                         <div class="rd-choice-modal__actions" data-rd-choice-actions></div>
+                    </div>
+                </div>
+
+                <div id="rd-pile-view-modal" class="rd-pile-view-modal hidden" role="dialog" aria-modal="true">
+                    <div class="rd-pile-view-modal__backdrop" aria-hidden="true"></div>
+                    <div class="rd-pile-view-modal__panel">
+                        <p class="rd-pile-view-modal__title" data-rd-pile-view-title></p>
+                        <div class="rd-pile-view-modal__body" data-rd-pile-view-body></div>
+                        <button type="button" class="rd-btn rd-btn--primary" data-rd-pile-view-done>Done</button>
                     </div>
                 </div>
 
@@ -181,6 +196,7 @@
 <script src="/js/games/rawdeal/ui/animations.js"></script>
 <script src="/js/games/rawdeal/ui/choiceModal.js"></script>
 <script src="/js/games/rawdeal/ui/handRevealModal.js"></script>
+<script src="/js/games/rawdeal/ui/pileViewModal.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
 <% if (devMode) { %>
 <script src="/js/games/rawdeal/dev/devCommands.js"></script>
