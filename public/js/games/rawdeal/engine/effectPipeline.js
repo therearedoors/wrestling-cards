@@ -190,6 +190,17 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'nextManeuverReversalTax': {
+        const value = step.value || 0;
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.nextManeuverReversalTax =
+          (player.turnState.nextManeuverReversalTax || 0) + value;
+        engine.actionLog.push({
+          message: `${sourceName}: opponent's reversal to your next maneuver is +${value}F.`,
+        });
+        return false;
+      }
+
       case 'blockOpponentReversals': {
         if (!player.turnState) player.turnState = engine._emptyTurnState();
         player.turnState.opponentReversalsBlocked = true;

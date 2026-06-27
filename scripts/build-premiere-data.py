@@ -598,9 +598,12 @@ def infer_action_effects(types_list, rules, name=''):
         return [{'op': 'turnDamageBonus', 'value': 3}]
 
     if 'open up a can' in card_name:
-        effects = [{'op': 'draw', 'count': 1}]
+        effects = []
         if '+6d' in blob:
             effects.append({'op': 'nextManeuverBonus', 'value': 6})
+        if '+20f' in blob:
+            effects.append({'op': 'nextManeuverReversalTax', 'value': 20})
+        effects.append({'op': 'draw', 'count': 1})
         return effects
 
     if 'draw up to 5' in blob:

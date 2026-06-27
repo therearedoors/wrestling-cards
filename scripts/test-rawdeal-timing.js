@@ -266,6 +266,78 @@ async function testReversalSvBeforeDamage() {
   );
 }
 
+async function testWhoopCanReversalTaxFromHand() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+
+  const whoop = cloneCard(RawDeal, 'open-up-a-can', 'whoop-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'elbow-0');
+
+  attacker.hand = [whoop, punch];
+  attacker.fortitude = 20;
+  defender.hand = [elbow];
+  defender.fortitude = 0;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, whoop.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  assert(
+    attacker.turnState?.nextManeuverReversalTax === 20,
+    'Open Up a Can sets +20F reversal tax on next maneuver'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Boosted punch opens reversal window'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, elbow.instanceId),
+    'Opponent cannot reverse from hand without 20F'
+  );
+
+  defender.fortitude = 20;
+  assert(
+    engine.canPlayReversalFromHand(1, elbow.instanceId),
+    'Opponent can reverse from hand with 20F'
+  );
+}
+
+async function testWhoopCanReversalTaxFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = RawDeal.CARDS['punch'];
+  const stepAside = cloneCard(RawDeal, 'step-aside', 'step-aside-0');
+
+  attacker.turnState = engine._emptyTurnState();
+  attacker.turnState.nextManeuverReversalTax = 20;
+  defender.fortitude = 0;
+
+  assert(
+    !engine._reversalStops(stepAside, punch, defender, { attacker }),
+    'Arsenal reversal blocked by +20F tax'
+  );
+
+  defender.fortitude = 20;
+  assert(
+    engine._reversalStops(stepAside, punch, defender, { attacker }),
+    'Arsenal reversal allowed at 20F'
+  );
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testSpinningHeelKickDiscardBeforeDamage();
@@ -275,6 +347,8 @@ async function main() {
   await testShoulderBlockReversalDamage();
   await testReversalDamagePinfall();
   await testReversalSvBeforeDamage();
+  await testWhoopCanReversalTaxFromHand();
+  await testWhoopCanReversalTaxFromArsenal();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');

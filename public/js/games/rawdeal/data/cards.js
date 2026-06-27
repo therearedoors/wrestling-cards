@@ -1320,7 +1320,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Your next maneuver this turn is +6D, and your opponent's reversal to it is +20F. Draw a card. Unique",
     flavor: "",
-    actionEffects: [{"op": "draw", "count": 1}, {"op": "nextManeuverBonus", "value": 6}],
+    actionEffects: [{"op": "nextManeuverBonus", "value": 6}, {"op": "nextManeuverReversalTax", "value": 20}, {"op": "draw", "count": 1}],
     set: "premiere",
   },
   'undertakers-tombstone-piledriver': {
