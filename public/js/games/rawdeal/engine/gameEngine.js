@@ -792,25 +792,10 @@ window.RawDeal.GameEngine = class GameEngine {
         return true;
       }
 
-      await this._resolveOnSuccessManeuverEffects(player, played);
-
-      if (this.cardEffectFlow || this.handRevealFlow) {
-        this._notify();
-        return true;
-      }
-
       if (damageResult.result === 'pinfall') {
         this.winner = this._playerIndex(player);
         this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
         this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
-        this._notify();
-        return true;
-      }
-    }
-
-    if (damage <= 0) {
-      await this._resolveOnSuccessManeuverEffects(player, played);
-      if (this.cardEffectFlow || this.handRevealFlow) {
         this._notify();
         return true;
       }
@@ -821,22 +806,37 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  async _continueManeuverAfterReversal(player, opponent, played, damage) {
+  async _continueManeuverAfterReversal(player, opponent, played, damage, {
+    skipPreDamage = false,
+    skipOnSuccess = false,
+  } = {}) {
     const playerIndex = this._playerIndex(player);
     if (played.subtype === 'grapple') {
       this._clearGrappleJockeyingTax(player);
     }
 
-    if (this._beginPreDamageDiscardPrompt(player, played, playerIndex)) {
-      this.pendingManeuverResolution = { player, opponent, played, damage };
-      return true;
+    if (!skipPreDamage) {
+      if (this._beginPreDamageDiscardPrompt(player, played, playerIndex)) {
+        this.pendingManeuverResolution = { player, opponent, played, damage, resumeAt: 'preDamage' };
+        return true;
+      }
+
+      if (this._beginPreDamageChoice(player, played, playerIndex)) {
+        this.pendingManeuverResolution = { player, opponent, played, damage, resumeAt: 'preDamage' };
+        return true;
+      }
     }
 
-    if (this._beginPreDamageChoice(player, played, playerIndex)) {
-      this.pendingManeuverResolution = { player, opponent, played, damage };
-      return true;
+    if (!skipOnSuccess) {
+      this.pendingManeuverResolution = { player, opponent, played, damage, resumeAt: 'onSuccess' };
+      await this._resolveOnSuccessManeuverEffects(player, played);
+      if (this.cardEffectFlow || this.handRevealFlow) {
+        this._notify();
+        return true;
+      }
     }
 
+    this.pendingManeuverResolution = null;
     return this._applyManeuverDamage(player, opponent, played, damage);
   }
 
@@ -849,12 +849,24 @@ window.RawDeal.GameEngine = class GameEngine {
       return;
     }
 
-    const { player, opponent, played, damage } = pending;
+    const { player, opponent, played, damage, resumeAt } = pending;
     const playerIndex = this._playerIndex(player);
 
-    if (afterDiscard && this._beginPreDamageChoice(player, played, playerIndex)) {
-      this.pendingManeuverResolution = { player, opponent, played, damage };
-      return;
+    if (resumeAt === 'preDamage') {
+      if (afterDiscard && this._beginPreDamageChoice(player, played, playerIndex)) {
+        this.pendingManeuverResolution = { player, opponent, played, damage, resumeAt: 'preDamage' };
+        return;
+      }
+      return this._continueManeuverAfterReversal(player, opponent, played, damage, {
+        skipPreDamage: true,
+      });
+    }
+
+    if (resumeAt === 'onSuccess') {
+      return this._continueManeuverAfterReversal(player, opponent, played, damage, {
+        skipPreDamage: true,
+        skipOnSuccess: true,
+      });
     }
 
     await this._applyManeuverDamage(player, opponent, played, damage);
@@ -1036,9 +1048,7 @@ window.RawDeal.GameEngine = class GameEngine {
         this.actionLog.push({
           message: `${flow.sourceName}: opponent discarded ${names} to Ringside.`,
         });
-        this.cardEffectFlow = null;
-        this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
-        this._notify();
+        await this._finishCardEffectResolution();
         return true;
       }
 
