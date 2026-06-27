@@ -113,8 +113,15 @@ window.RawDeal.GameEngine = class GameEngine {
     return window.RawDeal.EffectPipeline.publicHandReveal(this, viewerIndex);
   }
 
-  async _startEffectPipeline(player, sourceName, steps, timing = 'action') {
-    return window.RawDeal.EffectPipeline.start(this, player, sourceName, steps, timing);
+  async _startEffectPipeline(player, sourceName, steps, timing = 'action', sourceCard = null) {
+    return window.RawDeal.EffectPipeline.start(
+      this,
+      player,
+      sourceName,
+      steps,
+      timing,
+      sourceCard
+    );
   }
 
   dismissHandReveal(playerIndex) {
@@ -869,9 +876,8 @@ window.RawDeal.GameEngine = class GameEngine {
     const handIndex = player.hand.findIndex((c) => c.instanceId === instanceId);
     const reversal = player.hand.splice(handIndex, 1)[0];
 
-    player.ringside.push(reversal);
-
     if (kind === 'action') {
+      player.ringside.push(reversal);
       attacker.ringside.push(played);
       const reversalPlayerIndex = this._playerIndex(player);
       const grantIrishWhipSetup =
@@ -896,6 +902,9 @@ window.RawDeal.GameEngine = class GameEngine {
       return true;
     }
 
+    player.ring.reversals.push(reversal);
+    this._syncFortitude(player);
+
     this.actionLog.push({
       message: `${reversal.name} reversed ${played.name} from hand!`,
     });
@@ -907,10 +916,50 @@ window.RawDeal.GameEngine = class GameEngine {
     this._applyStunValueDraw(attacker, played);
     this.reversalWindow = null;
 
+    if (reversal.reversalEffects?.length) {
+      const paused = await this._startEffectPipeline(
+        player,
+        reversal.name,
+        reversal.reversalEffects,
+        'reversal',
+        reversal
+      );
+      return true;
+    }
+
+    await this._finishHandReversalTurn();
+    return true;
+  }
+
+  async _finishHandReversalTurn() {
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
     this._notify();
     await this._runAutoPhases();
-    return true;
+  }
+
+  async _applyReversalFromHandDamage(reversalPlayer, attacker, reversal, damage) {
+    if (damage <= 0) return { gameOver: false };
+
+    const damageResult = await this._resolveDamage(reversalPlayer, attacker, reversal, damage, {
+      allowArsenalReversals: false,
+    });
+    this.damageLog.push({
+      card: reversal.name,
+      damage,
+      result: damageResult.result,
+      reversedBy: null,
+      cardsOverturned: damageResult.cardsOverturned,
+    });
+
+    if (damageResult.result === 'pinfall') {
+      this.winner = this._playerIndex(reversalPlayer);
+      this.winReason = window.RawDeal.WIN_REASONS.PINFALL;
+      this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
+      this._notify();
+      return { gameOver: true };
+    }
+
+    return { gameOver: false };
   }
 
   async passPriority(playerIndex) {
@@ -1075,7 +1124,7 @@ window.RawDeal.GameEngine = class GameEngine {
     });
   }
 
-  async _resolveDamage(attacker, opponent, maneuver, damage) {
+  async _resolveDamage(attacker, opponent, maneuver, damage, { allowArsenalReversals = true } = {}) {
     let cardsOverturned = 0;
 
     for (let i = 0; i < damage; i++) {
@@ -1087,10 +1136,12 @@ window.RawDeal.GameEngine = class GameEngine {
       cardsOverturned += 1;
       this._notify();
 
-      const reversed = this._reversalStops(overturned, maneuver, opponent, {
-        attacker,
-        effectiveDamage: this._peekManeuverDamage(attacker, opponent, maneuver),
-      });
+      const reversed = allowArsenalReversals
+        ? this._reversalStops(overturned, maneuver, opponent, {
+            attacker,
+            effectiveDamage: this._peekManeuverDamage(attacker, opponent, maneuver),
+          })
+        : false;
 
       await this.onDamageStep({
         card: overturned,

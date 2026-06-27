@@ -140,11 +140,141 @@ async function testBulldogChainBeforeDamage() {
   assert(damageResolved, 'Bulldog resolves damage after maneuverEffects pipeline completes');
 }
 
+function createHandReversalTest(RawDeal, options = {}) {
+  const {
+    maneuverId = 'punch',
+    reversalId = 'elbow-to-the-face',
+    arsenalCount = 10,
+    afterIrishWhip = false,
+  } = options;
+
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+
+  attacker.hand = [];
+  defender.hand = [];
+  attacker.arsenal = [];
+  defender.arsenal = [];
+
+  const maneuver = cloneCard(RawDeal, maneuverId, 'maneuver-test');
+  const reversal = cloneCard(RawDeal, reversalId, 'reversal-test');
+
+  attacker.ring.maneuvers.push(maneuver);
+  if (afterIrishWhip) {
+    attacker.turnState = engine._emptyTurnState();
+    attacker.turnState.irishWhipPlayed = true;
+  }
+  attacker.fortitude = engine._calcFortitude(attacker);
+  defender.fortitude = 0;
+
+  for (let i = 0; i < arsenalCount; i++) {
+    attacker.arsenal.push(cloneCard(RawDeal, 'chop', `atk-arsenal-${i}`));
+  }
+
+  defender.hand.push(reversal);
+
+  engine.stateMachine.phase = RawDeal.PHASES.REVERSAL_PRIORITY;
+  engine.reversalWindow = {
+    kind: 'maneuver',
+    attackerIndex: 0,
+    defenderIndex: 1,
+    player: attacker,
+    opponent: defender,
+    played: maneuver,
+    damage: maneuver.damage || 0,
+  };
+
+  return { engine, attacker, defender, maneuver, reversal };
+}
+
+async function testElbowReversalRingPlacementAndDamage() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, reversal } = createHandReversalTest(RawDeal);
+  const arsenalBefore = attacker.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === reversal.instanceId),
+    'Elbow reversal goes to ring.reversals'
+  );
+  assert(
+    !defender.ringside.some((c) => c.instanceId === reversal.instanceId),
+    'Elbow reversal is not in Ringside'
+  );
+  assert(defender.fortitude === 2, 'Elbow in Ring adds +2F');
+  assert(
+    attacker.arsenal.length === arsenalBefore - 2,
+    'Elbow deals 2D to attacker Arsenal'
+  );
+}
+
+async function testShoulderBlockReversalDamage() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, reversal } = createHandReversalTest(RawDeal, {
+    maneuverId: 'kick',
+    reversalId: 'shoulder-block',
+    afterIrishWhip: true,
+  });
+  const arsenalBefore = attacker.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 3,
+    'Shoulder Block deals 3D to attacker Arsenal when played as reversal'
+  );
+}
+
+async function testReversalDamagePinfall() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = createHandReversalTest(RawDeal, { arsenalCount: 1 });
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(engine.stateMachine.phase === RawDeal.PHASES.GAME_OVER, 'Reversal damage pinfall ends game');
+  assert(engine.winner === 1, 'Reversal player wins by pinfall');
+  assert(engine.winReason === RawDeal.WIN_REASONS.PINFALL, 'Win reason is pinfall');
+}
+
+async function testReversalSvBeforeDamage() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = createHandReversalTest(RawDeal, { maneuverId: 'haymaker' });
+  const order = [];
+
+  const origSv = engine._applyStunValueDraw.bind(engine);
+  engine._applyStunValueDraw = (...args) => {
+    order.push('sv');
+    return origSv(...args);
+  };
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    if (args[4]?.allowArsenalReversals === false) order.push('reversalDamage');
+    return origDamage(...args);
+  };
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(order.indexOf('sv') >= 0, 'Maneuver SV draw runs on hand reversal');
+  assert(order.indexOf('reversalDamage') >= 0, 'Reversal deals damage from hand');
+  assert(
+    order.indexOf('sv') < order.indexOf('reversalDamage'),
+    'SV draw runs before reversal-from-hand damage'
+  );
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testSpinningHeelKickDiscardBeforeDamage();
   await testHeadlockTakedownOpponentDrawBeforeDamage();
   await testBulldogChainBeforeDamage();
+  await testElbowReversalRingPlacementAndDamage();
+  await testShoulderBlockReversalDamage();
+  await testReversalDamagePinfall();
+  await testReversalSvBeforeDamage();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');
