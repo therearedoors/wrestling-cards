@@ -677,6 +677,26 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
+  _applyOpponentDrawEffect(player, played) {
+    const opponent = this.players[1 - this._playerIndex(player)];
+    const count = played.effectValue || 1;
+    let drawn = 0;
+
+    for (let i = 0; i < count; i++) {
+      if (this._drawCard(opponent)) drawn += 1;
+    }
+
+    if (drawn > 0) {
+      this.actionLog.push({
+        message: `${played.name}: opponent drew ${drawn} card${drawn === 1 ? '' : 's'}.`,
+      });
+    } else {
+      this.actionLog.push({
+        message: `${played.name}: opponent had no cards in Arsenal to draw.`,
+      });
+    }
+  }
+
   async _applyOpponentDiscardFromHandEffect(player, played) {
     const opponent = this.players[1 - this._playerIndex(player)];
     const count = played.effectValue || 1;
@@ -744,6 +764,10 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (played.effect === 'opponentDiscardFromHand') {
       await this._applyOpponentDiscardFromHandEffect(player, played);
+    }
+
+    if (played.effect === 'opponentDraw') {
+      this._applyOpponentDrawEffect(player, played);
     }
 
     if (played.onSuccessEffects?.length) {
