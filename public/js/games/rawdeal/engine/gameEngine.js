@@ -49,6 +49,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextGrappleReversalTax: 0,
       nextManeuverReversalTax: 0,
       nextCardManeuverBonus: 0,
+      lastPlayedCardId: null,
       opponentReversalsBlocked: false,
     };
   }
@@ -527,7 +528,7 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _effectiveFortitudeCost(player, card, playAs = 'maneuver') {
-    return window.RawDeal.CardUtils.playFortitudeCost(card, playAs);
+    return window.RawDeal.CardUtils.playFortitudeCost(card, playAs, player);
   }
 
   canPlayCard(playerIndex, instanceId, playAs) {
@@ -568,6 +569,8 @@ window.RawDeal.GameEngine = class GameEngine {
     const handIndex = player.hand.findIndex((c) => c.instanceId === instanceId);
     const played = player.hand.splice(handIndex, 1)[0];
     this._expireNextCardManeuverBonusIfNotManeuver(player, mode);
+    if (!player.turnState) player.turnState = this._emptyTurnState();
+    player.turnState.lastPlayedCardId = played.id;
 
     if (mode === 'action') {
       if (this._openActionReversalWindowOrPlay(player, opponent, played)) {
