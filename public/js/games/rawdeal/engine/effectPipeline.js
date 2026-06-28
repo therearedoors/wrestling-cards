@@ -200,6 +200,18 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'nextCardSubtypeManeuverBonus': {
+        const value = step.value || 0;
+        const subtype = step.subtype || 'strike';
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.nextCardSubtypeBonus = { subtype, value };
+        const label = subtype.charAt(0).toUpperCase() + subtype.slice(1);
+        engine.actionLog.push({
+          message: `${sourceName}: if your next card played this turn is a ${label} maneuver, it is +${value}D.`,
+        });
+        return false;
+      }
+
       case 'nextManeuverReversalTax': {
         const value = step.value || 0;
         if (!player.turnState) player.turnState = engine._emptyTurnState();
@@ -216,6 +228,15 @@ window.RawDeal.EffectPipeline = {
         player.turnState.opponentReversalsBlocked = true;
         engine.actionLog.push({
           message: `${sourceName}: opponent's Arsenal reversals cannot reverse your maneuvers this turn.`,
+        });
+        return false;
+      }
+
+      case 'skipOpponentNextTurn': {
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.skipOpponentNextTurn = true;
+        engine.actionLog.push({
+          message: `${sourceName}: opponent skips their next turn.`,
         });
         return false;
       }

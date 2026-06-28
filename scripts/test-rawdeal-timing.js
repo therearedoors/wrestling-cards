@@ -696,6 +696,135 @@ async function testAtomicDropBonusLostOnNonManeuver() {
   assert(punchDamage === 3, 'Later maneuver does not get +2D after a non-maneuver was played next');
 }
 
+async function testSnapMareNextCardStrikeBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const snapMare = cloneCard(RawDeal, 'snap-mare', 'snap-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  player.hand = [snapMare, punch];
+  player.fortitude = 20;
+  opponent.hand = [];
+  for (let i = 0; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  let punchDamage = null;
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    if (args[2]?.instanceId === punch.instanceId) {
+      punchDamage = args[3];
+    }
+    return origDamage(...args);
+  };
+
+  await engine.playCard(0, snapMare.instanceId, 'maneuver');
+  assert(
+    player.turnState?.nextCardSubtypeBonus?.subtype === 'strike' &&
+      player.turnState.nextCardSubtypeBonus.value === 2,
+    'Snap Mare sets +2D when the next card is a Strike maneuver'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(punchDamage === 5, 'Next Strike maneuver gets +2D after Snap Mare (Punch 3D + 2)');
+  assert(
+    !player.turnState?.nextCardSubtypeBonus,
+    'Next-card Strike bonus is consumed after use'
+  );
+}
+
+async function testSnapMareBonusLostOnNonStrikeNextCard() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const snapMare = cloneCard(RawDeal, 'snap-mare', 'snap-0');
+  const chop = cloneCard(RawDeal, 'chop', 'chop-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  player.hand = [snapMare, chop, punch];
+  player.fortitude = 20;
+  opponent.hand = [];
+  for (let i = 0; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  let punchDamage = null;
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    if (args[2]?.instanceId === punch.instanceId) {
+      punchDamage = args[3];
+    }
+    return origDamage(...args);
+  };
+
+  await engine.playCard(0, snapMare.instanceId, 'maneuver');
+  await engine.playCard(0, chop.instanceId, 'action');
+  assert(
+    !player.turnState?.nextCardSubtypeBonus,
+    'Playing an action as the next card clears the pending Strike bonus'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(punchDamage === 3, 'Later Strike does not get +2D after a non-Strike card was played next');
+}
+
+async function testSnapMareBonusLostOnGrappleNextCard() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const snapMare = cloneCard(RawDeal, 'snap-mare', 'snap-0');
+  const gutBuster = cloneCard(RawDeal, 'gut-buster', 'gb-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  player.hand = [snapMare, gutBuster, punch];
+  player.fortitude = 20;
+  opponent.hand = [];
+  for (let i = 0; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  let punchDamage = null;
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    if (args[2]?.instanceId === punch.instanceId) {
+      punchDamage = args[3];
+    }
+    return origDamage(...args);
+  };
+
+  await engine.playCard(0, snapMare.instanceId, 'maneuver');
+  await engine.playCard(0, gutBuster.instanceId, 'maneuver');
+  assert(
+    !player.turnState?.nextCardSubtypeBonus,
+    'Playing a Grapple as the next card clears the pending Strike bonus'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(
+    punchDamage === 3,
+    'Later Strike does not get +2D after a non-Strike maneuver was played next'
+  );
+}
+
 async function testRockPreDrawAbilityOpensModal() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -917,6 +1046,75 @@ async function testJerichoAbilityWhenOpponentHandEmpty() {
   assert(jericho.superstarAbilityUsed, 'Ability completes when opponent has nothing to discard');
 }
 
+async function testPatAndGerrySetsSkipFlag() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await createTestEngine(RawDeal);
+
+  const patAndGerry = cloneCard(RawDeal, 'pat-and-gerry', 'pag-0');
+  player.hand = [patAndGerry];
+  for (let i = 0; i < 4; i++) {
+    player.ring.maneuvers.push(cloneCard(RawDeal, 'spear', `ring-spear-${i}`));
+  }
+  engine._syncFortitude(player);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, patAndGerry.instanceId, 'action');
+
+  assert(
+    player.turnState?.skipOpponentNextTurn === true,
+    'Pat and Gerry sets skipOpponentNextTurn on the active player'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === patAndGerry.instanceId),
+    'Pat and Gerry is placed in the Ring actions area'
+  );
+}
+
+async function testPatAndGerryGrantsExtraTurn() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await createTestEngine(RawDeal);
+
+  const patAndGerry = cloneCard(RawDeal, 'pat-and-gerry', 'pag-0');
+  player.hand = [patAndGerry];
+  for (let i = 0; i < 4; i++) {
+    player.ring.maneuvers.push(cloneCard(RawDeal, 'spear', `ring-spear-${i}`));
+  }
+  engine._syncFortitude(player);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+  engine.stateMachine.turnNumber = 1;
+
+  await engine.playCard(0, patAndGerry.instanceId, 'action');
+  await engine.endTurn(0);
+
+  assert(
+    engine.stateMachine.activePlayer === 0,
+    'Player keeps the turn after Pat and Gerry when opponent is skipped'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Skipped opponent returns play to the same player in main phase'
+  );
+  assert(
+    engine.stateMachine.turnNumber === 1,
+    'Turn number does not advance when opponent turn is skipped'
+  );
+  assert(
+    !player.turnState?.skipOpponentNextTurn,
+    'Skip flag is consumed after granting the extra turn'
+  );
+
+  await engine.endTurn(0);
+
+  assert(
+    engine.stateMachine.turnNumber === 2,
+    'Turn number advances after a normal end turn following the extra turn'
+  );
+}
+
 async function testWhoopCanReversalTaxFromHand() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -1009,6 +1207,9 @@ async function main() {
   await testJerichoAbilityWhenOpponentHandEmpty();
   await testAtomicDropNextCardManeuverBonus();
   await testAtomicDropBonusLostOnNonManeuver();
+  await testSnapMareNextCardStrikeBonus();
+  await testSnapMareBonusLostOnNonStrikeNextCard();
+  await testSnapMareBonusLostOnGrappleNextCard();
   await testStoneColdStunnerDiscountAfterKick();
   await testStoneColdStunnerNoDiscountAfterPunch();
   await testStoneColdStunnerNoDiscountAfterAction();
@@ -1019,6 +1220,8 @@ async function main() {
   await testKaneTombstoneNoDiscountAfterAction();
   await testKaneTombstoneNoDiscountWithoutChokeslam();
   await testKaneTombstoneCanPlayAtDiscountedCost();
+  await testPatAndGerrySetsSkipFlag();
+  await testPatAndGerryGrantsExtraTurn();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
 
