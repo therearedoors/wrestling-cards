@@ -1187,6 +1187,104 @@ async function testWhoopCanReversalTaxFromArsenal() {
   );
 }
 
+async function testHmmmOpensReorderPrompt() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  for (let i = 0; i < 5; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `hmmm-arsenal-${i}`));
+  }
+
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-test');
+  player.hand.push(hmmm);
+
+  await engine.playCard(0, hmmm.instanceId, 'action');
+
+  assert(engine.cardEffectFlow?.type === 'arsenalReorder', 'Hmmm opens arsenal reorder prompt');
+  assert(engine.cardEffectFlow.count === 5, 'Hmmm shows top 5 cards');
+  assert(
+    engine.cardEffectFlow.orderedIds.length === 5,
+    'Hmmm prompt includes 5 ordered card ids'
+  );
+}
+
+async function testHmmmConfirmReordersTopCards() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  const bottomIds = ['hmmm-a', 'hmmm-b', 'hmmm-c', 'hmmm-d', 'hmmm-e'];
+  for (const id of bottomIds) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', id));
+  }
+
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-confirm-test');
+  player.hand.push(hmmm);
+
+  await engine.playCard(0, hmmm.instanceId, 'action');
+  await engine.confirmArsenalReorder(0, ['hmmm-a', 'hmmm-b', 'hmmm-c', 'hmmm-d', 'hmmm-e']);
+
+  const topId = player.arsenal[player.arsenal.length - 1].instanceId;
+  assert(topId === 'hmmm-a', 'Hmmm confirm puts chosen card on top of Arsenal');
+  assert(!engine.cardEffectFlow, 'Hmmm prompt clears after confirm');
+}
+
+async function testHmmmPassLeavesOrderUnchanged() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  const ids = ['pass-a', 'pass-b', 'pass-c'];
+  for (const id of ids) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', id));
+  }
+  const before = player.arsenal.map((c) => c.instanceId);
+
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-pass-test');
+  player.hand.push(hmmm);
+
+  await engine.playCard(0, hmmm.instanceId, 'action');
+  await engine.passArsenalReorder(0);
+
+  const after = player.arsenal.map((c) => c.instanceId);
+  assert(
+    before.every((id, i) => after[i] === id),
+    'Hmmm pass leaves Arsenal order unchanged'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('left Arsenal order unchanged')),
+    'Hmmm pass logs unchanged order'
+  );
+}
+
+async function testHmmmFewerThanFiveCards() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'only-top')];
+
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-short-test');
+  player.hand.push(hmmm);
+
+  await engine.playCard(0, hmmm.instanceId, 'action');
+
+  assert(engine.cardEffectFlow?.count === 1, 'Hmmm shows all Arsenal cards when fewer than 5');
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testSpinningHeelKickDiscardBeforeDamage();
@@ -1222,6 +1320,10 @@ async function main() {
   await testKaneTombstoneCanPlayAtDiscountedCost();
   await testPatAndGerrySetsSkipFlag();
   await testPatAndGerryGrantsExtraTurn();
+  await testHmmmOpensReorderPrompt();
+  await testHmmmConfirmReordersTopCards();
+  await testHmmmPassLeavesOrderUnchanged();
+  await testHmmmFewerThanFiveCards();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
 
