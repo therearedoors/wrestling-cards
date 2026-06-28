@@ -1155,11 +1155,35 @@ body:has(.rd-page) {
 .rd-arsenal-reorder-modal__slot {
   flex: 0 0 auto;
   cursor: grab;
+  touch-action: none;
+  transition: transform 0.18s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-.rd-arsenal-reorder-modal__slot .rd-card--dragging {
-  opacity: 0.55;
+.rd-arsenal-reorder-modal__slot:active {
   cursor: grabbing;
+}
+
+.rd-arsenal-reorder-modal__chosen {
+  cursor: grabbing;
+}
+
+.rd-arsenal-reorder-modal__chosen .rd-card {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  transform: scale(1.03);
+}
+
+.rd-arsenal-reorder-modal__ghost {
+  opacity: 0.35;
+}
+
+.rd-arsenal-reorder-modal__ghost .rd-card {
+  outline: 2px dashed rgba(241, 196, 15, 0.65);
+  outline-offset: 3px;
+}
+
+.rd-arsenal-reorder-modal__drag .rd-card {
+  opacity: 0.92;
+  transform: rotate(-2deg);
 }
 
 .rd-arsenal-reorder-modal__actions {

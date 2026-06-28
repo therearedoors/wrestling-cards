@@ -14,7 +14,7 @@ window.RawDeal.ArsenalReorderModal = class ArsenalReorderModal {
     this.onConfirm = null;
     this.onReorder = null;
     this._prompt = null;
-    this._dragId = null;
+    this._sortable = null;
 
     this.passBtn?.addEventListener('click', () => {
       this.hide();
@@ -52,18 +52,27 @@ window.RawDeal.ArsenalReorderModal = class ArsenalReorderModal {
   }
 
   hide() {
+    this._destroySortable();
     this.root.classList.add('hidden');
     this._prompt = null;
-    this._dragId = null;
     if (this.cardsEl) {
       window.RawDeal.CardRenderer.clearContainer(this.cardsEl);
+    }
+  }
+
+  _destroySortable() {
+    if (this._sortable) {
+      this._sortable.destroy();
+      this._sortable = null;
     }
   }
 
   _renderCards() {
     if (!this.cardsEl || !this._prompt) return;
 
+    this._destroySortable();
     window.RawDeal.CardRenderer.clearContainer(this.cardsEl);
+
     const row = document.createElement('div');
     row.className = 'rd-arsenal-reorder-modal__row';
 
@@ -78,47 +87,45 @@ window.RawDeal.ArsenalReorderModal = class ArsenalReorderModal {
       slot.dataset.instanceId = id;
 
       const el = window.RawDeal.CardRenderer.createCardEl(card, { small: true });
-      el.draggable = true;
-      el.addEventListener('dragstart', (e) => {
-        this._dragId = id;
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', id);
-        el.classList.add('rd-card--dragging');
-      });
-      el.addEventListener('dragend', () => {
-        this._dragId = null;
-        el.classList.remove('rd-card--dragging');
-      });
-
-      slot.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-      });
-      slot.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const fromId = this._dragId || e.dataTransfer.getData('text/plain');
-        if (!fromId || fromId === id) return;
-        this._moveCard(fromId, id);
-      });
-
       slot.appendChild(el);
       row.appendChild(slot);
     }
 
     this.cardsEl.appendChild(row);
+    this._initSortable(row);
     this._updateScroll();
   }
 
-  _moveCard(fromId, toId) {
-    const ids = [...(this._prompt.orderedIds || [])];
-    const fromIdx = ids.indexOf(fromId);
-    const toIdx = ids.indexOf(toId);
-    if (fromIdx < 0 || toIdx < 0) return;
+  _initSortable(row) {
+    if (typeof Sortable === 'undefined') return;
 
-    ids.splice(fromIdx, 1);
-    ids.splice(toIdx, 0, fromId);
+    this._sortable = Sortable.create(row, {
+      direction: 'horizontal',
+      animation: 180,
+      easing: 'cubic-bezier(0.25, 0.8, 0.25, 1)',
+      draggable: '.rd-arsenal-reorder-modal__slot',
+      ghostClass: 'rd-arsenal-reorder-modal__ghost',
+      chosenClass: 'rd-arsenal-reorder-modal__chosen',
+      dragClass: 'rd-arsenal-reorder-modal__drag',
+      dataIdAttr: 'data-instance-id',
+      forceFallback: true,
+      fallbackTolerance: 3,
+      scroll: this.cardsEl,
+      scrollSensitivity: 48,
+      scrollSpeed: 12,
+      onEnd: () => this._syncOrderFromDom(),
+    });
+  }
+
+  _syncOrderFromDom() {
+    if (!this._sortable || !this._prompt) return;
+
+    const ids = this._sortable.toArray();
+    const prevKey = (this._prompt.orderedIds || []).join(',');
+    const nextKey = ids.join(',');
+    if (prevKey === nextKey) return;
+
     this._prompt.orderedIds = ids;
-    this._renderCards();
     if (this.onReorder) this.onReorder(ids);
   }
 
