@@ -245,20 +245,37 @@ window.RawDeal.GameEngine = class GameEngine {
   _publicSuperstarAbility(viewerIndex = 0) {
     const player = this.players[viewerIndex];
     if (!player) {
-      return { supported: false, canUse: false, used: false, label: null, prompt: null };
+      return {
+        supported: false,
+        usesButton: false,
+        canUse: false,
+        used: false,
+        label: null,
+        prompt: null,
+      };
     }
 
     const id = player.superstar.id;
-    const supported = id === 'stone-cold' || id === 'undertaker';
+    const supported = id === 'stone-cold' || id === 'undertaker' || id === 'the-rock';
+    const usesButton = id === 'stone-cold' || id === 'undertaker';
     const labels = {
       'stone-cold': 'Draw & Bottom',
       'undertaker': 'Ringside Salvage',
+      'the-rock': 'Ringside Salvage',
     };
 
     let prompt = null;
     if (this.abilityFlow?.playerIndex === viewerIndex) {
       const flow = this.abilityFlow;
-      if (flow.step === 'pickBottom') {
+      if (flow.step === 'rockRingside') {
+        prompt = {
+          mode: 'ringsideModal',
+          message:
+            'The Rock: choose 1 card from your Ringside to put on the bottom of your Arsenal, or Pass.',
+          cards: player.ringside.map((c) => ({ ...c })),
+          selectedId: flow.selectedId || null,
+        };
+      } else if (flow.step === 'pickBottom') {
         prompt = {
           mode: 'hand',
           count: 1,
@@ -284,6 +301,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     return {
       supported,
+      usesButton,
       canUse: this.canUseSuperstarAbility(viewerIndex),
       used: player.superstarAbilityUsed,
       label: labels[id] || null,
@@ -347,6 +365,7 @@ window.RawDeal.GameEngine = class GameEngine {
       ring: { maneuvers: [], actions: [], reversals: [] },
       fortitude: 0,
       superstarAbilityUsed: false,
+      preDrawSuperstarResolved: false,
       turnState: this._emptyTurnState(),
       isHuman,
       seatIndex,
@@ -429,9 +448,10 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       if (phase === PHASES.REFRESH) {
+        active.superstarAbilityUsed = false;
+        active.preDrawSuperstarResolved = false;
+        this.abilityFlow = null;
         if (active.isHuman) {
-          active.superstarAbilityUsed = false;
-          this.abilityFlow = null;
           this.cardEffectFlow = null;
           this.pendingManeuverResolution = null;
         }
@@ -443,6 +463,17 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       if (phase === PHASES.DRAW) {
+        if (this.abilityFlow?.step === 'rockRingside') {
+          break;
+        }
+
+        if (!active.preDrawSuperstarResolved) {
+          const waiting = this._offerPreDrawSuperstarAbility(active, this.stateMachine.activePlayer);
+          if (waiting) {
+            break;
+          }
+        }
+
         const drawCount = active.superstar.id === 'mankind' ? 2 : 1;
         for (let d = 0; d < drawCount; d++) {
           this._drawCard(active);
@@ -491,6 +522,7 @@ window.RawDeal.GameEngine = class GameEngine {
   canPlayCard(playerIndex, instanceId, playAs) {
     if (
       !this.stateMachine.canPlayCards(playerIndex) ||
+      this.abilityFlow ||
       this.cardEffectFlow ||
       this.reversalWindow ||
       window.RawDeal.EffectPipeline.isPaused(this, playerIndex)
@@ -1281,6 +1313,78 @@ window.RawDeal.GameEngine = class GameEngine {
     }
   }
 
+  _shouldPromptPreDrawAbility(player) {
+    if (!player || player.preDrawSuperstarResolved) return false;
+    if (player.superstar.id !== 'the-rock') return false;
+    if (player.ringside.length === 0) return false;
+    return this.engineMode === 'multiplayer' || player.isHuman;
+  }
+
+  _offerPreDrawSuperstarAbility(player, playerIndex) {
+    if (!this._shouldPromptPreDrawAbility(player)) {
+      player.preDrawSuperstarResolved = true;
+      return false;
+    }
+
+    this.abilityFlow = {
+      playerIndex,
+      superstarId: 'the-rock',
+      step: 'rockRingside',
+      selectedId: null,
+    };
+    this._notify();
+    return true;
+  }
+
+  async _finishPreDrawSuperstarAbility(player) {
+    player.preDrawSuperstarResolved = true;
+    this.abilityFlow = null;
+    this._notify();
+    await this._runAutoPhases();
+  }
+
+  toggleSuperstarAbilitySelection(playerIndex, instanceId) {
+    if (!this.abilityFlow || this.abilityFlow.playerIndex !== playerIndex) return false;
+    if (this.abilityFlow.step !== 'rockRingside') return false;
+
+    const player = this.players[playerIndex];
+    if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
+
+    this.abilityFlow.selectedId =
+      this.abilityFlow.selectedId === instanceId ? null : instanceId;
+    this._notify();
+    return true;
+  }
+
+  async passSuperstarAbilityPrompt(playerIndex) {
+    if (!this.abilityFlow || this.abilityFlow.playerIndex !== playerIndex) return false;
+    if (this.abilityFlow.step !== 'rockRingside') return false;
+
+    const player = this.players[playerIndex];
+    this.actionLog.push({
+      message: 'The Rock passed on moving a card from Ringside to Arsenal.',
+    });
+    await this._finishPreDrawSuperstarAbility(player);
+    return true;
+  }
+
+  async confirmSuperstarAbilityPrompt(playerIndex, instanceId) {
+    if (!this.abilityFlow || this.abilityFlow.playerIndex !== playerIndex) return false;
+    if (this.abilityFlow.step !== 'rockRingside') return false;
+
+    const player = this.players[playerIndex];
+    const idx = player.ringside.findIndex((c) => c.instanceId === instanceId);
+    if (idx < 0) return false;
+
+    const [card] = player.ringside.splice(idx, 1);
+    player.arsenal.unshift(card);
+    this.actionLog.push({
+      message: `The Rock put ${card.name} from Ringside on the bottom of your Arsenal.`,
+    });
+    await this._finishPreDrawSuperstarAbility(player);
+    return true;
+  }
+
   canUseSuperstarAbility(playerIndex) {
     if (!this.stateMachine.canPlayCards(playerIndex) || this.abilityFlow || this.cardEffectFlow || this.reversalWindow) {
       return false;
@@ -1384,6 +1488,7 @@ window.RawDeal.GameEngine = class GameEngine {
   async endTurn(playerIndex) {
     if (
       !this.stateMachine.canPlayCards(playerIndex) ||
+      this.abilityFlow ||
       this.cardEffectFlow ||
       this.pendingManeuverResolution ||
       this.reversalWindow ||

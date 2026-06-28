@@ -83,6 +83,15 @@ class RoomGame {
       case 'toggleHandRevealSelection':
         ok = engine.toggleHandRevealSelection(seat, action.instanceId);
         break;
+      case 'passSuperstarAbility':
+        ok = await engine.passSuperstarAbilityPrompt(seat);
+        break;
+      case 'confirmSuperstarAbility':
+        ok = await engine.confirmSuperstarAbilityPrompt(seat, action.instanceId);
+        break;
+      case 'toggleSuperstarAbilitySelection':
+        ok = engine.toggleSuperstarAbilitySelection(seat, action.instanceId);
+        break;
       case 'devCommand': {
         const { loadRawDeal } = require('./bootstrap');
         const RawDeal = loadRawDeal();

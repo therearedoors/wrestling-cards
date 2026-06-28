@@ -27,6 +27,10 @@
   const pileViewModal = pileViewModalRoot
     ? new window.RawDeal.PileViewModal(pileViewModalRoot)
     : null;
+  const superstarAbilityModalRoot = document.getElementById('rd-superstar-ability-modal');
+  const superstarAbilityModal = superstarAbilityModalRoot
+    ? new window.RawDeal.SuperstarAbilityModal(superstarAbilityModalRoot)
+    : null;
 
   async function loadDecks() {
     await window.RawDeal.DeckStore.load();
@@ -45,7 +49,8 @@
       cardPreview,
       choiceModal,
       handRevealModal,
-      pileViewModal
+      pileViewModal,
+      superstarAbilityModal
     );
 
     engine = new window.RawDeal.GameEngine({
@@ -94,6 +99,18 @@
 
     board.onUseSuperstarAbility = () => {
       engine.beginSuperstarAbility(0);
+    };
+
+    board.onPassSuperstarAbility = async () => {
+      await engine.passSuperstarAbilityPrompt(0);
+    };
+
+    board.onConfirmSuperstarAbility = async (instanceId) => {
+      await engine.confirmSuperstarAbilityPrompt(0, instanceId);
+    };
+
+    board.onToggleSuperstarAbilitySelect = (instanceId) => {
+      engine.toggleSuperstarAbilitySelection(0, instanceId);
     };
 
     board.onAbilitySelect = async (instanceId) => {

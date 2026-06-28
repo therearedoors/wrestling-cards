@@ -41,6 +41,10 @@
   const pileViewModal = pileViewModalRoot
     ? new window.RawDeal.PileViewModal(pileViewModalRoot)
     : null;
+  const superstarAbilityModalRoot = document.getElementById('rd-superstar-ability-modal');
+  const superstarAbilityModal = superstarAbilityModalRoot
+    ? new window.RawDeal.SuperstarAbilityModal(superstarAbilityModalRoot)
+    : null;
 
   function emitAction(action) {
     socket.emit('rd-action', roomId, action);
@@ -95,7 +99,8 @@
       cardPreview,
       choiceModal,
       handRevealModal,
-      pileViewModal
+      pileViewModal,
+      superstarAbilityModal
     );
 
     board.onPlayCard = (instanceId, playAs) => {
@@ -108,6 +113,18 @@
 
     board.onUseSuperstarAbility = () => {
       emitAction({ type: 'superstarAbility' });
+    };
+
+    board.onPassSuperstarAbility = () => {
+      emitAction({ type: 'passSuperstarAbility' });
+    };
+
+    board.onConfirmSuperstarAbility = (instanceId) => {
+      emitAction({ type: 'confirmSuperstarAbility', instanceId });
+    };
+
+    board.onToggleSuperstarAbilitySelect = (instanceId) => {
+      emitAction({ type: 'toggleSuperstarAbilitySelection', instanceId });
     };
 
     board.onAbilitySelect = (instanceId) => {
