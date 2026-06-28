@@ -49,6 +49,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextGrappleReversalTax: 0,
       nextManeuverReversalTax: 0,
       nextCardManeuverBonus: 0,
+      nextCardSubtypeBonus: null,
       lastPlayedCardId: null,
       opponentReversalsBlocked: false,
       skipOpponentNextTurn: false,
@@ -69,6 +70,13 @@ window.RawDeal.GameEngine = class GameEngine {
   _expireNextCardManeuverBonusIfNotManeuver(player, mode) {
     if (mode !== 'maneuver' && player.turnState?.nextCardManeuverBonus) {
       player.turnState.nextCardManeuverBonus = 0;
+    }
+  }
+
+  _expireNextCardSubtypeBonusUnlessMatch(player, card, mode) {
+    if (!player.turnState?.nextCardSubtypeBonus) return;
+    if (mode !== 'maneuver' || card.subtype !== player.turnState.nextCardSubtypeBonus.subtype) {
+      player.turnState.nextCardSubtypeBonus = null;
     }
   }
 
@@ -574,6 +582,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const handIndex = player.hand.findIndex((c) => c.instanceId === instanceId);
     const played = player.hand.splice(handIndex, 1)[0];
     this._expireNextCardManeuverBonusIfNotManeuver(player, mode);
+    this._expireNextCardSubtypeBonusUnlessMatch(player, played, mode);
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.lastPlayedCardId = played.id;
 
@@ -660,6 +669,11 @@ window.RawDeal.GameEngine = class GameEngine {
       damage += player.turnState.nextCardManeuverBonus;
     }
 
+    const subtypeBonus = player.turnState?.nextCardSubtypeBonus;
+    if (subtypeBonus && played.subtype === subtypeBonus.subtype) {
+      damage += subtypeBonus.value;
+    }
+
     return damage;
   }
 
@@ -678,6 +692,13 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (player.turnState?.nextCardManeuverBonus) {
       player.turnState.nextCardManeuverBonus = 0;
+    }
+
+    if (
+      player.turnState?.nextCardSubtypeBonus &&
+      played.subtype === player.turnState.nextCardSubtypeBonus.subtype
+    ) {
+      player.turnState.nextCardSubtypeBonus = null;
     }
 
     return damage;
