@@ -1073,6 +1073,107 @@ body:has(.rd-page) {
   outline-offset: 2px;
 }
 
+.rd-arsenal-reorder-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 92;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rd-arsenal-reorder-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 18, 30, 0.72);
+  pointer-events: none;
+}
+
+.rd-arsenal-reorder-modal__panel {
+  position: relative;
+  background: var(--main-color-darker);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 24px 28px;
+  max-width: min(960px, calc(100vw - 32px));
+  width: calc(100% - 32px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.rd-arsenal-reorder-modal__message {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+.rd-arsenal-reorder-modal__scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 0 10px;
+  margin-bottom: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(241, 196, 15, 0.45) rgba(0, 0, 0, 0.2);
+}
+
+.rd-arsenal-reorder-modal__scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.rd-arsenal-reorder-modal__scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.rd-arsenal-reorder-modal__scroll::-webkit-scrollbar-thumb {
+  background: rgba(241, 196, 15, 0.45);
+  border-radius: 4px;
+}
+
+.rd-arsenal-reorder-modal__scroll--overflow {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent 100%
+  );
+}
+
+.rd-arsenal-reorder-modal__row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  justify-content: center;
+  min-width: min-content;
+  padding: 4px 8px;
+}
+
+.rd-arsenal-reorder-modal__slot {
+  flex: 0 0 auto;
+  cursor: grab;
+}
+
+.rd-arsenal-reorder-modal__slot .rd-card--dragging {
+  opacity: 0.55;
+  cursor: grabbing;
+}
+
+.rd-arsenal-reorder-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.rd-arsenal-reorder-modal__pass,
+.rd-arsenal-reorder-modal__confirm {
+  min-width: 120px;
+}
+
 .rd-opponent-zone #rd-opponent-ringside,
 .rd-opponent-zone #rd-opponent-ring {
   flex: 1;

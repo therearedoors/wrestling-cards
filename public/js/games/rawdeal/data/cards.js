@@ -1009,6 +1009,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Look at the top 5 cards of your Arsenal. You may either arrange them in any order or shuffle your Arsenal.",
     flavor: "",
+    actionEffects: [{"op": "reorderArsenalTop", "count": 5}],
     set: "premiere",
   },
   'don-t-think-too-hard': {

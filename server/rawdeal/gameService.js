@@ -92,6 +92,15 @@ class RoomGame {
       case 'toggleSuperstarAbilitySelection':
         ok = engine.toggleSuperstarAbilitySelection(seat, action.instanceId);
         break;
+      case 'passArsenalReorder':
+        ok = await engine.passArsenalReorder(seat);
+        break;
+      case 'confirmArsenalReorder':
+        ok = await engine.confirmArsenalReorder(seat, action.orderedIds || []);
+        break;
+      case 'updateArsenalReorder':
+        ok = engine.updateArsenalReorderOrder(seat, action.orderedIds || []);
+        break;
       case 'devCommand': {
         const { loadRawDeal } = require('./bootstrap');
         const RawDeal = loadRawDeal();

@@ -249,6 +249,25 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'arsenalReorder') {
+      const player = this.players[viewerIndex];
+      const topSlice = player.arsenal.slice(-flow.count);
+      const byId = new Map(topSlice.map((c) => [c.instanceId, c]));
+      const cards = flow.orderedIds
+        .map((id) => {
+          const card = byId.get(id);
+          return card ? { ...card } : null;
+        })
+        .filter(Boolean);
+      return {
+        mode: 'arsenalReorder',
+        message: `${flow.sourceName}: drag to reorder your top ${flow.count} Arsenal card${flow.count === 1 ? '' : 's'} (left = next to draw). Pass to keep the current order.`,
+        cards,
+        orderedIds: [...flow.orderedIds],
+        count: flow.count,
+      };
+    }
+
     return null;
   }
 
@@ -770,6 +789,89 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
+  _beginArsenalTopReorderPrompt(player, playerIndex, sourceName, count = 5) {
+    const n = Math.min(count, player.arsenal.length);
+    if (n === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: Arsenal is empty.`,
+      });
+      return false;
+    }
+
+    const topSlice = player.arsenal.slice(-n);
+    const orderedIds = topSlice.map((c) => c.instanceId).reverse();
+
+    this.cardEffectFlow = {
+      type: 'arsenalReorder',
+      playerIndex,
+      sourceName,
+      count: n,
+      orderedIds,
+    };
+    this.actionLog.push({
+      message: `${sourceName}: look at top ${n} card${n === 1 ? '' : 's'} of your Arsenal.`,
+    });
+    this._notify();
+    return true;
+  }
+
+  _validateArsenalReorderIds(player, flow, orderedIds) {
+    if (!Array.isArray(orderedIds) || orderedIds.length !== flow.count) return false;
+    const topSlice = player.arsenal.slice(-flow.count);
+    const expected = new Set(topSlice.map((c) => c.instanceId));
+    return orderedIds.every((id) => expected.has(id));
+  }
+
+  _applyArsenalReorder(player, orderedIds) {
+    const n = orderedIds.length;
+    const topSlice = player.arsenal.splice(-n, n);
+    const byId = new Map(topSlice.map((c) => [c.instanceId, c]));
+    for (let i = orderedIds.length - 1; i >= 0; i--) {
+      player.arsenal.push(byId.get(orderedIds[i]));
+    }
+  }
+
+  updateArsenalReorderOrder(playerIndex, orderedIds) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'arsenalReorder') return false;
+
+    const player = this.players[playerIndex];
+    const flow = this.cardEffectFlow;
+    if (!this._validateArsenalReorderIds(player, flow, orderedIds)) return false;
+
+    flow.orderedIds = [...orderedIds];
+    this._notify();
+    return true;
+  }
+
+  async passArsenalReorder(playerIndex) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'arsenalReorder') return false;
+
+    const { sourceName } = this.cardEffectFlow;
+    this.actionLog.push({
+      message: `${sourceName}: left Arsenal order unchanged.`,
+    });
+    await this._finishCardEffectResolution();
+    return true;
+  }
+
+  async confirmArsenalReorder(playerIndex, orderedIds) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'arsenalReorder') return false;
+
+    const player = this.players[playerIndex];
+    const flow = this.cardEffectFlow;
+    if (!this._validateArsenalReorderIds(player, flow, orderedIds)) return false;
+
+    this._applyArsenalReorder(player, orderedIds);
+    this.actionLog.push({
+      message: `${flow.sourceName}: rearranged top ${flow.count} Arsenal card${flow.count === 1 ? '' : 's'}.`,
+    });
+    await this._finishCardEffectResolution();
+    return true;
+  }
+
   _drawForOpponent(player, sourceName, count) {
     const opponent = this.players[1 - this._playerIndex(player)];
     let drawn = 0;
@@ -1118,7 +1220,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
   async _finishCardEffectResolution() {
     this.cardEffectFlow = null;
-    if (this.effectPipelineFlow?.paused && this.pendingManeuverResolution) {
+    if (this.effectPipelineFlow?.paused) {
       await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
       return;
     }

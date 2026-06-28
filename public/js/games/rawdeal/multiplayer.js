@@ -45,6 +45,10 @@
   const superstarAbilityModal = superstarAbilityModalRoot
     ? new window.RawDeal.SuperstarAbilityModal(superstarAbilityModalRoot)
     : null;
+  const arsenalReorderModalRoot = document.getElementById('rd-arsenal-reorder-modal');
+  const arsenalReorderModal = arsenalReorderModalRoot
+    ? new window.RawDeal.ArsenalReorderModal(arsenalReorderModalRoot)
+    : null;
 
   function emitAction(action) {
     socket.emit('rd-action', roomId, action);
@@ -100,7 +104,8 @@
       choiceModal,
       handRevealModal,
       pileViewModal,
-      superstarAbilityModal
+      superstarAbilityModal,
+      arsenalReorderModal
     );
 
     board.onPlayCard = (instanceId, playAs) => {
@@ -133,6 +138,18 @@
 
     board.onChoiceSelect = (optionId) => {
       emitAction({ type: 'choiceSelect', optionId });
+    };
+
+    board.onPassArsenalReorder = () => {
+      emitAction({ type: 'passArsenalReorder' });
+    };
+
+    board.onConfirmArsenalReorder = (orderedIds) => {
+      emitAction({ type: 'confirmArsenalReorder', orderedIds });
+    };
+
+    board.onArsenalReorderChange = (orderedIds) => {
+      emitAction({ type: 'updateArsenalReorder', orderedIds });
     };
 
     board.onPlayReversal = (instanceId) => {
