@@ -498,8 +498,8 @@ window.RawDeal.Board = class Board {
         (reversalWindow.kind === 'action'
           ? this._canReverseAction(card, reversalWindow.maneuver, player)
           : this._canReverseManeuver(card, reversalWindow.maneuver, player, reversalWindow));
-      const maneuverCost = utils.playFortitudeCost(card, 'maneuver');
-      const actionCost = utils.playFortitudeCost(card, 'action');
+      const maneuverCost = utils.playFortitudeCost(card, 'maneuver', player);
+      const actionCost = utils.playFortitudeCost(card, 'action', player);
       const affordableManeuver = player.fortitude >= maneuverCost;
       const affordableAction = player.fortitude >= actionCost;
       const meetsManeuverReq = utils.meetsPlayRequirement(player, card, 'maneuver');
@@ -622,7 +622,7 @@ window.RawDeal.Board = class Board {
   }
 
   _cardCost(player, card, playAs = 'maneuver') {
-    return window.RawDeal.CardUtils.playFortitudeCost(card, playAs);
+    return window.RawDeal.CardUtils.playFortitudeCost(card, playAs, player);
   }
 
   _canReverseManeuver(card, maneuver, player, reversalWindow = null) {

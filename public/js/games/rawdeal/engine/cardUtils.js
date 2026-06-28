@@ -53,11 +53,19 @@ window.RawDeal.CardUtils = {
   },
 
   /** Fortitude required to play from hand. Hybrid discard-to-draw actions cost 0. */
-  playFortitudeCost(card, playAs = 'maneuver') {
+  playFortitudeCost(card, playAs = 'maneuver', player = null) {
     if (playAs === 'action' && this.isHybrid(card) && this._hasDiscardSelfToDraw(card)) {
       return 0;
     }
-    return card.fortitude || 0;
+
+    let cost = card.fortitude || 0;
+    const discount = card.discountAfterCard;
+    if (player && discount?.cardId && discount.fortitude) {
+      if (player.turnState?.lastPlayedCardId === discount.cardId) {
+        cost = Math.max(0, cost - discount.fortitude);
+      }
+    }
+    return cost;
   },
 
   getStunValue(card) {

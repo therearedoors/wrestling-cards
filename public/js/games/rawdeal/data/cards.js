@@ -1311,6 +1311,7 @@ window.RawDeal.CARDS = {
     stunValue: 3,
     text: "Trademark Finisher (Maneuver Card) / -6F on this card if played after the maneuver titled Kick. Unique SV: 3",
     flavor: "",
+    discountAfterCard: {"cardId": "kick", "fortitude": 6},
     set: "premiere",
   },
   'open-up-a-can': {

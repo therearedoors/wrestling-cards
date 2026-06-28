@@ -369,6 +369,144 @@ async function testAtomicDropNextCardManeuverBonus() {
   );
 }
 
+function stunnerFortitudeCost(RawDeal, player) {
+  const stunner = cloneCard(RawDeal, 'stone-cold-stunner', 'scs-cost');
+  return RawDeal.CardUtils.playFortitudeCost(stunner, 'maneuver', player);
+}
+
+async function setupStunnerDiscountEngine(RawDeal) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  opponent.hand = [];
+  for (let i = 0; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent };
+}
+
+async function testStoneColdStunnerDiscountAfterKick() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupStunnerDiscountEngine(RawDeal);
+
+  const kick = cloneCard(RawDeal, 'kick', 'kick-0');
+  player.hand = [kick];
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'arsenal-top'));
+
+  await engine.playCard(0, kick.instanceId, 'maneuver');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'kick',
+    'Kick is recorded as the last played card'
+  );
+  assert(
+    stunnerFortitudeCost(RawDeal, player) === 24,
+    'Stunner is 24F immediately after Kick'
+  );
+}
+
+async function testStoneColdStunnerNoDiscountAfterPunch() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupStunnerDiscountEngine(RawDeal);
+
+  const kick = cloneCard(RawDeal, 'kick', 'kick-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+  player.hand = [kick, punch];
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'arsenal-top'));
+
+  await engine.playCard(0, kick.instanceId, 'maneuver');
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'punch',
+    'Punch replaces Kick as the last played card'
+  );
+  assert(
+    stunnerFortitudeCost(RawDeal, player) === 30,
+    'Stunner is 30F after Kick then Punch'
+  );
+}
+
+async function testStoneColdStunnerNoDiscountAfterAction() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupStunnerDiscountEngine(RawDeal);
+
+  const kick = cloneCard(RawDeal, 'kick', 'kick-0');
+  const chop = cloneCard(RawDeal, 'chop', 'chop-0');
+  player.hand = [kick, chop];
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'arsenal-top'));
+
+  await engine.playCard(0, kick.instanceId, 'maneuver');
+  await engine.playCard(0, chop.instanceId, 'action');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'chop',
+    'Chop action replaces Kick as the last played card'
+  );
+  assert(
+    stunnerFortitudeCost(RawDeal, player) === 30,
+    'Stunner is 30F after Kick then Chop action'
+  );
+}
+
+async function testStoneColdStunnerNoDiscountWithoutKick() {
+  const RawDeal = loadRawDeal();
+  const { player } = await setupStunnerDiscountEngine(RawDeal);
+
+  assert(
+    player.turnState?.lastPlayedCardId == null,
+    'Turn starts with no last played card'
+  );
+  assert(
+    stunnerFortitudeCost(RawDeal, player) === 30,
+    'Stunner is 30F without prior Kick'
+  );
+}
+
+async function testStoneColdStunnerCanPlayAtDiscountedCost() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupStunnerDiscountEngine(RawDeal);
+
+  const kick = cloneCard(RawDeal, 'kick', 'kick-0');
+  const stunner = cloneCard(RawDeal, 'stone-cold-stunner', 'scs-0');
+  player.hand = [kick, stunner];
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'arsenal-top'));
+
+  for (let i = 0; i < 4; i++) {
+    player.ring.maneuvers.push(cloneCard(RawDeal, 'spear', `ring-spear-${i}`));
+  }
+  engine._syncFortitude(player);
+
+  await engine.playCard(0, kick.instanceId, 'maneuver');
+  engine._syncFortitude(player);
+
+  assert(
+    player.fortitude === 25,
+    'Ring fortitude is 25 after Kick follows preloaded maneuvers'
+  );
+  assert(
+    engine.canPlayCard(0, stunner.instanceId, 'maneuver'),
+    'Stunner is playable at 24F immediately after Kick with 25F in ring'
+  );
+
+  player.ring.maneuvers.pop();
+  engine._syncFortitude(player);
+  assert(
+    player.fortitude === 20,
+    'Ring fortitude drops to 20 after removing one maneuver'
+  );
+  assert(
+    !engine.canPlayCard(0, stunner.instanceId, 'maneuver'),
+    'Stunner is not playable at 24F when only 20F is available'
+  );
+}
+
 async function testAtomicDropBonusLostOnNonManeuver() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -723,6 +861,11 @@ async function main() {
   await testJerichoAbilityWhenOpponentHandEmpty();
   await testAtomicDropNextCardManeuverBonus();
   await testAtomicDropBonusLostOnNonManeuver();
+  await testStoneColdStunnerDiscountAfterKick();
+  await testStoneColdStunnerNoDiscountAfterPunch();
+  await testStoneColdStunnerNoDiscountAfterAction();
+  await testStoneColdStunnerNoDiscountWithoutKick();
+  await testStoneColdStunnerCanPlayAtDiscountedCost();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
 
