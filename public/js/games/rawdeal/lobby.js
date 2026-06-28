@@ -101,12 +101,12 @@
     const id = roomIdInput.value.trim();
     const password = addPassword.checked ? roomPassword.value : '';
     const qs = password ? `&password=${encodeURIComponent(password)}` : '';
-    window.location.href = `/rawdeal/room?id=${encodeURIComponent(id)}${qs}${devQs}`;
+    window.location.href = `/room?id=${encodeURIComponent(id)}${qs}${devQs}`;
   });
 
   socket.on('rd-room-joined', (roomId, password) => {
     const qs = password ? `&password=${encodeURIComponent(password)}` : '';
-    window.location.href = `/rawdeal/room?id=${encodeURIComponent(roomId)}${qs}${devQs}`;
+    window.location.href = `/room?id=${encodeURIComponent(roomId)}${qs}${devQs}`;
   });
 
   socket.on('rd-error', (msg) => {

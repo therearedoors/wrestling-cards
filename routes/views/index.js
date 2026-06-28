@@ -1,33 +1,22 @@
-const {Router} = require('express');
-const {getRegisterPage, 
-    getLoginPage, 
-    getLobbyPage, 
-    getGamesPage, 
-    getRoomPage, 
-    getRawDealGoldfishPage, 
-    getRawDealDeckBuilderPage,
-    getRawDealGamesPage,
-    getRawDealRoomPage,
-    } = require('../../controllers/views/index')
+const { Router } = require('express');
+const {
+  getRegisterPage,
+  getLoginPage,
+  getLobbyPage,
+  getPracticePage,
+  getDecksPage,
+  getGamesPage,
+  getRoomPage,
+} = require('../../controllers/views/index');
 
 const router = Router();
 
-router.get("/register", getRegisterPage)
-
-router.get("/login", getLoginPage)
-
-router.get("/", getLobbyPage)
-
-router.get("/games", getGamesPage)
-
-router.get("/room", getRoomPage)
-
-router.get("/rawdeal/goldfish", getRawDealGoldfishPage)
-
-router.get("/rawdeal/decks", getRawDealDeckBuilderPage)
-
-router.get("/rawdeal/games", getRawDealGamesPage)
-
-router.get("/rawdeal/room", getRawDealRoomPage)
+router.get('/register', getRegisterPage);
+router.get('/login', getLoginPage);
+router.get('/', getLobbyPage);
+router.get('/practice', getPracticePage);
+router.get('/decks', getDecksPage);
+router.get('/games', getGamesPage);
+router.get('/room', getRoomPage);
 
 module.exports = router;
