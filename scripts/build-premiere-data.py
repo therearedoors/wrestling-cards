@@ -340,6 +340,11 @@ def parse_cards(text: str):
 
         cards[card_id] = entry
 
+    for entry in cards.values():
+        discount = infer_discount_after_card(entry['text'], cards)
+        if discount:
+            entry.update(discount)
+
     return cards
 
 
@@ -404,6 +409,42 @@ def infer_requires_played(rules):
     ):
         return {'requiresPlayed': 'irish-whip'}
     return None
+
+
+def _resolve_referenced_card_id(title, cards):
+    """Map printed card titles (e.g. Kane's Choke Slam) to catalog ids."""
+    ref_id = slugify(title)
+    if ref_id in cards:
+        return ref_id
+
+    title_lower = title.lower().strip()
+    for cid, card in cards.items():
+        if card.get('name', '').lower() == title_lower:
+            return cid
+
+    compact = re.sub(r"[^a-z0-9]+", '', title_lower)
+    for cid, card in cards.items():
+        name_compact = re.sub(r"[^a-z0-9]+", '', card.get('name', '').lower())
+        if name_compact == compact:
+            return cid
+
+    return ref_id
+
+
+def infer_discount_after_card(rules, cards):
+    """Fortitude discount when played immediately after a specific card."""
+    blob = rules.lower()
+    m = re.search(
+        r'-(\d+)f on this card if played after the (?:maneuver|card) titled ([^.]+)',
+        blob,
+    )
+    if not m:
+        return None
+
+    fortitude = int(m.group(1))
+    title = html.unescape(m.group(2).strip())
+    ref_id = _resolve_referenced_card_id(title, cards)
+    return {'discountAfterCard': {'cardId': ref_id, 'fortitude': fortitude}}
 
 
 def classify(types_blob, rules, name, damage):
@@ -481,6 +522,9 @@ def infer_maneuver_effects(types_list, rules):
 
     if 'when successfully played' in blob and 'discard 1 card of your choice from your hand' in blob:
         effects.append({'op': 'discardFromHand', 'count': 1})
+
+    if 'next card played this turn is a maneuver' in blob and '+2d' in blob:
+        effects.append({'op': 'nextCardManeuverBonus', 'value': 2})
 
     if (
         'draw 2 cards, or force opponent to discard 2' in blob
@@ -632,8 +676,8 @@ def emit_cards(cards):
         parts = [f"  '{card['id']}': {{"]
         for key in ['id', 'num', 'name', 'types', 'subtype', 'alignment', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
-                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'actionEffects', 'maneuverEffects',
-                    'reversalEffects', 'set']:
+                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'discountAfterCard',
+                    'actionEffects', 'maneuverEffects', 'reversalEffects', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]
                 if isinstance(val, bool):

@@ -190,6 +190,16 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'nextCardManeuverBonus': {
+        const value = step.value || 0;
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.nextCardManeuverBonus = value;
+        engine.actionLog.push({
+          message: `${sourceName}: if your next card played this turn is a maneuver, it is +${value}D.`,
+        });
+        return false;
+      }
+
       case 'nextManeuverReversalTax': {
         const value = step.value || 0;
         if (!player.turnState) player.turnState = engine._emptyTurnState();

@@ -37,6 +37,14 @@
   const handRevealModal = handRevealModalRoot
     ? new window.RawDeal.HandRevealModal(handRevealModalRoot)
     : null;
+  const pileViewModalRoot = document.getElementById('rd-pile-view-modal');
+  const pileViewModal = pileViewModalRoot
+    ? new window.RawDeal.PileViewModal(pileViewModalRoot)
+    : null;
+  const superstarAbilityModalRoot = document.getElementById('rd-superstar-ability-modal');
+  const superstarAbilityModal = superstarAbilityModalRoot
+    ? new window.RawDeal.SuperstarAbilityModal(superstarAbilityModalRoot)
+    : null;
 
   function emitAction(action) {
     socket.emit('rd-action', roomId, action);
@@ -86,7 +94,14 @@
   }
 
   function setupBoard() {
-    board = new window.RawDeal.Board(boardRoot, cardPreview, choiceModal, handRevealModal);
+    board = new window.RawDeal.Board(
+      boardRoot,
+      cardPreview,
+      choiceModal,
+      handRevealModal,
+      pileViewModal,
+      superstarAbilityModal
+    );
 
     board.onPlayCard = (instanceId, playAs) => {
       emitAction({ type: 'playCard', instanceId, playAs });
@@ -98,6 +113,18 @@
 
     board.onUseSuperstarAbility = () => {
       emitAction({ type: 'superstarAbility' });
+    };
+
+    board.onPassSuperstarAbility = () => {
+      emitAction({ type: 'passSuperstarAbility' });
+    };
+
+    board.onConfirmSuperstarAbility = (instanceId) => {
+      emitAction({ type: 'confirmSuperstarAbility', instanceId });
+    };
+
+    board.onToggleSuperstarAbilitySelect = (instanceId) => {
+      emitAction({ type: 'toggleSuperstarAbilitySelection', instanceId });
     };
 
     board.onAbilitySelect = (instanceId) => {

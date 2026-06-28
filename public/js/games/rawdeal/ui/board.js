@@ -1,11 +1,20 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.Board = class Board {
-  constructor(rootEl, cardPreview, choiceModal = null, handRevealModal = null) {
+  constructor(
+    rootEl,
+    cardPreview,
+    choiceModal = null,
+    handRevealModal = null,
+    pileViewModal = null,
+    superstarAbilityModal = null
+  ) {
     this.root = rootEl;
     this.cardPreview = cardPreview;
     this.choiceModal = choiceModal;
     this.handRevealModal = handRevealModal;
+    this.pileViewModal = pileViewModal;
+    this.superstarAbilityModal = superstarAbilityModal;
     if (this.choiceModal) {
       this.choiceModal.onSelect = (optionId) => {
         if (this.onChoiceSelect) this.onChoiceSelect(optionId);
@@ -25,6 +34,17 @@ window.RawDeal.Board = class Board {
         if (this.onToggleHandRevealSelect) this.onToggleHandRevealSelect(instanceId);
       };
     }
+    if (this.superstarAbilityModal) {
+      this.superstarAbilityModal.onPass = () => {
+        if (this.onPassSuperstarAbility) this.onPassSuperstarAbility();
+      };
+      this.superstarAbilityModal.onConfirm = (instanceId) => {
+        if (this.onConfirmSuperstarAbility) this.onConfirmSuperstarAbility(instanceId);
+      };
+      this.superstarAbilityModal.onToggleSelect = (instanceId) => {
+        if (this.onToggleSuperstarAbilitySelect) this.onToggleSuperstarAbilitySelect(instanceId);
+      };
+    }
     this._state = null;
     this._hoveredCardEl = null;
     this.els = {
@@ -40,13 +60,16 @@ window.RawDeal.Board = class Board {
       opponentSuperstarCard: rootEl.querySelector('#rd-opponent-superstar-card'),
       playerSuperstarCard: rootEl.querySelector('#rd-player-superstar-card'),
       playerHand: rootEl.querySelector('#rd-player-hand'),
-      playerManeuvers: rootEl.querySelector('#rd-player-maneuvers'),
-      playerActions: rootEl.querySelector('#rd-player-actions'),
-      playerReversals: rootEl.querySelector('#rd-player-reversals'),
+      playerRingCards: rootEl.querySelector('#rd-player-ring-cards'),
+      playerRingTitle: rootEl.querySelector('[data-rd-ring-title]'),
       opponentArsenal: rootEl.querySelector('#rd-opponent-arsenal'),
+      opponentRing: rootEl.querySelector('#rd-opponent-ring'),
       opponentRingside: rootEl.querySelector('#rd-opponent-ringside'),
+      opponentRingsideCards: rootEl.querySelector('#rd-opponent-ringside-cards'),
       playerArsenal: rootEl.querySelector('#rd-player-arsenal'),
       playerRingside: rootEl.querySelector('#rd-player-ringside'),
+      playerRingsideCards: rootEl.querySelector('#rd-player-ringside-cards'),
+      playerRingZone: rootEl.querySelector('.rd-ring-zone'),
       endTurnBtn: rootEl.querySelector('#rd-end-turn'),
       passPriorityBtn: rootEl.querySelector('#rd-pass-priority'),
       reversalPrompt: rootEl.querySelector('#rd-reversal-prompt'),
@@ -66,6 +89,9 @@ window.RawDeal.Board = class Board {
     this.onEndTurn = null;
     this.onRestart = null;
     this.onUseSuperstarAbility = null;
+    this.onPassSuperstarAbility = null;
+    this.onConfirmSuperstarAbility = null;
+    this.onToggleSuperstarAbilitySelect = null;
     this.onAbilitySelect = null;
     this.onChoiceSelect = null;
     this.onPlayReversal = null;
@@ -101,12 +127,121 @@ window.RawDeal.Board = class Board {
     });
 
     window.addEventListener('resize', () => this._updateHandScroll());
+    this._bindPileInspectListeners();
+  }
+
+  _bindPileInspectListeners() {
+    const piles = this.root.querySelectorAll('[data-rd-pile-type]');
+    for (const pile of piles) {
+      pile.addEventListener('click', (e) => this._onPileInspectClick(e, pile));
+    }
+  }
+
+  _onPileInspectClick(e, pileEl) {
+    if (e.target.closest('.rd-card')) return;
+    if (pileEl.classList.contains('rd-ring-zone') && e.target.closest('.rd-pile')) return;
+
+    const type = pileEl.dataset.rdPileType;
+    const seat = parseInt(pileEl.dataset.rdPileSeat, 10);
+    if (!type || Number.isNaN(seat)) return;
+
+    this._openPileView(type, seat);
+  }
+
+  _canOpenPileView() {
+    if (!this._state || !this.pileViewModal) return false;
+    if (this._state.handReveal) return false;
+    if (this._state.selectionPrompt) return false;
+    return true;
+  }
+
+  _openPileView(type, seatIndex) {
+    if (!this._canOpenPileView()) return;
+
+    const player = this._state.players[seatIndex];
+    if (!player) return;
+
+    const who = seatIndex === 0 ? 'Your' : `${player.superstar?.name || 'Opponent'}'s`;
+
+    if (type === 'ringside') {
+      const cards = player.ringside || [];
+      const count = player.ringsideSize ?? cards.length;
+      this.pileViewModal.show({
+        title: `${who} Ringside (${count} card${count === 1 ? '' : 's'})`,
+        sections: [{ label: null, cards }],
+      });
+      return;
+    }
+
+    if (type === 'ring') {
+      const ring = player.ring || { maneuvers: [], reversals: [], actions: [] };
+      const sections = [
+        { label: 'Maneuvers', cards: ring.maneuvers || [] },
+        { label: 'Reversals', cards: ring.reversals || [] },
+        { label: 'Actions', cards: ring.actions || [] },
+      ].filter((s) => s.cards.length > 0);
+
+      const total =
+        (ring.maneuvers?.length || 0) +
+        (ring.reversals?.length || 0) +
+        (ring.actions?.length || 0);
+
+      this.pileViewModal.show({
+        title: `${who} Ring (${total} card${total === 1 ? '' : 's'})`,
+        sections: sections.length ? sections : [{ label: null, cards: [] }],
+      });
+    }
+  }
+
+  _ringCardsForBoardView(ring) {
+    const maneuvers = (ring?.maneuvers || []).filter((c) => (c.damage || 0) > 0);
+    const reversals = (ring?.reversals || []).filter((c) => (c.damage || 0) > 0);
+    return [...maneuvers, ...reversals];
+  }
+
+  _ringHiddenCount(ring) {
+    const total =
+      (ring?.maneuvers?.length || 0) +
+      (ring?.reversals?.length || 0) +
+      (ring?.actions?.length || 0);
+    return total - this._ringCardsForBoardView(ring).length;
+  }
+
+  _updatePileLabels(player, opponent) {
+    this._setPileLabel(this.els.playerRingside, 'Your Ringside', player.ringside?.length || 0, 6);
+    this._setPileLabel(this.els.opponentRingside, 'Ringside', opponent.ringside?.length || 0, 6);
+
+    const oppRingTotal =
+      (opponent.ring?.maneuvers?.length || 0) +
+      (opponent.ring?.reversals?.length || 0) +
+      (opponent.ring?.actions?.length || 0);
+    this._setPileLabel(this.els.opponentRing, 'Ring', oppRingTotal, 0);
+
+    if (this.els.playerRingTitle) {
+      const hidden = this._ringHiddenCount(player.ring);
+      this.els.playerRingTitle.textContent =
+        hidden > 0 ? `Your Ring · ${hidden} more in pile` : 'Your Ring';
+    }
+  }
+
+  _setPileLabel(pileEl, baseLabel, total, visibleCap) {
+    if (!pileEl) return;
+    const labelEl = pileEl.querySelector('[data-rd-pile-label]');
+    if (!labelEl) return;
+    if (total > visibleCap && visibleCap > 0) {
+      labelEl.textContent = `${baseLabel} (${total})`;
+    } else if (total > 0 && visibleCap === 0) {
+      labelEl.textContent = `${baseLabel} (${total})`;
+    } else {
+      labelEl.textContent = baseLabel;
+    }
   }
 
   _onCardHover(e) {
     const cardEl = e.target.closest('.rd-card[data-card-id]');
     if (!cardEl || cardEl.classList.contains('rd-card--preview')) return;
-    if (!this.root.contains(cardEl)) return;
+    const hoverRoot = this.root.closest('.rd-play-layout') || this.root;
+    if (!hoverRoot.contains(cardEl)) return;
     if (cardEl === this._hoveredCardEl) return;
 
     this._hoveredCardEl = cardEl;
@@ -175,21 +310,23 @@ window.RawDeal.Board = class Board {
 
     const ability = state.superstarAbility || {};
     const activePrompt = state.selectionPrompt || ability.prompt;
+    const inlineAbilityPrompt = activePrompt?.mode === 'ringside' ? activePrompt : null;
+    const uiBlocked =
+      !!activePrompt || !!state.handReveal || !!state.reversalWindow?.canRespond;
 
     this._renderChoiceModal(activePrompt);
     this._renderHandReveal(state.handReveal);
+    this._renderSuperstarAbilityModal(ability.prompt);
     this._renderSuperstarAbility(player, ability, state.canPlay, activePrompt);
     this._renderAbilityPrompt(activePrompt);
     this._renderReversalPrompt(state.reversalWindow);
     this._renderHand(player, state.canPlay, activePrompt, state.reversalWindow, state.handReveal);
-    this._renderRing(this.els.playerManeuvers, player.ring.maneuvers);
-    this._renderRing(this.els.playerActions, player.ring.actions);
-    this._renderRing(this.els.playerReversals, player.ring.reversals);
-    this._renderRingside(this.els.opponentRingside, opponent.ringside);
-    this._renderRingside(this.els.playerRingside, player.ringside, activePrompt);
+    this._renderCompactRing(this.els.playerRingCards, player.ring);
+    this._renderRingside(this.els.opponentRingsideCards, opponent.ringside);
+    this._renderRingside(this.els.playerRingsideCards, player.ringside, inlineAbilityPrompt);
+    this._updatePileLabels(player, opponent);
 
-    this.els.endTurnBtn.disabled =
-      !state.canPlay || !!activePrompt || !!state.handReveal || !!state.reversalWindow?.canRespond;
+    this.els.endTurnBtn.disabled = !state.canPlay || uiBlocked;
     if (this.els.passPriorityBtn) {
       this.els.passPriorityBtn.classList.toggle('hidden', !state.reversalWindow?.canRespond);
       this.els.passPriorityBtn.disabled = !state.reversalWindow?.canRespond;
@@ -213,18 +350,26 @@ window.RawDeal.Board = class Board {
     }
   }
 
+  _renderSuperstarAbilityModal(prompt) {
+    if (!this.superstarAbilityModal) return;
+    if (prompt?.mode === 'ringsideModal') {
+      this.superstarAbilityModal.show(prompt);
+    } else {
+      this.superstarAbilityModal.hide();
+    }
+  }
+
   _renderSuperstarAbility(player, ability, canPlay, activePrompt) {
     const btn = this.els.superstarAbilityBtn;
     if (!btn) return;
 
-    const show = ability.supported && canPlay;
+    const show = ability.supported && ability.usesButton && canPlay;
     btn.classList.toggle('hidden', !show);
 
     if (!show) return;
 
-    const label = ability.label || 'Superstar Ability';
-    btn.textContent = label;
-    btn.title = player.superstar.ability || label;
+    btn.textContent = 'Superstar Ability';
+    btn.title = player.superstar.ability || 'Superstar Ability';
     btn.disabled = !ability.canUse || ability.used || !!activePrompt;
   }
 
@@ -251,7 +396,7 @@ window.RawDeal.Board = class Board {
     const text = this.els.abilityPromptText;
     if (!panel || !text) return;
 
-    const active = !!prompt && prompt.mode !== 'choice';
+    const active = !!prompt && prompt.mode !== 'choice' && prompt.mode !== 'ringsideModal';
     panel.classList.toggle('hidden', !active);
     if (active) {
       text.textContent = prompt.message;
@@ -353,8 +498,8 @@ window.RawDeal.Board = class Board {
         (reversalWindow.kind === 'action'
           ? this._canReverseAction(card, reversalWindow.maneuver, player)
           : this._canReverseManeuver(card, reversalWindow.maneuver, player, reversalWindow));
-      const maneuverCost = utils.playFortitudeCost(card, 'maneuver');
-      const actionCost = utils.playFortitudeCost(card, 'action');
+      const maneuverCost = utils.playFortitudeCost(card, 'maneuver', player);
+      const actionCost = utils.playFortitudeCost(card, 'action', player);
       const affordableManeuver = player.fortitude >= maneuverCost;
       const affordableAction = player.fortitude >= actionCost;
       const meetsManeuverReq = utils.meetsPlayRequirement(player, card, 'maneuver');
@@ -477,7 +622,7 @@ window.RawDeal.Board = class Board {
   }
 
   _cardCost(player, card, playAs = 'maneuver') {
-    return window.RawDeal.CardUtils.playFortitudeCost(card, playAs);
+    return window.RawDeal.CardUtils.playFortitudeCost(card, playAs, player);
   }
 
   _canReverseManeuver(card, maneuver, player, reversalWindow = null) {
@@ -511,15 +656,18 @@ window.RawDeal.Board = class Board {
     container.appendChild(el);
   }
 
-  _renderRing(container, cards) {
+  _renderCompactRing(container, ring) {
+    if (!container) return;
     window.RawDeal.CardRenderer.clearContainer(container);
+    const cards = this._ringCardsForBoardView(ring);
     for (const card of cards.slice(-8)) {
       container.appendChild(window.RawDeal.CardRenderer.createCardEl(card, { small: true }));
     }
   }
 
   _renderRingside(container, cards, abilityPrompt) {
-    window.RawDeal.CardRenderer.clearContainer(container);
+    if (!container) return;
+    container.querySelectorAll('.rd-card').forEach((el) => el.remove());
     const ringsideMode = abilityPrompt?.mode === 'ringside';
     const visible = ringsideMode ? cards : cards.slice(-6);
 
@@ -557,7 +705,7 @@ window.RawDeal.Board = class Board {
    */
   revealFlippedCard(viewerPlayerIndex, card) {
     const container =
-      viewerPlayerIndex === 0 ? this.els.playerRingside : this.els.opponentRingside;
+      viewerPlayerIndex === 0 ? this.els.playerRingsideCards : this.els.opponentRingsideCards;
     const arsenalCountEl =
       viewerPlayerIndex === 0 ? this.els.playerArsenalCount : this.els.opponentArsenalCount;
 
@@ -587,7 +735,7 @@ window.RawDeal.Board = class Board {
   }
 
   getOpponentRingsideEl() {
-    return this.els.opponentRingside;
+    return this.els.opponentRingsideCards || this.els.opponentRingside;
   }
 
   getPlayerArsenalEl() {
@@ -595,6 +743,6 @@ window.RawDeal.Board = class Board {
   }
 
   getPlayerRingsideEl() {
-    return this.els.playerRingside;
+    return this.els.playerRingsideCards || this.els.playerRingside;
   }
 };
