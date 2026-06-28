@@ -127,6 +127,18 @@
                     </div>
                 </div>
 
+                <div id="rd-superstar-ability-modal" class="rd-superstar-ability-modal hidden" role="dialog" aria-modal="true">
+                    <div class="rd-superstar-ability-modal__backdrop" aria-hidden="true"></div>
+                    <div class="rd-superstar-ability-modal__panel">
+                        <p class="rd-superstar-ability-modal__message" data-rd-superstar-ability-message></p>
+                        <div class="rd-superstar-ability-modal__scroll" data-rd-superstar-ability-cards></div>
+                        <div class="rd-superstar-ability-modal__actions">
+                            <button type="button" class="rd-btn rd-btn--secondary rd-superstar-ability-modal__pass" data-rd-superstar-ability-pass>Pass</button>
+                            <button type="button" class="rd-btn rd-btn--primary rd-superstar-ability-modal__confirm" data-rd-superstar-ability-confirm disabled>Confirm</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="rd-hand-reveal-modal" class="rd-hand-reveal-modal hidden" role="dialog" aria-modal="true">
                     <div class="rd-hand-reveal-modal__backdrop" aria-hidden="true"></div>
                     <div class="rd-hand-reveal-modal__panel">
@@ -202,6 +214,7 @@
 <script src="/js/games/rawdeal/ui/animations.js"></script>
 <script src="/js/games/rawdeal/ui/choiceModal.js"></script>
 <script src="/js/games/rawdeal/ui/handRevealModal.js"></script>
+<script src="/js/games/rawdeal/ui/superstarAbilityModal.js"></script>
 <script src="/js/games/rawdeal/ui/pileViewModal.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
 <% if (devMode) { %>

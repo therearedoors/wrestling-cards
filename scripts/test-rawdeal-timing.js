@@ -410,6 +410,101 @@ async function testAtomicDropBonusLostOnNonManeuver() {
   assert(punchDamage === 3, 'Later maneuver does not get +2D after a non-maneuver was played next');
 }
 
+async function testRockPreDrawAbilityOpensModal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  assert(player.superstar.id === 'the-rock', 'Player 0 uses The Rock');
+
+  const ringsideCard = cloneCard(RawDeal, 'chop', 'rock-rs-1');
+  player.ringside.push(ringsideCard);
+  player.preDrawSuperstarResolved = false;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+  engine.abilityFlow = null;
+
+  await engine._runAutoPhases();
+
+  assert(engine.abilityFlow?.step === 'rockRingside', 'Rock pre-draw ability opens before draw');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.DRAW,
+    'Draw step waits while Rock ability modal is open'
+  );
+}
+
+async function testRockPreDrawConfirmMovesCardToArsenalBottom() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const ringsideCard = cloneCard(RawDeal, 'punch', 'rock-rs-2');
+  player.ringside.push(ringsideCard);
+  player.preDrawSuperstarResolved = false;
+  const handBefore = player.hand.length;
+
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+  engine.abilityFlow = {
+    playerIndex: 0,
+    superstarId: 'the-rock',
+    step: 'rockRingside',
+    selectedId: ringsideCard.instanceId,
+  };
+
+  await engine.confirmSuperstarAbilityPrompt(0, ringsideCard.instanceId);
+
+  assert(
+    player.arsenal[0]?.instanceId === ringsideCard.instanceId,
+    'Chosen Ringside card goes to bottom of Arsenal'
+  );
+  assert(
+    player.hand.length === handBefore + 1,
+    'Draw step still runs after Rock ability confirm'
+  );
+  assert(
+    !player.ringside.some((c) => c.instanceId === ringsideCard.instanceId),
+    'Card leaves Ringside after confirm'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Draw step completes after Rock ability confirm'
+  );
+}
+
+async function testRockPreDrawPassKeepsRingside() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const ringsideCard = cloneCard(RawDeal, 'kick', 'rock-rs-3');
+  player.ringside.push(ringsideCard);
+  player.preDrawSuperstarResolved = false;
+
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+  engine.abilityFlow = {
+    playerIndex: 0,
+    superstarId: 'the-rock',
+    step: 'rockRingside',
+    selectedId: null,
+  };
+
+  await engine.passSuperstarAbilityPrompt(0);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === ringsideCard.instanceId),
+    'Pass leaves Ringside unchanged'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Draw step completes after Rock ability pass'
+  );
+}
+
 async function testWhoopCanReversalTaxFromHand() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -493,6 +588,9 @@ async function main() {
   await testShoulderBlockReversalDamage();
   await testReversalDamagePinfall();
   await testReversalSvBeforeDamage();
+  await testRockPreDrawAbilityOpensModal();
+  await testRockPreDrawConfirmMovesCardToArsenalBottom();
+  await testRockPreDrawPassKeepsRingside();
   await testAtomicDropNextCardManeuverBonus();
   await testAtomicDropBonusLostOnNonManeuver();
   await testWhoopCanReversalTaxFromHand();

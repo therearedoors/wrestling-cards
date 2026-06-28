@@ -1,12 +1,20 @@
 window.RawDeal = window.RawDeal || {};
 
 window.RawDeal.Board = class Board {
-  constructor(rootEl, cardPreview, choiceModal = null, handRevealModal = null, pileViewModal = null) {
+  constructor(
+    rootEl,
+    cardPreview,
+    choiceModal = null,
+    handRevealModal = null,
+    pileViewModal = null,
+    superstarAbilityModal = null
+  ) {
     this.root = rootEl;
     this.cardPreview = cardPreview;
     this.choiceModal = choiceModal;
     this.handRevealModal = handRevealModal;
     this.pileViewModal = pileViewModal;
+    this.superstarAbilityModal = superstarAbilityModal;
     if (this.choiceModal) {
       this.choiceModal.onSelect = (optionId) => {
         if (this.onChoiceSelect) this.onChoiceSelect(optionId);
@@ -24,6 +32,17 @@ window.RawDeal.Board = class Board {
       };
       this.handRevealModal.onToggleSelect = (instanceId) => {
         if (this.onToggleHandRevealSelect) this.onToggleHandRevealSelect(instanceId);
+      };
+    }
+    if (this.superstarAbilityModal) {
+      this.superstarAbilityModal.onPass = () => {
+        if (this.onPassSuperstarAbility) this.onPassSuperstarAbility();
+      };
+      this.superstarAbilityModal.onConfirm = (instanceId) => {
+        if (this.onConfirmSuperstarAbility) this.onConfirmSuperstarAbility(instanceId);
+      };
+      this.superstarAbilityModal.onToggleSelect = (instanceId) => {
+        if (this.onToggleSuperstarAbilitySelect) this.onToggleSuperstarAbilitySelect(instanceId);
       };
     }
     this._state = null;
@@ -70,6 +89,9 @@ window.RawDeal.Board = class Board {
     this.onEndTurn = null;
     this.onRestart = null;
     this.onUseSuperstarAbility = null;
+    this.onPassSuperstarAbility = null;
+    this.onConfirmSuperstarAbility = null;
+    this.onToggleSuperstarAbilitySelect = null;
     this.onAbilitySelect = null;
     this.onChoiceSelect = null;
     this.onPlayReversal = null;
@@ -288,20 +310,23 @@ window.RawDeal.Board = class Board {
 
     const ability = state.superstarAbility || {};
     const activePrompt = state.selectionPrompt || ability.prompt;
+    const inlineAbilityPrompt = activePrompt?.mode === 'ringside' ? activePrompt : null;
+    const uiBlocked =
+      !!activePrompt || !!state.handReveal || !!state.reversalWindow?.canRespond;
 
     this._renderChoiceModal(activePrompt);
     this._renderHandReveal(state.handReveal);
+    this._renderSuperstarAbilityModal(ability.prompt);
     this._renderSuperstarAbility(player, ability, state.canPlay, activePrompt);
     this._renderAbilityPrompt(activePrompt);
     this._renderReversalPrompt(state.reversalWindow);
     this._renderHand(player, state.canPlay, activePrompt, state.reversalWindow, state.handReveal);
     this._renderCompactRing(this.els.playerRingCards, player.ring);
     this._renderRingside(this.els.opponentRingsideCards, opponent.ringside);
-    this._renderRingside(this.els.playerRingsideCards, player.ringside, activePrompt);
+    this._renderRingside(this.els.playerRingsideCards, player.ringside, inlineAbilityPrompt);
     this._updatePileLabels(player, opponent);
 
-    this.els.endTurnBtn.disabled =
-      !state.canPlay || !!activePrompt || !!state.handReveal || !!state.reversalWindow?.canRespond;
+    this.els.endTurnBtn.disabled = !state.canPlay || uiBlocked;
     if (this.els.passPriorityBtn) {
       this.els.passPriorityBtn.classList.toggle('hidden', !state.reversalWindow?.canRespond);
       this.els.passPriorityBtn.disabled = !state.reversalWindow?.canRespond;
@@ -325,11 +350,20 @@ window.RawDeal.Board = class Board {
     }
   }
 
+  _renderSuperstarAbilityModal(prompt) {
+    if (!this.superstarAbilityModal) return;
+    if (prompt?.mode === 'ringsideModal') {
+      this.superstarAbilityModal.show(prompt);
+    } else {
+      this.superstarAbilityModal.hide();
+    }
+  }
+
   _renderSuperstarAbility(player, ability, canPlay, activePrompt) {
     const btn = this.els.superstarAbilityBtn;
     if (!btn) return;
 
-    const show = ability.supported && canPlay;
+    const show = ability.supported && ability.usesButton && canPlay;
     btn.classList.toggle('hidden', !show);
 
     if (!show) return;
@@ -363,7 +397,7 @@ window.RawDeal.Board = class Board {
     const text = this.els.abilityPromptText;
     if (!panel || !text) return;
 
-    const active = !!prompt && prompt.mode !== 'choice';
+    const active = !!prompt && prompt.mode !== 'choice' && prompt.mode !== 'ringsideModal';
     panel.classList.toggle('hidden', !active);
     if (active) {
       text.textContent = prompt.message;
