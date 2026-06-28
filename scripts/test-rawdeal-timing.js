@@ -469,6 +469,154 @@ async function testStoneColdStunnerNoDiscountWithoutKick() {
   );
 }
 
+function tombstoneFortitudeCost(RawDeal, player) {
+  const tombstone = cloneCard(RawDeal, 'kanes-tombstone-piledriver', 'ktp-cost');
+  return RawDeal.CardUtils.playFortitudeCost(tombstone, 'maneuver', player);
+}
+
+async function setupKaneTombstoneDiscountEngine(RawDeal) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('kane', 'hhh');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  opponent.hand = [];
+  opponent.arsenal = Array.from({ length: 20 }, (_, i) =>
+    cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`)
+  );
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent };
+}
+
+function preloadRingFortitude(engine, player, RawDeal, minimum) {
+  let i = 0;
+  while (engine._calcFortitude(player) < minimum) {
+    player.ring.maneuvers.push(cloneCard(RawDeal, 'spear', `preload-spear-${i++}`));
+  }
+  engine._syncFortitude(player);
+}
+
+async function testKaneTombstoneDiscountAfterChokeslam() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  const chokeslam = cloneCard(RawDeal, 'kanes-chokeslam', 'chokeslam-0');
+  player.hand = [chokeslam];
+  preloadRingFortitude(engine, player, RawDeal, 12);
+
+  await engine.playCard(0, chokeslam.instanceId, 'maneuver');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'kanes-chokeslam',
+    "Kane's Chokeslam is recorded as the last played card"
+  );
+  assert(
+    tombstoneFortitudeCost(RawDeal, player) === 24,
+    "Tombstone is 24F immediately after Kane's Chokeslam"
+  );
+}
+
+async function testKaneTombstoneNoDiscountAfterPunch() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  const chokeslam = cloneCard(RawDeal, 'kanes-chokeslam', 'chokeslam-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+  player.hand = [chokeslam, punch];
+  preloadRingFortitude(engine, player, RawDeal, 12);
+
+  assert(
+    await engine.playCard(0, chokeslam.instanceId, 'maneuver'),
+    "Kane's Chokeslam plays successfully before Punch"
+  );
+  assert(
+    await engine.playCard(0, punch.instanceId, 'maneuver'),
+    'Punch plays successfully after Chokeslam'
+  );
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'punch',
+    'Punch replaces Chokeslam as the last played card'
+  );
+  assert(
+    tombstoneFortitudeCost(RawDeal, player) === 30,
+    "Tombstone is 30F after Chokeslam then Punch"
+  );
+}
+
+async function testKaneTombstoneNoDiscountAfterAction() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  const chokeslam = cloneCard(RawDeal, 'kanes-chokeslam', 'chokeslam-0');
+  const chop = cloneCard(RawDeal, 'chop', 'chop-0');
+  player.hand = [chokeslam, chop];
+  preloadRingFortitude(engine, player, RawDeal, 12);
+
+  await engine.playCard(0, chokeslam.instanceId, 'maneuver');
+  await engine.playCard(0, chop.instanceId, 'action');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'chop',
+    'Chop action replaces Chokeslam as the last played card'
+  );
+  assert(
+    tombstoneFortitudeCost(RawDeal, player) === 30,
+    'Tombstone is 30F after Chokeslam then Chop action'
+  );
+}
+
+async function testKaneTombstoneNoDiscountWithoutChokeslam() {
+  const RawDeal = loadRawDeal();
+  const { player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  assert(
+    player.turnState?.lastPlayedCardId == null,
+    'Turn starts with no last played card'
+  );
+  assert(
+    tombstoneFortitudeCost(RawDeal, player) === 30,
+    "Tombstone is 30F without prior Kane's Chokeslam"
+  );
+}
+
+async function testKaneTombstoneCanPlayAtDiscountedCost() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  const chokeslam = cloneCard(RawDeal, 'kanes-chokeslam', 'chokeslam-0');
+  const tombstone = cloneCard(RawDeal, 'kanes-tombstone-piledriver', 'ktp-0');
+  player.hand = [chokeslam, tombstone];
+  preloadRingFortitude(engine, player, RawDeal, 12);
+
+  await engine.playCard(0, chokeslam.instanceId, 'maneuver');
+  engine._syncFortitude(player);
+
+  assert(
+    player.fortitude === 27,
+    'Ring fortitude is 27 after Chokeslam follows preloaded maneuvers'
+  );
+  assert(
+    engine.canPlayCard(0, tombstone.instanceId, 'maneuver'),
+    "Tombstone is playable at 24F immediately after Chokeslam with 27F in ring"
+  );
+
+  const preloadIdx = player.ring.maneuvers.findIndex((c) => c.instanceId.startsWith('preload-spear-'));
+  player.ring.maneuvers.splice(preloadIdx, 1);
+  engine._syncFortitude(player);
+  assert(
+    player.fortitude === 22,
+    'Ring fortitude drops to 22 after removing one preloaded maneuver'
+  );
+  assert(
+    !engine.canPlayCard(0, tombstone.instanceId, 'maneuver'),
+    'Tombstone is not playable at 24F when only 22F is available'
+  );
+}
+
 async function testStoneColdStunnerCanPlayAtDiscountedCost() {
   const RawDeal = loadRawDeal();
   const { engine, player } = await setupStunnerDiscountEngine(RawDeal);
@@ -866,6 +1014,11 @@ async function main() {
   await testStoneColdStunnerNoDiscountAfterAction();
   await testStoneColdStunnerNoDiscountWithoutKick();
   await testStoneColdStunnerCanPlayAtDiscountedCost();
+  await testKaneTombstoneDiscountAfterChokeslam();
+  await testKaneTombstoneNoDiscountAfterPunch();
+  await testKaneTombstoneNoDiscountAfterAction();
+  await testKaneTombstoneNoDiscountWithoutChokeslam();
+  await testKaneTombstoneCanPlayAtDiscountedCost();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
 
