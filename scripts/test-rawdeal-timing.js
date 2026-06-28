@@ -4,9 +4,9 @@ function cloneCard(RawDeal, id, instanceId) {
   return { ...RawDeal.CARDS[id], instanceId };
 }
 
-function createTestEngine(RawDeal) {
+async function createTestEngine(RawDeal) {
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const player = engine.players[0];
   const opponent = engine.players[1];
@@ -53,7 +53,7 @@ function assert(condition, message) {
 
 async function testKickArsenalBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, player } = createTestEngine(RawDeal);
+  const { engine, player } = await createTestEngine(RawDeal);
   const order = trackEffectOrder(engine);
 
   const kick = cloneCard(RawDeal, 'kick', 'kick-test');
@@ -72,7 +72,7 @@ async function testKickArsenalBeforeDamage() {
 
 async function testSpinningHeelKickDiscardBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, player } = createTestEngine(RawDeal);
+  const { engine, player } = await createTestEngine(RawDeal);
   const order = trackEffectOrder(engine);
 
   const shk = cloneCard(RawDeal, 'spinning-heel-kick', 'shk-test');
@@ -90,7 +90,7 @@ async function testSpinningHeelKickDiscardBeforeDamage() {
 
 async function testHeadlockTakedownOpponentDrawBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, player, opponent } = createTestEngine(RawDeal);
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
 
   const order = trackEffectOrder(engine);
   const handSizeBefore = opponent.hand.length;
@@ -114,7 +114,7 @@ async function testHeadlockTakedownOpponentDrawBeforeDamage() {
 
 async function testBulldogChainBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, player, opponent } = createTestEngine(RawDeal);
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
 
   let damageResolved = false;
   const origDamage = engine._resolveDamage.bind(engine);
@@ -140,7 +140,7 @@ async function testBulldogChainBeforeDamage() {
   assert(damageResolved, 'Bulldog resolves damage after maneuverEffects pipeline completes');
 }
 
-function createHandReversalTest(RawDeal, options = {}) {
+async function createHandReversalTest(RawDeal, options = {}) {
   const {
     maneuverId = 'punch',
     reversalId = 'elbow-to-the-face',
@@ -149,7 +149,7 @@ function createHandReversalTest(RawDeal, options = {}) {
   } = options;
 
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const attacker = engine.players[0];
   const defender = engine.players[1];
@@ -162,7 +162,6 @@ function createHandReversalTest(RawDeal, options = {}) {
   const maneuver = cloneCard(RawDeal, maneuverId, 'maneuver-test');
   const reversal = cloneCard(RawDeal, reversalId, 'reversal-test');
 
-  attacker.ring.maneuvers.push(maneuver);
   if (afterIrishWhip) {
     attacker.turnState = engine._emptyTurnState();
     attacker.turnState.irishWhipPlayed = true;
@@ -192,7 +191,7 @@ function createHandReversalTest(RawDeal, options = {}) {
 
 async function testElbowReversalRingPlacementAndDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, attacker, defender, reversal } = createHandReversalTest(RawDeal);
+  const { engine, attacker, defender, maneuver, reversal } = await createHandReversalTest(RawDeal);
   const arsenalBefore = attacker.arsenal.length;
 
   await engine.playReversalFromHand(1, reversal.instanceId);
@@ -205,6 +204,14 @@ async function testElbowReversalRingPlacementAndDamage() {
     !defender.ringside.some((c) => c.instanceId === reversal.instanceId),
     'Elbow reversal is not in Ringside'
   );
+  assert(
+    attacker.ringside.some((c) => c.instanceId === maneuver.instanceId),
+    'Reversed maneuver goes to attacker Ringside'
+  );
+  assert(
+    !attacker.ring.maneuvers.some((c) => c.instanceId === maneuver.instanceId),
+    'Reversed maneuver is not left in Ring'
+  );
   assert(defender.fortitude === 2, 'Elbow in Ring adds +2F');
   assert(
     attacker.arsenal.length === arsenalBefore - 2,
@@ -212,9 +219,62 @@ async function testElbowReversalRingPlacementAndDamage() {
   );
 }
 
+async function testDeferredManeuverNotInRingDuringWindow() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 20;
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Maneuver opens reversal priority window'
+  );
+  assert(
+    !attacker.ring.maneuvers.some((c) => c.instanceId === punch.instanceId),
+    'Maneuver is not placed in Ring during reversal window'
+  );
+}
+
+async function testPassPriorityPlacesManeuverInRing() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 20;
+  defender.hand = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `def-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.passPriority(1);
+
+  assert(
+    attacker.ring.maneuvers.some((c) => c.instanceId === punch.instanceId),
+    'Maneuver enters Ring after defender passes priority'
+  );
+}
+
 async function testShoulderBlockReversalDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, attacker, defender, reversal } = createHandReversalTest(RawDeal, {
+  const { engine, attacker, defender, reversal } = await createHandReversalTest(RawDeal, {
     maneuverId: 'kick',
     reversalId: 'shoulder-block',
     afterIrishWhip: true,
@@ -231,7 +291,7 @@ async function testShoulderBlockReversalDamage() {
 
 async function testReversalDamagePinfall() {
   const RawDeal = loadRawDeal();
-  const { engine, reversal } = createHandReversalTest(RawDeal, { arsenalCount: 1 });
+  const { engine, reversal } = await createHandReversalTest(RawDeal, { arsenalCount: 1 });
 
   await engine.playReversalFromHand(1, reversal.instanceId);
 
@@ -242,7 +302,7 @@ async function testReversalDamagePinfall() {
 
 async function testReversalSvBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, reversal } = createHandReversalTest(RawDeal, { maneuverId: 'haymaker' });
+  const { engine, reversal } = await createHandReversalTest(RawDeal, { maneuverId: 'haymaker' });
   const order = [];
 
   const origSv = engine._applyStunValueDraw.bind(engine);
@@ -266,10 +326,601 @@ async function testReversalSvBeforeDamage() {
   );
 }
 
+async function testAtomicDropNextCardManeuverBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const atomicDrop = cloneCard(RawDeal, 'atomic-drop', 'atomic-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  player.hand = [atomicDrop, punch];
+  player.fortitude = 20;
+  opponent.hand = [];
+  for (let i = 0; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  let punchDamage = null;
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    if (args[2]?.instanceId === punch.instanceId) {
+      punchDamage = args[3];
+    }
+    return origDamage(...args);
+  };
+
+  await engine.playCard(0, atomicDrop.instanceId, 'maneuver');
+  assert(
+    player.turnState?.nextCardManeuverBonus === 2,
+    'Atomic Drop sets +2D on next card if it is a maneuver'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(punchDamage === 5, 'Next maneuver gets +2D after Atomic Drop (Punch 3D + 2)');
+  assert(
+    !player.turnState?.nextCardManeuverBonus,
+    'Next-card maneuver bonus is consumed after use'
+  );
+}
+
+function stunnerFortitudeCost(RawDeal, player) {
+  const stunner = cloneCard(RawDeal, 'stone-cold-stunner', 'scs-cost');
+  return RawDeal.CardUtils.playFortitudeCost(stunner, 'maneuver', player);
+}
+
+async function setupStunnerDiscountEngine(RawDeal) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  opponent.hand = [];
+  for (let i = 0; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent };
+}
+
+async function testStoneColdStunnerDiscountAfterKick() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupStunnerDiscountEngine(RawDeal);
+
+  const kick = cloneCard(RawDeal, 'kick', 'kick-0');
+  player.hand = [kick];
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'arsenal-top'));
+
+  await engine.playCard(0, kick.instanceId, 'maneuver');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'kick',
+    'Kick is recorded as the last played card'
+  );
+  assert(
+    stunnerFortitudeCost(RawDeal, player) === 24,
+    'Stunner is 24F immediately after Kick'
+  );
+}
+
+async function testStoneColdStunnerNoDiscountAfterPunch() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupStunnerDiscountEngine(RawDeal);
+
+  const kick = cloneCard(RawDeal, 'kick', 'kick-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+  player.hand = [kick, punch];
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'arsenal-top'));
+
+  await engine.playCard(0, kick.instanceId, 'maneuver');
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'punch',
+    'Punch replaces Kick as the last played card'
+  );
+  assert(
+    stunnerFortitudeCost(RawDeal, player) === 30,
+    'Stunner is 30F after Kick then Punch'
+  );
+}
+
+async function testStoneColdStunnerNoDiscountAfterAction() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupStunnerDiscountEngine(RawDeal);
+
+  const kick = cloneCard(RawDeal, 'kick', 'kick-0');
+  const chop = cloneCard(RawDeal, 'chop', 'chop-0');
+  player.hand = [kick, chop];
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'arsenal-top'));
+
+  await engine.playCard(0, kick.instanceId, 'maneuver');
+  await engine.playCard(0, chop.instanceId, 'action');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'chop',
+    'Chop action replaces Kick as the last played card'
+  );
+  assert(
+    stunnerFortitudeCost(RawDeal, player) === 30,
+    'Stunner is 30F after Kick then Chop action'
+  );
+}
+
+async function testStoneColdStunnerNoDiscountWithoutKick() {
+  const RawDeal = loadRawDeal();
+  const { player } = await setupStunnerDiscountEngine(RawDeal);
+
+  assert(
+    player.turnState?.lastPlayedCardId == null,
+    'Turn starts with no last played card'
+  );
+  assert(
+    stunnerFortitudeCost(RawDeal, player) === 30,
+    'Stunner is 30F without prior Kick'
+  );
+}
+
+function tombstoneFortitudeCost(RawDeal, player) {
+  const tombstone = cloneCard(RawDeal, 'kanes-tombstone-piledriver', 'ktp-cost');
+  return RawDeal.CardUtils.playFortitudeCost(tombstone, 'maneuver', player);
+}
+
+async function setupKaneTombstoneDiscountEngine(RawDeal) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('kane', 'hhh');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  opponent.hand = [];
+  opponent.arsenal = Array.from({ length: 20 }, (_, i) =>
+    cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`)
+  );
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent };
+}
+
+function preloadRingFortitude(engine, player, RawDeal, minimum) {
+  let i = 0;
+  while (engine._calcFortitude(player) < minimum) {
+    player.ring.maneuvers.push(cloneCard(RawDeal, 'spear', `preload-spear-${i++}`));
+  }
+  engine._syncFortitude(player);
+}
+
+async function testKaneTombstoneDiscountAfterChokeslam() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  const chokeslam = cloneCard(RawDeal, 'kanes-chokeslam', 'chokeslam-0');
+  player.hand = [chokeslam];
+  preloadRingFortitude(engine, player, RawDeal, 12);
+
+  await engine.playCard(0, chokeslam.instanceId, 'maneuver');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'kanes-chokeslam',
+    "Kane's Chokeslam is recorded as the last played card"
+  );
+  assert(
+    tombstoneFortitudeCost(RawDeal, player) === 24,
+    "Tombstone is 24F immediately after Kane's Chokeslam"
+  );
+}
+
+async function testKaneTombstoneNoDiscountAfterPunch() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  const chokeslam = cloneCard(RawDeal, 'kanes-chokeslam', 'chokeslam-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+  player.hand = [chokeslam, punch];
+  preloadRingFortitude(engine, player, RawDeal, 12);
+
+  assert(
+    await engine.playCard(0, chokeslam.instanceId, 'maneuver'),
+    "Kane's Chokeslam plays successfully before Punch"
+  );
+  assert(
+    await engine.playCard(0, punch.instanceId, 'maneuver'),
+    'Punch plays successfully after Chokeslam'
+  );
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'punch',
+    'Punch replaces Chokeslam as the last played card'
+  );
+  assert(
+    tombstoneFortitudeCost(RawDeal, player) === 30,
+    "Tombstone is 30F after Chokeslam then Punch"
+  );
+}
+
+async function testKaneTombstoneNoDiscountAfterAction() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  const chokeslam = cloneCard(RawDeal, 'kanes-chokeslam', 'chokeslam-0');
+  const chop = cloneCard(RawDeal, 'chop', 'chop-0');
+  player.hand = [chokeslam, chop];
+  preloadRingFortitude(engine, player, RawDeal, 12);
+
+  await engine.playCard(0, chokeslam.instanceId, 'maneuver');
+  await engine.playCard(0, chop.instanceId, 'action');
+
+  assert(
+    player.turnState?.lastPlayedCardId === 'chop',
+    'Chop action replaces Chokeslam as the last played card'
+  );
+  assert(
+    tombstoneFortitudeCost(RawDeal, player) === 30,
+    'Tombstone is 30F after Chokeslam then Chop action'
+  );
+}
+
+async function testKaneTombstoneNoDiscountWithoutChokeslam() {
+  const RawDeal = loadRawDeal();
+  const { player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  assert(
+    player.turnState?.lastPlayedCardId == null,
+    'Turn starts with no last played card'
+  );
+  assert(
+    tombstoneFortitudeCost(RawDeal, player) === 30,
+    "Tombstone is 30F without prior Kane's Chokeslam"
+  );
+}
+
+async function testKaneTombstoneCanPlayAtDiscountedCost() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupKaneTombstoneDiscountEngine(RawDeal);
+
+  const chokeslam = cloneCard(RawDeal, 'kanes-chokeslam', 'chokeslam-0');
+  const tombstone = cloneCard(RawDeal, 'kanes-tombstone-piledriver', 'ktp-0');
+  player.hand = [chokeslam, tombstone];
+  preloadRingFortitude(engine, player, RawDeal, 12);
+
+  await engine.playCard(0, chokeslam.instanceId, 'maneuver');
+  engine._syncFortitude(player);
+
+  assert(
+    player.fortitude === 27,
+    'Ring fortitude is 27 after Chokeslam follows preloaded maneuvers'
+  );
+  assert(
+    engine.canPlayCard(0, tombstone.instanceId, 'maneuver'),
+    "Tombstone is playable at 24F immediately after Chokeslam with 27F in ring"
+  );
+
+  const preloadIdx = player.ring.maneuvers.findIndex((c) => c.instanceId.startsWith('preload-spear-'));
+  player.ring.maneuvers.splice(preloadIdx, 1);
+  engine._syncFortitude(player);
+  assert(
+    player.fortitude === 22,
+    'Ring fortitude drops to 22 after removing one preloaded maneuver'
+  );
+  assert(
+    !engine.canPlayCard(0, tombstone.instanceId, 'maneuver'),
+    'Tombstone is not playable at 24F when only 22F is available'
+  );
+}
+
+async function testStoneColdStunnerCanPlayAtDiscountedCost() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await setupStunnerDiscountEngine(RawDeal);
+
+  const kick = cloneCard(RawDeal, 'kick', 'kick-0');
+  const stunner = cloneCard(RawDeal, 'stone-cold-stunner', 'scs-0');
+  player.hand = [kick, stunner];
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'arsenal-top'));
+
+  for (let i = 0; i < 4; i++) {
+    player.ring.maneuvers.push(cloneCard(RawDeal, 'spear', `ring-spear-${i}`));
+  }
+  engine._syncFortitude(player);
+
+  await engine.playCard(0, kick.instanceId, 'maneuver');
+  engine._syncFortitude(player);
+
+  assert(
+    player.fortitude === 25,
+    'Ring fortitude is 25 after Kick follows preloaded maneuvers'
+  );
+  assert(
+    engine.canPlayCard(0, stunner.instanceId, 'maneuver'),
+    'Stunner is playable at 24F immediately after Kick with 25F in ring'
+  );
+
+  player.ring.maneuvers.pop();
+  engine._syncFortitude(player);
+  assert(
+    player.fortitude === 20,
+    'Ring fortitude drops to 20 after removing one maneuver'
+  );
+  assert(
+    !engine.canPlayCard(0, stunner.instanceId, 'maneuver'),
+    'Stunner is not playable at 24F when only 20F is available'
+  );
+}
+
+async function testAtomicDropBonusLostOnNonManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const atomicDrop = cloneCard(RawDeal, 'atomic-drop', 'atomic-0');
+  const chop = cloneCard(RawDeal, 'chop', 'chop-0');
+  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
+
+  player.hand = [atomicDrop, chop, punch];
+  player.fortitude = 20;
+  opponent.hand = [];
+  for (let i = 0; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  let punchDamage = null;
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    if (args[2]?.instanceId === punch.instanceId) {
+      punchDamage = args[3];
+    }
+    return origDamage(...args);
+  };
+
+  await engine.playCard(0, atomicDrop.instanceId, 'maneuver');
+  await engine.playCard(0, chop.instanceId, 'action');
+  assert(
+    !player.turnState?.nextCardManeuverBonus,
+    'Playing an action as the next card clears the pending bonus'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(punchDamage === 3, 'Later maneuver does not get +2D after a non-maneuver was played next');
+}
+
+async function testRockPreDrawAbilityOpensModal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  assert(player.superstar.id === 'the-rock', 'Player 0 uses The Rock');
+
+  const ringsideCard = cloneCard(RawDeal, 'chop', 'rock-rs-1');
+  player.ringside.push(ringsideCard);
+  player.preDrawSuperstarResolved = false;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+  engine.abilityFlow = null;
+
+  await engine._runAutoPhases();
+
+  assert(engine.abilityFlow?.step === 'rockRingside', 'Rock pre-draw ability opens before draw');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.DRAW,
+    'Draw step waits while Rock ability modal is open'
+  );
+}
+
+async function testRockPreDrawConfirmMovesCardToArsenalBottom() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const ringsideCard = cloneCard(RawDeal, 'punch', 'rock-rs-2');
+  player.ringside.push(ringsideCard);
+  player.preDrawSuperstarResolved = false;
+  const handBefore = player.hand.length;
+
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+  engine.abilityFlow = {
+    playerIndex: 0,
+    superstarId: 'the-rock',
+    step: 'rockRingside',
+    selectedId: ringsideCard.instanceId,
+  };
+
+  await engine.confirmSuperstarAbilityPrompt(0, ringsideCard.instanceId);
+
+  assert(
+    player.arsenal[0]?.instanceId === ringsideCard.instanceId,
+    'Chosen Ringside card goes to bottom of Arsenal'
+  );
+  assert(
+    player.hand.length === handBefore + 1,
+    'Draw step still runs after Rock ability confirm'
+  );
+  assert(
+    !player.ringside.some((c) => c.instanceId === ringsideCard.instanceId),
+    'Card leaves Ringside after confirm'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Draw step completes after Rock ability confirm'
+  );
+}
+
+async function testRockPreDrawPassKeepsRingside() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const ringsideCard = cloneCard(RawDeal, 'kick', 'rock-rs-3');
+  player.ringside.push(ringsideCard);
+  player.preDrawSuperstarResolved = false;
+
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+  engine.abilityFlow = {
+    playerIndex: 0,
+    superstarId: 'the-rock',
+    step: 'rockRingside',
+    selectedId: null,
+  };
+
+  await engine.passSuperstarAbilityPrompt(0);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === ringsideCard.instanceId),
+    'Pass leaves Ringside unchanged'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Draw step completes after Rock ability pass'
+  );
+}
+
+async function testKanePreDrawOverturnsOpponentArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('kane', 'austin');
+
+  const kane = engine.players[0];
+  const opponent = engine.players[1];
+  assert(kane.superstar.id === 'kane', 'Player 0 uses Kane');
+
+  const topCard = cloneCard(RawDeal, 'chop', 'kane-opp-top');
+  opponent.arsenal.push(topCard);
+  const arsenalBefore = opponent.arsenal.length;
+
+  kane.preDrawSuperstarResolved = false;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+  engine.abilityFlow = null;
+
+  let reversalChecked = false;
+  const origReversal = engine._reversalStops.bind(engine);
+  engine._reversalStops = (...args) => {
+    reversalChecked = true;
+    return origReversal(...args);
+  };
+
+  await engine._runAutoPhases();
+
+  assert(
+    opponent.ringside.some((c) => c.instanceId === topCard.instanceId),
+    'Kane puts opponent top Arsenal card into Ringside'
+  );
+  assert(
+    opponent.arsenal.length === arsenalBefore - 1,
+    'Opponent Arsenal loses the overturned card'
+  );
+  assert(!reversalChecked, 'Kane overturn is not a reversible damage step');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Draw step completes after Kane pre-draw overturn'
+  );
+}
+
+async function testKanePreDrawSkipsWhenOpponentArsenalEmpty() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('kane', 'austin');
+
+  const opponent = engine.players[1];
+  const ringsideBefore = opponent.ringside.length;
+  opponent.arsenal = [];
+  engine.players[0].preDrawSuperstarResolved = false;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine._runAutoPhases();
+
+  assert(
+    opponent.ringside.length === ringsideBefore,
+    'No Ringside card added when Arsenal is empty'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Turn still advances to Main when opponent Arsenal is empty'
+  );
+}
+
+async function testJerichoSuperstarAbilityForcesOpponentDiscard() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('jericho', 'austin');
+
+  const jericho = engine.players[0];
+  const opponent = engine.players[1];
+  assert(jericho.superstar.id === 'jericho', 'Player 0 uses Chris Jericho');
+
+  const selfDiscard = cloneCard(RawDeal, 'chop', 'jericho-hand-0');
+  const oppCard = cloneCard(RawDeal, 'punch', 'opp-hand-0');
+  jericho.hand = [selfDiscard];
+  opponent.hand = [oppCard];
+  jericho.fortitude = 20;
+  opponent.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  assert(engine.beginSuperstarAbility(0), 'Jericho ability can begin');
+  assert(engine.selectForAbility(0, selfDiscard.instanceId), 'Jericho discards chosen card');
+
+  assert(
+    jericho.ringside.some((c) => c.instanceId === selfDiscard.instanceId),
+    'Jericho card goes to Ringside'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === oppCard.instanceId),
+    'Opponent discards a card to Ringside'
+  );
+  assert(!opponent.hand.length, 'Opponent hand loses discarded card');
+  assert(jericho.superstarAbilityUsed, 'Jericho ability marked used after resolving');
+}
+
+async function testJerichoAbilityWhenOpponentHandEmpty() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('jericho', 'austin');
+
+  const jericho = engine.players[0];
+  const opponent = engine.players[1];
+  const selfDiscard = cloneCard(RawDeal, 'kick', 'jericho-hand-1');
+
+  jericho.hand = [selfDiscard];
+  opponent.hand = [];
+  jericho.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  engine.beginSuperstarAbility(0);
+  engine.selectForAbility(0, selfDiscard.instanceId);
+
+  assert(
+    jericho.ringside.some((c) => c.instanceId === selfDiscard.instanceId),
+    'Jericho still discards when opponent hand is empty'
+  );
+  assert(jericho.superstarAbilityUsed, 'Ability completes when opponent has nothing to discard');
+}
+
 async function testWhoopCanReversalTaxFromHand() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const attacker = engine.players[0];
   const defender = engine.players[1];
@@ -315,7 +966,7 @@ async function testWhoopCanReversalTaxFromHand() {
 async function testWhoopCanReversalTaxFromArsenal() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const attacker = engine.players[0];
   const defender = engine.players[1];
@@ -343,10 +994,31 @@ async function main() {
   await testSpinningHeelKickDiscardBeforeDamage();
   await testHeadlockTakedownOpponentDrawBeforeDamage();
   await testBulldogChainBeforeDamage();
+  await testDeferredManeuverNotInRingDuringWindow();
+  await testPassPriorityPlacesManeuverInRing();
   await testElbowReversalRingPlacementAndDamage();
   await testShoulderBlockReversalDamage();
   await testReversalDamagePinfall();
   await testReversalSvBeforeDamage();
+  await testRockPreDrawAbilityOpensModal();
+  await testRockPreDrawConfirmMovesCardToArsenalBottom();
+  await testRockPreDrawPassKeepsRingside();
+  await testKanePreDrawOverturnsOpponentArsenal();
+  await testKanePreDrawSkipsWhenOpponentArsenalEmpty();
+  await testJerichoSuperstarAbilityForcesOpponentDiscard();
+  await testJerichoAbilityWhenOpponentHandEmpty();
+  await testAtomicDropNextCardManeuverBonus();
+  await testAtomicDropBonusLostOnNonManeuver();
+  await testStoneColdStunnerDiscountAfterKick();
+  await testStoneColdStunnerNoDiscountAfterPunch();
+  await testStoneColdStunnerNoDiscountAfterAction();
+  await testStoneColdStunnerNoDiscountWithoutKick();
+  await testStoneColdStunnerCanPlayAtDiscountedCost();
+  await testKaneTombstoneDiscountAfterChokeslam();
+  await testKaneTombstoneNoDiscountAfterPunch();
+  await testKaneTombstoneNoDiscountAfterAction();
+  await testKaneTombstoneNoDiscountWithoutChokeslam();
+  await testKaneTombstoneCanPlayAtDiscountedCost();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
 

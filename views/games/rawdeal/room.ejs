@@ -53,34 +53,30 @@
                                 <span class="rd-pile__label">Arsenal</span>
                                 <div class="rd-pile__stack"></div>
                             </div>
-                            <div class="rd-pile" id="rd-opponent-ringside" title="Opponent Ringside">
-                                <span class="rd-pile__label">Ringside</span>
+                            <div class="rd-pile rd-pile--inspect" id="rd-opponent-ringside" data-rd-pile-type="ringside" data-rd-pile-seat="1" title="Click empty space to view all cards">
+                                <span class="rd-pile__label" data-rd-pile-label>Ringside</span>
+                                <div class="rd-pile__cards" id="rd-opponent-ringside-cards"></div>
+                                <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
+                            </div>
+                            <div class="rd-pile rd-pile--inspect" id="rd-opponent-ring" data-rd-pile-type="ring" data-rd-pile-seat="1" title="Click empty space to view all cards">
+                                <span class="rd-pile__label" data-rd-pile-label>Ring</span>
+                                <div class="rd-pile__cards" id="rd-opponent-ring-cards"></div>
+                                <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="rd-ring-zone">
+                    <div class="rd-ring-zone rd-ring-zone--inspect" data-rd-pile-type="ring" data-rd-pile-seat="0" title="Click empty space to view all cards">
                         <div class="rd-ring-header">
-                            <span class="rd-zone-title">Your Ring</span>
+                            <span class="rd-zone-title" id="rd-player-ring-title" data-rd-ring-title>Your Ring</span>
                             <div class="rd-player-stats">
                                 <span id="rd-player-superstar" class="rd-player-name">You</span>
                                 <span class="rd-fortitude">Fortitude: <strong id="rd-player-fortitude">0</strong></span>
                                 <span class="rd-arsenal-label">Arsenal: <strong id="rd-player-arsenal-count">0</strong> · Hand: <strong id="rd-player-hand-count">0</strong></span>
                             </div>
                         </div>
-                        <div class="rd-ring-areas">
-                            <div class="rd-ring-area rd-ring-area--maneuvers">
-                                <span class="rd-ring-area__label">Maneuvers</span>
-                                <div id="rd-player-maneuvers" class="rd-ring-area__cards"></div>
-                            </div>
-                            <div class="rd-ring-area rd-ring-area--reversals">
-                                <span class="rd-ring-area__label">Reversals (+ Fortitude)</span>
-                                <div id="rd-player-reversals" class="rd-ring-area__cards"></div>
-                            </div>
-                            <div class="rd-ring-area rd-ring-area--actions">
-                                <span class="rd-ring-area__label">Actions</span>
-                                <div id="rd-player-actions" class="rd-ring-area__cards"></div>
-                            </div>
+                        <div class="rd-ring-compact" id="rd-player-ring-compact">
+                            <div class="rd-ring-compact__cards" id="rd-player-ring-cards"></div>
                         </div>
                         <div class="rd-piles rd-piles--player">
                             <div class="rd-superstar-slot" id="rd-player-superstar-card" title="Your Superstar"></div>
@@ -88,8 +84,10 @@
                                 <span class="rd-pile__label">Your Arsenal</span>
                                 <div class="rd-pile__stack"></div>
                             </div>
-                            <div class="rd-pile rd-pile--compact" id="rd-player-ringside" title="Your Ringside">
-                                <span class="rd-pile__label">Your Ringside</span>
+                            <div class="rd-pile rd-pile--compact rd-pile--inspect" id="rd-player-ringside" data-rd-pile-type="ringside" data-rd-pile-seat="0" title="Click empty space to view all cards">
+                                <span class="rd-pile__label" data-rd-pile-label>Your Ringside</span>
+                                <div class="rd-pile__cards" id="rd-player-ringside-cards"></div>
+                                <div class="rd-pile__hit" data-rd-pile-hit aria-hidden="true"></div>
                             </div>
                         </div>
                     </div>
@@ -107,6 +105,27 @@
                     <div class="rd-choice-modal__panel">
                         <p id="rd-choice-modal-message" class="rd-choice-modal__message" data-rd-choice-message></p>
                         <div class="rd-choice-modal__actions" data-rd-choice-actions></div>
+                    </div>
+                </div>
+
+                <div id="rd-pile-view-modal" class="rd-pile-view-modal hidden" role="dialog" aria-modal="true">
+                    <div class="rd-pile-view-modal__backdrop" aria-hidden="true"></div>
+                    <div class="rd-pile-view-modal__panel">
+                        <p class="rd-pile-view-modal__title" data-rd-pile-view-title></p>
+                        <div class="rd-pile-view-modal__body" data-rd-pile-view-body></div>
+                        <button type="button" class="rd-btn rd-btn--primary" data-rd-pile-view-done>Done</button>
+                    </div>
+                </div>
+
+                <div id="rd-superstar-ability-modal" class="rd-superstar-ability-modal hidden" role="dialog" aria-modal="true">
+                    <div class="rd-superstar-ability-modal__backdrop" aria-hidden="true"></div>
+                    <div class="rd-superstar-ability-modal__panel">
+                        <p class="rd-superstar-ability-modal__message" data-rd-superstar-ability-message></p>
+                        <div class="rd-superstar-ability-modal__scroll" data-rd-superstar-ability-cards></div>
+                        <div class="rd-superstar-ability-modal__actions">
+                            <button type="button" class="rd-btn rd-btn--secondary rd-superstar-ability-modal__pass" data-rd-superstar-ability-pass>Pass</button>
+                            <button type="button" class="rd-btn rd-btn--primary rd-superstar-ability-modal__confirm" data-rd-superstar-ability-confirm disabled>Confirm</button>
+                        </div>
                     </div>
                 </div>
 
@@ -181,6 +200,8 @@
 <script src="/js/games/rawdeal/ui/animations.js"></script>
 <script src="/js/games/rawdeal/ui/choiceModal.js"></script>
 <script src="/js/games/rawdeal/ui/handRevealModal.js"></script>
+<script src="/js/games/rawdeal/ui/superstarAbilityModal.js"></script>
+<script src="/js/games/rawdeal/ui/pileViewModal.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
 <% if (devMode) { %>
 <script src="/js/games/rawdeal/dev/devCommands.js"></script>

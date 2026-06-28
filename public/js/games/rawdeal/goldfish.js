@@ -23,6 +23,14 @@
   const handRevealModal = handRevealModalRoot
     ? new window.RawDeal.HandRevealModal(handRevealModalRoot)
     : null;
+  const pileViewModalRoot = document.getElementById('rd-pile-view-modal');
+  const pileViewModal = pileViewModalRoot
+    ? new window.RawDeal.PileViewModal(pileViewModalRoot)
+    : null;
+  const superstarAbilityModalRoot = document.getElementById('rd-superstar-ability-modal');
+  const superstarAbilityModal = superstarAbilityModalRoot
+    ? new window.RawDeal.SuperstarAbilityModal(superstarAbilityModalRoot)
+    : null;
 
   async function loadDecks() {
     await window.RawDeal.DeckStore.load();
@@ -33,10 +41,17 @@
     }
   }
 
-  function initGame(playerDeckId) {
+  async function initGame(playerDeckId) {
     const resolvedDecks = window.RawDeal.DeckStore.getResolvedDecks();
 
-    board = new window.RawDeal.Board(boardRoot, cardPreview, choiceModal, handRevealModal);
+    board = new window.RawDeal.Board(
+      boardRoot,
+      cardPreview,
+      choiceModal,
+      handRevealModal,
+      pileViewModal,
+      superstarAbilityModal
+    );
 
     engine = new window.RawDeal.GameEngine({
       onStateChange: (state) => board.render(state),
@@ -58,18 +73,16 @@
           }
         );
       },
-      onArsenalToRingside: async ({ card, onReveal }) => {
-        await window.RawDeal.Animations.flipArsenalToRingside(
-          card,
-          board.getPlayerArsenalEl(),
-          board.getPlayerRingsideEl(),
-          {
-            onReveal: () => {
-              onReveal();
-              window.RawDeal.Animations.pulseEl(board.getPlayerRingsideEl());
-            },
-          }
-        );
+      onArsenalToRingside: async ({ card, playerSeat = 0, onReveal }) => {
+        const isPlayer = playerSeat === 0;
+        const fromEl = isPlayer ? board.getPlayerArsenalEl() : board.getOpponentArsenalEl();
+        const toEl = isPlayer ? board.getPlayerRingsideEl() : board.getOpponentRingsideEl();
+        await window.RawDeal.Animations.flipArsenalToRingside(card, fromEl, toEl, {
+          onReveal: () => {
+            onReveal();
+            window.RawDeal.Animations.pulseEl(toEl);
+          },
+        });
       },
     });
 
@@ -84,6 +97,18 @@
 
     board.onUseSuperstarAbility = () => {
       engine.beginSuperstarAbility(0);
+    };
+
+    board.onPassSuperstarAbility = async () => {
+      await engine.passSuperstarAbilityPrompt(0);
+    };
+
+    board.onConfirmSuperstarAbility = async (instanceId) => {
+      await engine.confirmSuperstarAbilityPrompt(0, instanceId);
+    };
+
+    board.onToggleSuperstarAbilitySelect = (instanceId) => {
+      engine.toggleSuperstarAbilitySelection(0, instanceId);
     };
 
     board.onAbilitySelect = async (instanceId) => {
@@ -125,7 +150,7 @@
       map[playerDeckId] ||
       playerDeck?.defaultOpponent ||
       'austin';
-    engine.startGame(playerDeckId, opponentDeckId, resolvedDecks);
+    await engine.startGame(playerDeckId, opponentDeckId, resolvedDecks);
 
     if (devMode && devConsoleRoot) {
       devConsole = new window.RawDeal.DevConsole(devConsoleRoot, engine);
@@ -143,7 +168,7 @@
       startBtn.disabled = false;
     }
     const deck = deckSelect.value || 'rock';
-    initGame(deck);
+    await initGame(deck);
   });
 
   loadDecks().catch((err) => console.warn('goldfish deck load:', err));

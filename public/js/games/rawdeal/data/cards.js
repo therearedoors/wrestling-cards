@@ -241,6 +241,7 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Strike When successfully played, if your next card played this turn is a maneuver it is +2D. SV: 1",
     flavor: "",
+    maneuverEffects: [{"op": "nextCardManeuverBonus", "value": 2}],
     set: "premiere",
   },
   'chair-shot': {
@@ -441,6 +442,7 @@ window.RawDeal.CARDS = {
     damage: 6,
     text: "Grapple When successfully played, if your next card played this turn is a maneuver it is +2D.",
     flavor: "",
+    maneuverEffects: [{"op": "nextCardManeuverBonus", "value": 2}],
     set: "premiere",
   },
   'inverse-atomic-drop': {
@@ -1309,6 +1311,7 @@ window.RawDeal.CARDS = {
     stunValue: 3,
     text: "Trademark Finisher (Maneuver Card) / -6F on this card if played after the maneuver titled Kick. Unique SV: 3",
     flavor: "",
+    discountAfterCard: {"cardId": "kick", "fortitude": 6},
     set: "premiere",
   },
   'open-up-a-can': {
@@ -1439,6 +1442,7 @@ window.RawDeal.CARDS = {
     stunValue: 3,
     text: "Trademark Finisher (Maneuver) / -6F on this card if played after the card titled Kane’s Choke Slam. Unique SV: 3",
     flavor: "",
+    discountAfterCard: {"cardId": "kanes-chokeslam", "fortitude": 6},
     set: "premiere",
   },
   'hellfire-brimstone': {
