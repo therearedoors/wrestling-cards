@@ -158,7 +158,7 @@ async function startGame(roomId, room) {
     [p1.deckId]: deck1,
   };
 
-  engine.startGame(p0.deckId, p1.deckId, deckMap, {
+  await engine.startGame(p0.deckId, p1.deckId, deckMap, {
     player0: { username: p0.username, userId: p0.id },
     player1: { username: p1.username, userId: p1.id },
   });
