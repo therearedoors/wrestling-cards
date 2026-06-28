@@ -1298,6 +1298,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Opponent skips his next turn.",
     flavor: "",
+    actionEffects: [{"op": "skipOpponentNextTurn"}],
     set: "premiere",
   },
   'stone-cold-stunner': {

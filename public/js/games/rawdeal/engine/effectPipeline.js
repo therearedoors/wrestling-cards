@@ -220,6 +220,15 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'skipOpponentNextTurn': {
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.skipOpponentNextTurn = true;
+        engine.actionLog.push({
+          message: `${sourceName}: opponent skips their next turn.`,
+        });
+        return false;
+      }
+
       case 'setupIrishWhip': {
         engine._applyIrishWhipSetup(player, { name: sourceName }, step.strikeBonus || 5);
         return false;
