@@ -1,26 +1,17 @@
 <nav>
-        <a href="/" class="nav-link">Home</a>
+    <a href="/" class="nav-link">Home</a>
     <a href="/" class="nav-brand">
         Wrestling Cards
         <ul class="nav">
         <% if (authorized) { %>
             <li class="nav-link">
-                <a href="/rawdeal/goldfish">Practice</a>
+                <a href="/practice">Practice</a>
             </li>
             <li class="nav-link">
-                <a href="/rawdeal/games">Play</a>
+                <a href="/games">Play</a>
             </li>
             <li class="nav-link">
-                <a href="/rawdeal/decks">Decks</a>
-            </li>
-            <li class="nav-link">
-                <a href="/games">Chess</a>
-            </li>
-            <li class="nav-link">
-                <a href="/my-stats">My Stats</a>
-            </li>
-            <li class="nav-link">
-                <a href="/profile">Profile</a>
+                <a href="/decks">Decks</a>
             </li>
         <% } else { %>
             <li class="nav-link">

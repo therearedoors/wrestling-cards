@@ -16,7 +16,7 @@
   const password = params.get('password') || null;
 
   if (!roomId) {
-    window.location.href = '/rawdeal/games';
+    window.location.href = '/games';
     return;
   }
 
@@ -293,7 +293,7 @@
     }
     alert(msg);
     if (msg.includes('not exist') || msg.includes('not in')) {
-      window.location.href = '/rawdeal/games';
+      window.location.href = '/games';
     }
   });
 
