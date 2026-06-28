@@ -1442,6 +1442,7 @@ window.RawDeal.CARDS = {
     stunValue: 3,
     text: "Trademark Finisher (Maneuver) / -6F on this card if played after the card titled Kane’s Choke Slam. Unique SV: 3",
     flavor: "",
+    discountAfterCard: {"cardId": "kanes-chokeslam", "fortitude": 6},
     set: "premiere",
   },
   'hellfire-brimstone': {
