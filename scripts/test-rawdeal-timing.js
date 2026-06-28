@@ -917,6 +917,75 @@ async function testJerichoAbilityWhenOpponentHandEmpty() {
   assert(jericho.superstarAbilityUsed, 'Ability completes when opponent has nothing to discard');
 }
 
+async function testPatAndGerrySetsSkipFlag() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await createTestEngine(RawDeal);
+
+  const patAndGerry = cloneCard(RawDeal, 'pat-and-gerry', 'pag-0');
+  player.hand = [patAndGerry];
+  for (let i = 0; i < 4; i++) {
+    player.ring.maneuvers.push(cloneCard(RawDeal, 'spear', `ring-spear-${i}`));
+  }
+  engine._syncFortitude(player);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, patAndGerry.instanceId, 'action');
+
+  assert(
+    player.turnState?.skipOpponentNextTurn === true,
+    'Pat and Gerry sets skipOpponentNextTurn on the active player'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === patAndGerry.instanceId),
+    'Pat and Gerry is placed in the Ring actions area'
+  );
+}
+
+async function testPatAndGerryGrantsExtraTurn() {
+  const RawDeal = loadRawDeal();
+  const { engine, player } = await createTestEngine(RawDeal);
+
+  const patAndGerry = cloneCard(RawDeal, 'pat-and-gerry', 'pag-0');
+  player.hand = [patAndGerry];
+  for (let i = 0; i < 4; i++) {
+    player.ring.maneuvers.push(cloneCard(RawDeal, 'spear', `ring-spear-${i}`));
+  }
+  engine._syncFortitude(player);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+  engine.stateMachine.turnNumber = 1;
+
+  await engine.playCard(0, patAndGerry.instanceId, 'action');
+  await engine.endTurn(0);
+
+  assert(
+    engine.stateMachine.activePlayer === 0,
+    'Player keeps the turn after Pat and Gerry when opponent is skipped'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Skipped opponent returns play to the same player in main phase'
+  );
+  assert(
+    engine.stateMachine.turnNumber === 1,
+    'Turn number does not advance when opponent turn is skipped'
+  );
+  assert(
+    !player.turnState?.skipOpponentNextTurn,
+    'Skip flag is consumed after granting the extra turn'
+  );
+
+  await engine.endTurn(0);
+
+  assert(
+    engine.stateMachine.turnNumber === 2,
+    'Turn number advances after a normal end turn following the extra turn'
+  );
+}
+
 async function testWhoopCanReversalTaxFromHand() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -1019,6 +1088,8 @@ async function main() {
   await testKaneTombstoneNoDiscountAfterAction();
   await testKaneTombstoneNoDiscountWithoutChokeslam();
   await testKaneTombstoneCanPlayAtDiscountedCost();
+  await testPatAndGerrySetsSkipFlag();
+  await testPatAndGerryGrantsExtraTurn();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
 

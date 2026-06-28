@@ -51,6 +51,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextCardManeuverBonus: 0,
       lastPlayedCardId: null,
       opponentReversalsBlocked: false,
+      skipOpponentNextTurn: false,
     };
   }
 
@@ -504,10 +505,14 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       if (phase === PHASES.END_OF_TURN) {
+        const skipOpponent = !!active.turnState?.skipOpponentNextTurn;
+        if (skipOpponent) {
+          active.turnState.skipOpponentNextTurn = false;
+        }
         this._clearTurnSetupEffects(active);
         const opponent = this.players[1 - this.stateMachine.activePlayer];
         const gameOver = this._checkCountOut(opponent);
-        this.stateMachine.transition(null, { gameOver });
+        this.stateMachine.transition(null, { gameOver, skipOpponentTurn: skipOpponent });
         if (!gameOver) continue;
         break;
       }

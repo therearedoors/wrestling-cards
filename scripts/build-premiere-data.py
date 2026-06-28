@@ -592,6 +592,9 @@ def infer_action_effects(types_list, rules, name=''):
     blob = rules.lower()
     card_name = name.lower()
 
+    if 'opponent skips his next turn' in blob or 'opponent skips their next turn' in blob:
+        return [{'op': 'skipOpponentNextTurn'}]
+
     if 'as an action' in blob and 'discard this card to draw 1' in blob:
         return [{'op': 'discardSelfToDraw', 'count': 1}]
 
