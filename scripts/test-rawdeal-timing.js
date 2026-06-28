@@ -4,9 +4,9 @@ function cloneCard(RawDeal, id, instanceId) {
   return { ...RawDeal.CARDS[id], instanceId };
 }
 
-function createTestEngine(RawDeal) {
+async function createTestEngine(RawDeal) {
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const player = engine.players[0];
   const opponent = engine.players[1];
@@ -53,7 +53,7 @@ function assert(condition, message) {
 
 async function testKickArsenalBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, player } = createTestEngine(RawDeal);
+  const { engine, player } = await createTestEngine(RawDeal);
   const order = trackEffectOrder(engine);
 
   const kick = cloneCard(RawDeal, 'kick', 'kick-test');
@@ -72,7 +72,7 @@ async function testKickArsenalBeforeDamage() {
 
 async function testSpinningHeelKickDiscardBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, player } = createTestEngine(RawDeal);
+  const { engine, player } = await createTestEngine(RawDeal);
   const order = trackEffectOrder(engine);
 
   const shk = cloneCard(RawDeal, 'spinning-heel-kick', 'shk-test');
@@ -90,7 +90,7 @@ async function testSpinningHeelKickDiscardBeforeDamage() {
 
 async function testHeadlockTakedownOpponentDrawBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, player, opponent } = createTestEngine(RawDeal);
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
 
   const order = trackEffectOrder(engine);
   const handSizeBefore = opponent.hand.length;
@@ -114,7 +114,7 @@ async function testHeadlockTakedownOpponentDrawBeforeDamage() {
 
 async function testBulldogChainBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, player, opponent } = createTestEngine(RawDeal);
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
 
   let damageResolved = false;
   const origDamage = engine._resolveDamage.bind(engine);
@@ -140,7 +140,7 @@ async function testBulldogChainBeforeDamage() {
   assert(damageResolved, 'Bulldog resolves damage after maneuverEffects pipeline completes');
 }
 
-function createHandReversalTest(RawDeal, options = {}) {
+async function createHandReversalTest(RawDeal, options = {}) {
   const {
     maneuverId = 'punch',
     reversalId = 'elbow-to-the-face',
@@ -149,7 +149,7 @@ function createHandReversalTest(RawDeal, options = {}) {
   } = options;
 
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const attacker = engine.players[0];
   const defender = engine.players[1];
@@ -191,7 +191,7 @@ function createHandReversalTest(RawDeal, options = {}) {
 
 async function testElbowReversalRingPlacementAndDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, attacker, defender, maneuver, reversal } = createHandReversalTest(RawDeal);
+  const { engine, attacker, defender, maneuver, reversal } = await createHandReversalTest(RawDeal);
   const arsenalBefore = attacker.arsenal.length;
 
   await engine.playReversalFromHand(1, reversal.instanceId);
@@ -222,7 +222,7 @@ async function testElbowReversalRingPlacementAndDamage() {
 async function testDeferredManeuverNotInRingDuringWindow() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const attacker = engine.players[0];
   const punch = cloneCard(RawDeal, 'punch', 'punch-0');
@@ -247,7 +247,7 @@ async function testDeferredManeuverNotInRingDuringWindow() {
 async function testPassPriorityPlacesManeuverInRing() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const attacker = engine.players[0];
   const defender = engine.players[1];
@@ -274,7 +274,7 @@ async function testPassPriorityPlacesManeuverInRing() {
 
 async function testShoulderBlockReversalDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, attacker, defender, reversal } = createHandReversalTest(RawDeal, {
+  const { engine, attacker, defender, reversal } = await createHandReversalTest(RawDeal, {
     maneuverId: 'kick',
     reversalId: 'shoulder-block',
     afterIrishWhip: true,
@@ -291,7 +291,7 @@ async function testShoulderBlockReversalDamage() {
 
 async function testReversalDamagePinfall() {
   const RawDeal = loadRawDeal();
-  const { engine, reversal } = createHandReversalTest(RawDeal, { arsenalCount: 1 });
+  const { engine, reversal } = await createHandReversalTest(RawDeal, { arsenalCount: 1 });
 
   await engine.playReversalFromHand(1, reversal.instanceId);
 
@@ -302,7 +302,7 @@ async function testReversalDamagePinfall() {
 
 async function testReversalSvBeforeDamage() {
   const RawDeal = loadRawDeal();
-  const { engine, reversal } = createHandReversalTest(RawDeal, { maneuverId: 'haymaker' });
+  const { engine, reversal } = await createHandReversalTest(RawDeal, { maneuverId: 'haymaker' });
   const order = [];
 
   const origSv = engine._applyStunValueDraw.bind(engine);
@@ -329,7 +329,7 @@ async function testReversalSvBeforeDamage() {
 async function testAtomicDropNextCardManeuverBonus() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const player = engine.players[0];
   const opponent = engine.players[1];
@@ -372,7 +372,7 @@ async function testAtomicDropNextCardManeuverBonus() {
 async function testAtomicDropBonusLostOnNonManeuver() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const player = engine.players[0];
   const opponent = engine.players[1];
@@ -413,7 +413,7 @@ async function testAtomicDropBonusLostOnNonManeuver() {
 async function testRockPreDrawAbilityOpensModal() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
-  engine.startGame('rock', 'austin');
+  await engine.startGame('rock', 'austin');
 
   const player = engine.players[0];
   assert(player.superstar.id === 'the-rock', 'Player 0 uses The Rock');
@@ -437,7 +437,7 @@ async function testRockPreDrawAbilityOpensModal() {
 async function testRockPreDrawConfirmMovesCardToArsenalBottom() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
-  engine.startGame('rock', 'austin');
+  await engine.startGame('rock', 'austin');
 
   const player = engine.players[0];
   const ringsideCard = cloneCard(RawDeal, 'punch', 'rock-rs-2');
@@ -477,7 +477,7 @@ async function testRockPreDrawConfirmMovesCardToArsenalBottom() {
 async function testRockPreDrawPassKeepsRingside() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
-  engine.startGame('rock', 'austin');
+  await engine.startGame('rock', 'austin');
 
   const player = engine.players[0];
   const ringsideCard = cloneCard(RawDeal, 'kick', 'rock-rs-3');
@@ -505,10 +505,136 @@ async function testRockPreDrawPassKeepsRingside() {
   );
 }
 
+async function testKanePreDrawOverturnsOpponentArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('kane', 'austin');
+
+  const kane = engine.players[0];
+  const opponent = engine.players[1];
+  assert(kane.superstar.id === 'kane', 'Player 0 uses Kane');
+
+  const topCard = cloneCard(RawDeal, 'chop', 'kane-opp-top');
+  opponent.arsenal.push(topCard);
+  const arsenalBefore = opponent.arsenal.length;
+
+  kane.preDrawSuperstarResolved = false;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+  engine.abilityFlow = null;
+
+  let reversalChecked = false;
+  const origReversal = engine._reversalStops.bind(engine);
+  engine._reversalStops = (...args) => {
+    reversalChecked = true;
+    return origReversal(...args);
+  };
+
+  await engine._runAutoPhases();
+
+  assert(
+    opponent.ringside.some((c) => c.instanceId === topCard.instanceId),
+    'Kane puts opponent top Arsenal card into Ringside'
+  );
+  assert(
+    opponent.arsenal.length === arsenalBefore - 1,
+    'Opponent Arsenal loses the overturned card'
+  );
+  assert(!reversalChecked, 'Kane overturn is not a reversible damage step');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Draw step completes after Kane pre-draw overturn'
+  );
+}
+
+async function testKanePreDrawSkipsWhenOpponentArsenalEmpty() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('kane', 'austin');
+
+  const opponent = engine.players[1];
+  const ringsideBefore = opponent.ringside.length;
+  opponent.arsenal = [];
+  engine.players[0].preDrawSuperstarResolved = false;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine._runAutoPhases();
+
+  assert(
+    opponent.ringside.length === ringsideBefore,
+    'No Ringside card added when Arsenal is empty'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Turn still advances to Main when opponent Arsenal is empty'
+  );
+}
+
+async function testJerichoSuperstarAbilityForcesOpponentDiscard() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('jericho', 'austin');
+
+  const jericho = engine.players[0];
+  const opponent = engine.players[1];
+  assert(jericho.superstar.id === 'jericho', 'Player 0 uses Chris Jericho');
+
+  const selfDiscard = cloneCard(RawDeal, 'chop', 'jericho-hand-0');
+  const oppCard = cloneCard(RawDeal, 'punch', 'opp-hand-0');
+  jericho.hand = [selfDiscard];
+  opponent.hand = [oppCard];
+  jericho.fortitude = 20;
+  opponent.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  assert(engine.beginSuperstarAbility(0), 'Jericho ability can begin');
+  assert(engine.selectForAbility(0, selfDiscard.instanceId), 'Jericho discards chosen card');
+
+  assert(
+    jericho.ringside.some((c) => c.instanceId === selfDiscard.instanceId),
+    'Jericho card goes to Ringside'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === oppCard.instanceId),
+    'Opponent discards a card to Ringside'
+  );
+  assert(!opponent.hand.length, 'Opponent hand loses discarded card');
+  assert(jericho.superstarAbilityUsed, 'Jericho ability marked used after resolving');
+}
+
+async function testJerichoAbilityWhenOpponentHandEmpty() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('jericho', 'austin');
+
+  const jericho = engine.players[0];
+  const opponent = engine.players[1];
+  const selfDiscard = cloneCard(RawDeal, 'kick', 'jericho-hand-1');
+
+  jericho.hand = [selfDiscard];
+  opponent.hand = [];
+  jericho.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  engine.beginSuperstarAbility(0);
+  engine.selectForAbility(0, selfDiscard.instanceId);
+
+  assert(
+    jericho.ringside.some((c) => c.instanceId === selfDiscard.instanceId),
+    'Jericho still discards when opponent hand is empty'
+  );
+  assert(jericho.superstarAbilityUsed, 'Ability completes when opponent has nothing to discard');
+}
+
 async function testWhoopCanReversalTaxFromHand() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const attacker = engine.players[0];
   const defender = engine.players[1];
@@ -554,7 +680,7 @@ async function testWhoopCanReversalTaxFromHand() {
 async function testWhoopCanReversalTaxFromArsenal() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
-  engine.startGame('austin', 'rock');
+  await engine.startGame('austin', 'rock');
 
   const attacker = engine.players[0];
   const defender = engine.players[1];
@@ -591,6 +717,10 @@ async function main() {
   await testRockPreDrawAbilityOpensModal();
   await testRockPreDrawConfirmMovesCardToArsenalBottom();
   await testRockPreDrawPassKeepsRingside();
+  await testKanePreDrawOverturnsOpponentArsenal();
+  await testKanePreDrawSkipsWhenOpponentArsenalEmpty();
+  await testJerichoSuperstarAbilityForcesOpponentDiscard();
+  await testJerichoAbilityWhenOpponentHandEmpty();
   await testAtomicDropNextCardManeuverBonus();
   await testAtomicDropBonusLostOnNonManeuver();
   await testWhoopCanReversalTaxFromHand();

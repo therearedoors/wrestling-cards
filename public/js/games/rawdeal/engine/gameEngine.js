@@ -256,13 +256,13 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     const id = player.superstar.id;
-    const supported = id === 'stone-cold' || id === 'undertaker' || id === 'the-rock';
-    const usesButton = id === 'stone-cold' || id === 'undertaker';
-    const labels = {
-      'stone-cold': 'Draw & Bottom',
-      'undertaker': 'Ringside Salvage',
-      'the-rock': 'Ringside Salvage',
-    };
+    const supported =
+      id === 'stone-cold' ||
+      id === 'undertaker' ||
+      id === 'the-rock' ||
+      id === 'kane' ||
+      id === 'jericho';
+    const usesButton = id === 'stone-cold' || id === 'undertaker' || id === 'jericho';
 
     let prompt = null;
     if (this.abilityFlow?.playerIndex === viewerIndex) {
@@ -296,6 +296,14 @@ window.RawDeal.GameEngine = class GameEngine {
           message: 'Choose 1 card from your Ringside to put into your hand.',
           selectedIds: [],
         };
+      } else if (flow.step === 'jerichoDiscardSelf') {
+        prompt = {
+          mode: 'hand',
+          count: 1,
+          message:
+            'Chris Jericho: discard 1 card from your hand to force opponent to discard 1 card.',
+          selectedIds: [],
+        };
       }
     }
 
@@ -304,7 +312,7 @@ window.RawDeal.GameEngine = class GameEngine {
       usesButton,
       canUse: this.canUseSuperstarAbility(viewerIndex),
       used: player.superstarAbilityUsed,
-      label: labels[id] || null,
+      label: 'Superstar Ability',
       prompt,
     };
   }
@@ -332,7 +340,7 @@ window.RawDeal.GameEngine = class GameEngine {
     };
   }
 
-  startGame(playerDeckId, opponentDeckId = 'austin', decks = null, options = {}) {
+  async startGame(playerDeckId, opponentDeckId = 'austin', decks = null, options = {}) {
     const { CARDS } = window.RawDeal;
     const deckMap = decks || window.RawDeal.DeckStore?.getResolvedDecks() || window.RawDeal.DECKS;
     const playerDeck = deckMap[playerDeckId];
@@ -352,7 +360,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     this._dealOpeningHands();
     this.stateMachine.transition(window.RawDeal.EVENTS.START_GAME, { firstPlayer });
-    this._runAutoPhases();
+    await this._runAutoPhases();
   }
 
   _createPlayer(deck, seatIndex, isHuman, meta = {}) {
@@ -468,7 +476,10 @@ window.RawDeal.GameEngine = class GameEngine {
         }
 
         if (!active.preDrawSuperstarResolved) {
-          const waiting = this._offerPreDrawSuperstarAbility(active, this.stateMachine.activePlayer);
+          const waiting = await this._handlePreDrawSuperstarAbilities(
+            active,
+            this.stateMachine.activePlayer
+          );
           if (waiting) {
             break;
           }
@@ -1122,7 +1133,12 @@ window.RawDeal.GameEngine = class GameEngine {
         this.actionLog.push({
           message: `${flow.sourceName}: opponent discarded ${names} to Ringside.`,
         });
-        await this._finishCardEffectResolution();
+        if (flow.superstarAbilityOwnerIndex !== undefined) {
+          const owner = this.players[flow.superstarAbilityOwnerIndex];
+          if (owner) owner.superstarAbilityUsed = true;
+        }
+        this.cardEffectFlow = null;
+        this._notify();
         return true;
       }
 
@@ -1313,19 +1329,14 @@ window.RawDeal.GameEngine = class GameEngine {
     }
   }
 
-  _shouldPromptPreDrawAbility(player) {
+  _shouldPromptRockPreDraw(player) {
     if (!player || player.preDrawSuperstarResolved) return false;
     if (player.superstar.id !== 'the-rock') return false;
     if (player.ringside.length === 0) return false;
     return this.engineMode === 'multiplayer' || player.isHuman;
   }
 
-  _offerPreDrawSuperstarAbility(player, playerIndex) {
-    if (!this._shouldPromptPreDrawAbility(player)) {
-      player.preDrawSuperstarResolved = true;
-      return false;
-    }
-
+  _beginRockPreDraw(player, playerIndex) {
     this.abilityFlow = {
       playerIndex,
       superstarId: 'the-rock',
@@ -1334,6 +1345,50 @@ window.RawDeal.GameEngine = class GameEngine {
     };
     this._notify();
     return true;
+  }
+
+  async _applyKanePreDrawAbility(kanePlayer, kanePlayerIndex) {
+    const opponent = this.players[1 - kanePlayerIndex];
+    if (opponent.arsenal.length === 0) {
+      this.actionLog.push({
+        message: "Kane: opponent's Arsenal is empty — no card to overturn.",
+      });
+      return;
+    }
+
+    const top = opponent.arsenal.pop();
+    this._notify();
+
+    await this.onArsenalToRingside({
+      card: top,
+      sourceManeuver: kanePlayer.superstar,
+      playerSeat: 1 - kanePlayerIndex,
+      onReveal: () => {
+        opponent.ringside.push(top);
+        this.actionLog.push({
+          message: `Kane overturned ${top.name} from opponent's Arsenal to Ringside.`,
+        });
+        this._notify();
+      },
+    });
+  }
+
+  async _handlePreDrawSuperstarAbilities(player, playerIndex) {
+    if (player.preDrawSuperstarResolved) {
+      return false;
+    }
+
+    if (this._shouldPromptRockPreDraw(player)) {
+      return this._beginRockPreDraw(player, playerIndex);
+    }
+
+    if (player.superstar.id === 'kane') {
+      await this._applyKanePreDrawAbility(player, playerIndex);
+    }
+
+    player.preDrawSuperstarResolved = true;
+    this._notify();
+    return false;
   }
 
   async _finishPreDrawSuperstarAbility(player) {
@@ -1396,7 +1451,54 @@ window.RawDeal.GameEngine = class GameEngine {
     const id = player.superstar.id;
     if (id === 'stone-cold') return player.arsenal.length > 0;
     if (id === 'undertaker') return player.hand.length >= 2 && player.ringside.length >= 1;
+    if (id === 'jericho') return player.hand.length >= 1;
     return false;
+  }
+
+  _finishJerichoOpponentDiscard(jerichoPlayer, jerichoPlayerIndex, discardedCardName) {
+    const opponent = this.players[1 - jerichoPlayerIndex];
+    const opponentIndex = 1 - jerichoPlayerIndex;
+    const autoPick = this.engineMode === 'goldfish' || !opponent.isHuman;
+
+    if (autoPick) {
+      const { count, cards } = this._forceOpponentDiscardFromHand(opponent, 1);
+      if (count > 0) {
+        const names = cards.map((c) => c.name).join(', ');
+        this.actionLog.push({
+          message: `Chris Jericho discarded ${discardedCardName}; opponent discarded ${names} to Ringside.`,
+        });
+      } else {
+        this.actionLog.push({
+          message: `Chris Jericho discarded ${discardedCardName}; opponent had no cards in hand to discard.`,
+        });
+      }
+      jerichoPlayer.superstarAbilityUsed = true;
+      this.abilityFlow = null;
+      this._notify();
+      return true;
+    }
+
+    if (opponent.hand.length === 0) {
+      this.actionLog.push({
+        message: `Chris Jericho discarded ${discardedCardName}; opponent had no cards in hand to discard.`,
+      });
+      jerichoPlayer.superstarAbilityUsed = true;
+      this.abilityFlow = null;
+      this._notify();
+      return true;
+    }
+
+    this.abilityFlow = null;
+    this.cardEffectFlow = {
+      type: 'opponentDiscardFromHand',
+      playerIndex: opponentIndex,
+      sourceName: 'Chris Jericho',
+      count: 1,
+      selectedIds: [],
+      superstarAbilityOwnerIndex: jerichoPlayerIndex,
+    };
+    this._notify();
+    return true;
   }
 
   beginSuperstarAbility(playerIndex = 0) {
@@ -1415,6 +1517,12 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (id === 'undertaker') {
       this.abilityFlow = { playerIndex, superstarId: id, step: 'pickDiscard', discardSelected: [] };
+      this._notify();
+      return true;
+    }
+
+    if (id === 'jericho') {
+      this.abilityFlow = { playerIndex, superstarId: id, step: 'jerichoDiscardSelf' };
       this._notify();
       return true;
     }
@@ -1480,6 +1588,14 @@ window.RawDeal.GameEngine = class GameEngine {
       this.abilityFlow = null;
       this._notify();
       return true;
+    }
+
+    if (flow.step === 'jerichoDiscardSelf') {
+      const idx = player.hand.findIndex((c) => c.instanceId === instanceId);
+      if (idx < 0) return false;
+      const [card] = player.hand.splice(idx, 1);
+      player.ringside.push(card);
+      return this._finishJerichoOpponentDiscard(player, playerIndex, card.name);
     }
 
     return false;

@@ -368,9 +368,8 @@ window.RawDeal.Board = class Board {
 
     if (!show) return;
 
-    const label = ability.label || 'Superstar Ability';
-    btn.textContent = label;
-    btn.title = player.superstar.ability || label;
+    btn.textContent = 'Superstar Ability';
+    btn.title = player.superstar.ability || 'Superstar Ability';
     btn.disabled = !ability.canUse || ability.used || !!activePrompt;
   }
 

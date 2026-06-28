@@ -41,7 +41,7 @@
     }
   }
 
-  function initGame(playerDeckId) {
+  async function initGame(playerDeckId) {
     const resolvedDecks = window.RawDeal.DeckStore.getResolvedDecks();
 
     board = new window.RawDeal.Board(
@@ -73,18 +73,16 @@
           }
         );
       },
-      onArsenalToRingside: async ({ card, onReveal }) => {
-        await window.RawDeal.Animations.flipArsenalToRingside(
-          card,
-          board.getPlayerArsenalEl(),
-          board.getPlayerRingsideEl(),
-          {
-            onReveal: () => {
-              onReveal();
-              window.RawDeal.Animations.pulseEl(board.getPlayerRingsideEl());
-            },
-          }
-        );
+      onArsenalToRingside: async ({ card, playerSeat = 0, onReveal }) => {
+        const isPlayer = playerSeat === 0;
+        const fromEl = isPlayer ? board.getPlayerArsenalEl() : board.getOpponentArsenalEl();
+        const toEl = isPlayer ? board.getPlayerRingsideEl() : board.getOpponentRingsideEl();
+        await window.RawDeal.Animations.flipArsenalToRingside(card, fromEl, toEl, {
+          onReveal: () => {
+            onReveal();
+            window.RawDeal.Animations.pulseEl(toEl);
+          },
+        });
       },
     });
 
@@ -152,7 +150,7 @@
       map[playerDeckId] ||
       playerDeck?.defaultOpponent ||
       'austin';
-    engine.startGame(playerDeckId, opponentDeckId, resolvedDecks);
+    await engine.startGame(playerDeckId, opponentDeckId, resolvedDecks);
 
     if (devMode && devConsoleRoot) {
       devConsole = new window.RawDeal.DevConsole(devConsoleRoot, engine);
@@ -170,7 +168,7 @@
       startBtn.disabled = false;
     }
     const deck = deckSelect.value || 'rock';
-    initGame(deck);
+    await initGame(deck);
   });
 
   loadDecks().catch((err) => console.warn('goldfish deck load:', err));
