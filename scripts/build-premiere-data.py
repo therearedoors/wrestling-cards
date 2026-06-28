@@ -523,6 +523,17 @@ def infer_maneuver_effects(types_list, rules):
     if 'when successfully played' in blob and 'discard 1 card of your choice from your hand' in blob:
         effects.append({'op': 'discardFromHand', 'count': 1})
 
+    for subtype in ('strike', 'grapple', 'submission'):
+        if f'next card played this turn is a {subtype} maneuver' in blob:
+            m = re.search(r'\+(\d+)d', blob)
+            if m:
+                effects.append({
+                    'op': 'nextCardSubtypeManeuverBonus',
+                    'subtype': subtype,
+                    'value': int(m.group(1)),
+                })
+            break
+
     if 'next card played this turn is a maneuver' in blob and '+2d' in blob:
         effects.append({'op': 'nextCardManeuverBonus', 'value': 2})
 
@@ -591,6 +602,9 @@ def infer_action_effects(types_list, rules, name=''):
         return None
     blob = rules.lower()
     card_name = name.lower()
+
+    if 'opponent skips his next turn' in blob or 'opponent skips their next turn' in blob:
+        return [{'op': 'skipOpponentNextTurn'}]
 
     if 'as an action' in blob and 'discard this card to draw 1' in blob:
         return [{'op': 'discardSelfToDraw', 'count': 1}]

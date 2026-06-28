@@ -96,6 +96,8 @@ window.RawDeal.StateMachine = class StateMachine {
       case PHASES.END_OF_TURN:
         if (context.gameOver) {
           this.phase = PHASES.GAME_OVER;
+        } else if (context.skipOpponentTurn) {
+          this.phase = PHASES.START_OF_TURN;
         } else {
           this.activePlayer = 1 - this.activePlayer;
           if (this.activePlayer === 0) this.turnNumber += 1;

@@ -330,6 +330,7 @@ window.RawDeal.CARDS = {
     damage: 4,
     text: "Grapple When successfully played, if your next card played this turn is a Strike maneuver it is +2D.",
     flavor: "",
+    maneuverEffects: [{"op": "nextCardSubtypeManeuverBonus", "subtype": "strike", "value": 2}],
     set: "premiere",
   },
   'gut-buster': {
@@ -1298,6 +1299,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Opponent skips his next turn.",
     flavor: "",
+    actionEffects: [{"op": "skipOpponentNextTurn"}],
     set: "premiere",
   },
   'stone-cold-stunner': {

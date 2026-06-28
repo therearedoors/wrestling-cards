@@ -13,6 +13,6 @@ const fetchData = (url, callback) => {
     })
 }
 
-socket.on('error', message => {
-    window.location.href = "http://localhost:3000/games?error=" + message;
+socket.on('error', (message) => {
+    window.location.href = `/games?error=${encodeURIComponent(message)}`;
 });

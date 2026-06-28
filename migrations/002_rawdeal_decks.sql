@@ -1,5 +1,5 @@
 -- Raw Deal deck overrides (per user)
-USE online_chess;
+USE wrestling_cards;
 
 CREATE TABLE IF NOT EXISTS rawdeal_deck_overrides (
   user_id INT NOT NULL,
