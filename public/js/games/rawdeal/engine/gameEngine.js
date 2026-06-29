@@ -244,18 +244,6 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
-    if (flow.type === 'shuffleRingsideCountChoice') {
-      const player = this.players[flow.playerIndex];
-      const available = this._shuffleRingsideUpToAvailableMax(player, flow.max);
-      return {
-        mode: 'shuffleRingsideCount',
-        message: `${flow.sourceName}: shuffle how many cards from Ringside into Arsenal? (0–${available})`,
-        min: 0,
-        max: available,
-        selected: flow.selectedCount ?? 0,
-      };
-    }
-
     if (flow.type === 'shuffleRingsideIntoArsenal') {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
@@ -976,71 +964,14 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _beginShuffleRingsideUpToPrompt(player, playerIndex, sourceName, max = 2) {
-    const available = this._shuffleRingsideUpToAvailableMax(player, max);
-    if (available === 0) {
-      this.actionLog.push({
-        message: `${sourceName}: shuffled 0 cards from Ringside into Arsenal.`,
-      });
-      return false;
-    }
-
-    this.cardEffectFlow = {
-      type: 'shuffleRingsideCountChoice',
-      playerIndex,
-      sourceName,
-      max,
-      selectedCount: 0,
-    };
-    this._notify();
-    return true;
-  }
-
-  adjustShuffleRingsideCount(playerIndex, delta) {
-    const flow = this.cardEffectFlow;
-    if (
-      !flow ||
-      flow.type !== 'shuffleRingsideCountChoice' ||
-      flow.playerIndex !== playerIndex
-    ) {
-      return false;
-    }
-
-    const player = this.players[playerIndex];
-    const available = this._shuffleRingsideUpToAvailableMax(player, flow.max);
-    const next = (flow.selectedCount ?? 0) + delta;
-    flow.selectedCount = Math.max(0, Math.min(available, next));
-    this._notify();
-    return true;
-  }
-
-  async confirmShuffleRingsideCount(playerIndex) {
-    const flow = this.cardEffectFlow;
-    if (
-      !flow ||
-      flow.type !== 'shuffleRingsideCountChoice' ||
-      flow.playerIndex !== playerIndex
-    ) {
-      return false;
-    }
-
-    const player = this.players[playerIndex];
-    const count = flow.selectedCount ?? 0;
-    const sourceName = flow.sourceName;
-
+    const count = this._shuffleRingsideUpToAvailableMax(player, max);
     if (count === 0) {
       this.actionLog.push({
         message: `${sourceName}: shuffled 0 cards from Ringside into Arsenal.`,
       });
-      this.cardEffectFlow = null;
-      this._notify();
-      if (this.effectPipelineFlow?.paused) {
-        await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
-      }
-      return true;
+      return false;
     }
 
-    this.cardEffectFlow = null;
-    this._notify();
     return this._beginShuffleRingsideSelectPrompt(player, playerIndex, sourceName, count);
   }
 

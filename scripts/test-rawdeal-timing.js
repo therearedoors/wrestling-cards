@@ -2492,17 +2492,12 @@ async function testRecoveryShuffleTwoThenDraw() {
   await engine.playCard(0, recovery.instanceId, 'action');
 
   assert(
-    engine.cardEffectFlow?.type === 'shuffleRingsideCountChoice',
-    'Recovery opens shuffle count choice'
-  );
-
-  engine.adjustShuffleRingsideCount(0, 2);
-  await engine.confirmShuffleRingsideCount(0);
-
-  assert(
     engine.cardEffectFlow?.type === 'shuffleRingsideIntoArsenal',
-    'Recovery opens Ringside shuffle modal after choosing 2'
+    'Recovery opens Ringside shuffle modal for 2 cards'
   );
+  const shufflePrompt = engine._publicSelectionPrompt(0);
+  assert(shufflePrompt?.mode === 'ringsideModal', 'Recovery uses Ringside modal');
+  assert(shufflePrompt.selectCount === 2, 'Recovery requires 2 Ringside cards when available');
 
   engine.toggleSuperstarAbilitySelection(0, rs1.instanceId);
   engine.toggleSuperstarAbilitySelection(0, rs2.instanceId);
@@ -2535,43 +2530,29 @@ async function testRecoveryShuffleTwoThenDraw() {
   assert(!engine.cardEffectFlow, 'Recovery effect completes');
 }
 
-async function testRecoveryShuffleZeroThenDraw() {
+async function testRecoveryShuffleOneWhenOnlyOneInRingside() {
   const RawDeal = loadRawDeal();
-  const rs1 = cloneCard(RawDeal, 'elbow', 'rec-zero-rs');
+  const rs1 = cloneCard(RawDeal, 'elbow', 'rec-one-rs');
   const { engine, player, recovery } = await createRecoveryTest(RawDeal, {
     ringsideCards: [rs1],
     arsenalCount: 3,
   });
 
   const arsenalBefore = player.arsenal.length;
-  const ringsideBefore = player.ringside.length;
-
-  await engine.playCard(0, recovery.instanceId, 'action');
-  await engine.confirmShuffleRingsideCount(0);
-
-  assert(!engine.cardEffectFlow, 'Recovery completes after shuffling 0');
-  assert(player.arsenal.length === arsenalBefore - 1, 'Recovery still draws 1 after shuffling 0');
-  assert(player.hand.length === 1, 'Recovery draw puts 1 card in hand');
-  assert(player.ringside.length === ringsideBefore, 'Recovery shuffle 0 leaves Ringside unchanged');
-}
-
-async function testRecoveryShuffleCapByRingside() {
-  const RawDeal = loadRawDeal();
-  const { engine, recovery } = await createRecoveryTest(RawDeal, {
-    ringsideCards: [cloneCard(RawDeal, 'punch', 'rec-cap-rs')],
-  });
 
   await engine.playCard(0, recovery.instanceId, 'action');
 
   const prompt = engine._publicSelectionPrompt(0);
-  assert(prompt?.mode === 'shuffleRingsideCount', 'Recovery shows shuffle count prompt');
-  assert(prompt.max === 1, 'Recovery shuffle count capped when Ringside has 1 card');
+  assert(prompt?.mode === 'ringsideModal', 'Recovery opens Ringside modal with 1 card');
+  assert(prompt.selectCount === 1, 'Recovery shuffles only 1 when Ringside has 1 card');
 
-  engine.adjustShuffleRingsideCount(0, 5);
-  assert(
-    engine.cardEffectFlow.selectedCount === 1,
-    'Recovery shuffle count cannot exceed Ringside size'
-  );
+  engine.toggleSuperstarAbilitySelection(0, rs1.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, rs1.instanceId);
+
+  assert(!player.ringside.some((c) => c.instanceId === rs1.instanceId), 'Only Ringside card is shuffled');
+  assert(player.arsenal.length === arsenalBefore, 'Recovery shuffles 1 then draws 1 (net 0 Arsenal change)');
+  assert(player.hand.length === 1, 'Recovery draws 1 after shuffling 1 Ringside card');
+  assert(!engine.cardEffectFlow, 'Recovery completes after shuffling 1');
 }
 
 async function testRecoveryEmptyRingsideSkipsShuffle() {
@@ -2671,8 +2652,7 @@ async function main() {
   await testRollOutCapByHand();
   await testRollOutDiscardCappedReturnsOne();
   await testRecoveryShuffleTwoThenDraw();
-  await testRecoveryShuffleZeroThenDraw();
-  await testRecoveryShuffleCapByRingside();
+  await testRecoveryShuffleOneWhenOnlyOneInRingside();
   await testRecoveryEmptyRingsideSkipsShuffle();
 
   if (process.exitCode) {
