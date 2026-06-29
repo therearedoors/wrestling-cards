@@ -724,6 +724,12 @@ def infer_action_effects(types_list, rules, name=''):
             effects[0]['draw'] = 1
         return effects
 
+    if 'draw up to 3' in blob and 'discard 1' in blob:
+        return [
+            {'op': 'drawUpTo', 'max': 3},
+            {'op': 'discardFromHand', 'count': 1},
+        ]
+
     if 'draw up to 5' in blob:
         return [{'op': 'draw', 'count': 5}]
     if 'draw 2' in blob or 'draw up to 2' in blob:

@@ -1133,6 +1133,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw up to 3 cards, then discard 1 card.",
     flavor: "",
+    actionEffects: [{"op": "drawUpTo", "max": 3}, {"op": "discardFromHand", "count": 1}],
     set: "premiere",
   },
   'roll-out-of-the-ring': {

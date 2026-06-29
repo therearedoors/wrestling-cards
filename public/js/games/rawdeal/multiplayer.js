@@ -145,6 +145,14 @@
       emitAction({ type: 'choiceSelect', optionId });
     };
 
+    board.onAdjustDrawCount = (delta) => {
+      emitAction({ type: 'adjustDrawCount', delta });
+    };
+
+    board.onConfirmDrawCount = () => {
+      emitAction({ type: 'confirmDrawCount' });
+    };
+
     board.onShuffleArsenalReorder = () => {
       emitAction({ type: 'shuffleArsenalReorder' });
     };

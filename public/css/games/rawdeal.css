@@ -898,6 +898,42 @@ body:has(.rd-page) {
   min-width: 140px;
 }
 
+.rd-choice-modal__stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.rd-choice-modal__stepper-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rd-choice-modal__stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.rd-choice-modal__stepper-count {
+  min-width: 2.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.rd-choice-modal__confirm {
+  min-width: 140px;
+}
+
 .rd-hand-reveal-modal {
   position: absolute;
   inset: 0;

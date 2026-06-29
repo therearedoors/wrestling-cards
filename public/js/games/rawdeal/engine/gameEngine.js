@@ -220,6 +220,18 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'drawCountChoice') {
+      const player = this.players[flow.playerIndex];
+      const available = this._drawCountAvailableMax(player, flow.max);
+      return {
+        mode: 'drawCount',
+        message: `${flow.sourceName}: draw how many cards? (0–${available})`,
+        min: 0,
+        max: available,
+        selected: flow.selectedCount ?? 0,
+      };
+    }
+
     if (flow.type === 'discardFromHand') {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
@@ -886,6 +898,67 @@ window.RawDeal.GameEngine = class GameEngine {
       ],
     };
     this._notify();
+    return true;
+  }
+
+  _drawCountAvailableMax(player, max) {
+    return Math.min(max || 0, player.arsenal.length);
+  }
+
+  _beginDrawUpToPrompt(player, playerIndex, sourceName, max = 3) {
+    this.cardEffectFlow = {
+      type: 'drawCountChoice',
+      playerIndex,
+      sourceName,
+      max,
+      selectedCount: 0,
+    };
+    this._notify();
+    return true;
+  }
+
+  adjustDrawCount(playerIndex, delta) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.type !== 'drawCountChoice' || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const available = this._drawCountAvailableMax(player, flow.max);
+    const next = (flow.selectedCount ?? 0) + delta;
+    flow.selectedCount = Math.max(0, Math.min(available, next));
+    this._notify();
+    return true;
+  }
+
+  async confirmDrawCount(playerIndex) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.type !== 'drawCountChoice' || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const count = flow.selectedCount ?? 0;
+    let drawn = 0;
+    for (let i = 0; i < count; i++) {
+      if (this._drawCard(player)) drawn += 1;
+    }
+
+    this.actionLog.push({
+      message:
+        drawn === 0
+          ? `${flow.sourceName}: drew 0 cards.`
+          : `${flow.sourceName}: drew ${drawn} card${drawn === 1 ? '' : 's'}.`,
+    });
+
+    this.cardEffectFlow = null;
+    this._notify();
+
+    if (this.effectPipelineFlow?.paused) {
+      await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
+      return true;
+    }
+
     return true;
   }
 

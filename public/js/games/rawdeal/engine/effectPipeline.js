@@ -175,6 +175,14 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'drawUpTo':
+        return engine._beginDrawUpToPrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          step.max || 3
+        );
+
       case 'revealOpponentHand':
         return this._pauseForReveal(engine, pipeline, player, opponent, step);
 
