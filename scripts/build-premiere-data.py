@@ -478,6 +478,8 @@ def classify(types_blob, rules, name, damage):
             reverses.append('low-damage')
         if 'irish whip' in blob:
             reverses.append('after-irish-whip')
+        if 'card titled jockeying for position' in blob:
+            reverses.append('jockeying-for-position')
 
     return subtype, reverses
 

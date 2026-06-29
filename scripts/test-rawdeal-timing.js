@@ -1584,6 +1584,177 @@ async function testNotYetEmptyHandSkipsEffect() {
   assert(player.arsenal.length === 1, 'Not Yet did not draw when shuffle was skipped');
 }
 
+async function testJfpGrappleReversalTaxFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  const jfp = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-arsenal-tax');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'jfp-grapple-tax');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'jfp-escape-move');
+
+  player.hand = [jfp, grapple];
+  player.fortitude = 20;
+
+  await engine.playCard(0, jfp.instanceId, 'action');
+  assert(
+    engine.cardEffectFlow?.choiceId === 'jockeyingForPosition',
+    'JFP action opens jockeying choice'
+  );
+  await engine.selectChoice(0, 'grappleReversalTax');
+  assert(player.turnState.nextGrappleReversalTax === 8, 'JFP sets +8F grapple reversal tax');
+
+  opponent.fortitude = 7;
+  assert(
+    !engine._reversalStops(escapeMove, grapple, opponent, { attacker: player }),
+    'Arsenal reversal blocked by JFP +8F tax at 7F'
+  );
+  opponent.fortitude = 8;
+  assert(
+    engine._reversalStops(escapeMove, grapple, opponent, { attacker: player }),
+    'Arsenal reversal allowed by JFP +8F tax at 8F'
+  );
+
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
+  assert(
+    player.turnState.nextGrappleReversalTax === 0,
+    'JFP grapple reversal tax clears after maneuver resolves'
+  );
+}
+
+async function testJfpGrappleDamageBonus() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  const jfp = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-dmg-bonus');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'jfp-grapple-dmg');
+
+  player.hand = [jfp];
+  player.fortitude = 20;
+
+  await engine.playCard(0, jfp.instanceId, 'action');
+  await engine.selectChoice(0, 'grappleDamage');
+
+  const damage = engine._peekManeuverDamage(player, opponent, grapple);
+  assert(damage === 7, 'JFP next Grapple is +4D (3 + 4)');
+}
+
+async function testJfpSelfReverseOpensChoice() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const jfpAttacker = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-atk');
+  const jfpDefender = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-def');
+
+  attacker.hand = [jfpAttacker];
+  attacker.fortitude = 20;
+  defender.hand = [jfpDefender];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, jfpAttacker.instanceId, 'action');
+  assert(engine.reversalWindow?.kind === 'action', 'JFP action opens reversal window');
+  assert(
+    engine.canPlayReversalFromHand(1, jfpDefender.instanceId),
+    'JFP can reverse JFP action from hand'
+  );
+
+  await engine.playReversalFromHand(1, jfpDefender.instanceId);
+
+  assert(engine.stateMachine.phase === RawDeal.PHASES.MAIN, 'Self-reverse returns to MAIN');
+  assert(engine.stateMachine.activePlayer === 1, 'Turn passes to reversal player');
+  assert(
+    engine.cardEffectFlow?.choiceId === 'jockeyingForPosition',
+    'JFP self-reverse opens jockeying choice on incoming turn'
+  );
+}
+
+async function testJfpSelfReverseTaxAppliesToNextGrapple() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const jfpAttacker = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-atk-tax');
+  const jfpDefender = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-def-tax');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'jfp-self-grapple');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'jfp-self-escape');
+
+  attacker.hand = [jfpAttacker];
+  attacker.fortitude = 20;
+  defender.hand = [jfpDefender, grapple];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, jfpAttacker.instanceId, 'action');
+  await engine.playReversalFromHand(1, jfpDefender.instanceId);
+  await engine.selectChoice(1, 'grappleReversalTax');
+
+  attacker.fortitude = 7;
+  assert(
+    !engine._reversalStops(escapeMove, grapple, attacker, { attacker: defender }),
+    'Self-reverse JFP tax blocks arsenal reversal at 7F'
+  );
+  attacker.fortitude = 8;
+  assert(
+    engine._reversalStops(escapeMove, grapple, attacker, { attacker: defender }),
+    'Self-reverse JFP tax allows arsenal reversal at 8F'
+  );
+}
+
+async function testCleanBreakReversesJfp() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const jfp = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-clean');
+  const cleanBreak = cloneCard(RawDeal, 'clean-break', 'clean-break-test');
+
+  attacker.hand = [
+    jfp,
+    cloneCard(RawDeal, 'punch', 'jfp-filler-0'),
+    cloneCard(RawDeal, 'punch', 'jfp-filler-1'),
+    cloneCard(RawDeal, 'punch', 'jfp-filler-2'),
+    cloneCard(RawDeal, 'punch', 'jfp-filler-3'),
+  ];
+  attacker.fortitude = 20;
+  defender.hand = [cleanBreak];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, jfp.instanceId, 'action');
+  assert(
+    engine.canPlayReversalFromHand(1, cleanBreak.instanceId),
+    'Clean Break can reverse JFP action from hand'
+  );
+
+  await engine.playReversalFromHand(1, cleanBreak.instanceId);
+
+  assert(attacker.hand.length === 0, 'Clean Break forces attacker to discard 4 hand cards');
+  assert(defender.hand.length >= 1, 'Clean Break reversal player draws at least 1 card');
+  assert(!engine.cardEffectFlow, 'Clean Break does not open jockeying choice');
+  assert(engine.stateMachine.activePlayer === 1, 'Clean Break ends attacker turn');
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('opponent discarded')),
+    'Clean Break logs opponent discard'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('drew 1 card')),
+    'Clean Break logs draw'
+  );
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testSpinningHeelKickDiscardBeforeDamage();
@@ -1635,6 +1806,11 @@ async function main() {
   await testNotYetEmptyHandSkipsEffect();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
+  await testJfpGrappleReversalTaxFromArsenal();
+  await testJfpGrappleDamageBonus();
+  await testJfpSelfReverseOpensChoice();
+  await testJfpSelfReverseTaxAppliesToNextGrapple();
+  await testCleanBreakReversesJfp();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');
