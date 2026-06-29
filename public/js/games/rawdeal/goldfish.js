@@ -147,13 +147,7 @@
       await engine.confirmDiscardCount(0);
     };
 
-    board.onAdjustShuffleRingsideCount = (delta) => {
-      engine.adjustShuffleRingsideCount(0, delta);
-    };
 
-    board.onConfirmShuffleRingsideCount = async () => {
-      await engine.confirmShuffleRingsideCount(0);
-    };
 
     board.onShuffleArsenalReorder = async () => {
       await engine.shuffleArsenalFromPrompt(0);
