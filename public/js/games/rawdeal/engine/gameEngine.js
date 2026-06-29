@@ -232,6 +232,33 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'discardCountChoice') {
+      const player = this.players[flow.playerIndex];
+      const available = this._discardUpToAvailableMax(player, flow.max);
+      return {
+        mode: 'discardCount',
+        message: `${flow.sourceName}: discard how many cards to Ringside? (0–${available})`,
+        min: 0,
+        max: available,
+        selected: flow.selectedCount ?? 0,
+      };
+    }
+
+    if (flow.type === 'returnFromRingside') {
+      const n = flow.count || 1;
+      const picked = flow.selectedIds.length;
+      const message =
+        n === 1
+          ? `${flow.sourceName}: choose 1 card from your Ringside to return to your hand.`
+          : `${flow.sourceName}: choose ${n} cards from your Ringside to return to your hand (${picked}/${n}).`;
+      return {
+        mode: 'ringside',
+        count: n,
+        message,
+        selectedIds: [...flow.selectedIds],
+      };
+    }
+
     if (flow.type === 'discardFromHand') {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
@@ -903,6 +930,89 @@ window.RawDeal.GameEngine = class GameEngine {
 
   _drawCountAvailableMax(player, max) {
     return Math.min(max || 0, player.arsenal.length);
+  }
+
+  _discardUpToAvailableMax(player, max) {
+    return Math.min(max || 0, player.hand.length);
+  }
+
+  _beginDiscardUpToPrompt(player, playerIndex, sourceName, max = 2) {
+    const available = this._discardUpToAvailableMax(player, max);
+    if (available === 0) {
+      if (this.effectPipelineFlow) {
+        this.effectPipelineFlow.discardedCount = 0;
+      }
+      this.actionLog.push({
+        message: `${sourceName}: discarded 0 cards to Ringside.`,
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'discardCountChoice',
+      playerIndex,
+      sourceName,
+      max,
+      selectedCount: 0,
+    };
+    this._notify();
+    return true;
+  }
+
+  adjustDiscardCount(playerIndex, delta) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.type !== 'discardCountChoice' || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const available = this._discardUpToAvailableMax(player, flow.max);
+    const next = (flow.selectedCount ?? 0) + delta;
+    flow.selectedCount = Math.max(0, Math.min(available, next));
+    this._notify();
+    return true;
+  }
+
+  async confirmDiscardCount(playerIndex) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.type !== 'discardCountChoice' || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const count = flow.selectedCount ?? 0;
+    const sourceName = flow.sourceName;
+
+    if (count === 0) {
+      if (this.effectPipelineFlow) {
+        this.effectPipelineFlow.discardedCount = 0;
+      }
+      this.actionLog.push({
+        message: `${sourceName}: discarded 0 cards to Ringside.`,
+      });
+      this.cardEffectFlow = null;
+      this._notify();
+      if (this.effectPipelineFlow?.paused) {
+        await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
+      }
+      return true;
+    }
+
+    this.cardEffectFlow = null;
+    this._notify();
+    return this._beginDiscardFromHandPrompt(player, playerIndex, sourceName, count);
+  }
+
+  _beginReturnFromRingsidePrompt(player, playerIndex, sourceName, count) {
+    this.cardEffectFlow = {
+      type: 'returnFromRingside',
+      playerIndex,
+      sourceName,
+      count,
+      selectedIds: [],
+    };
+    this._notify();
+    return true;
   }
 
   _beginDrawUpToPrompt(player, playerIndex, sourceName, max = 3) {
@@ -1628,6 +1738,40 @@ window.RawDeal.GameEngine = class GameEngine {
 
       this.actionLog.push({
         message: `${flow.sourceName}: discarded ${names} to Ringside.`,
+      });
+      if (this.effectPipelineFlow) {
+        this.effectPipelineFlow.discardedCount = toDiscard.length;
+      }
+      await this._finishCardEffectResolution();
+      return true;
+    }
+
+    if (flow.type === 'returnFromRingside') {
+      if (flow.selectedIds.includes(instanceId)) return false;
+      if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
+
+      flow.selectedIds.push(instanceId);
+      const needed = flow.count || 1;
+
+      if (flow.selectedIds.length < needed) {
+        this._notify();
+        return true;
+      }
+
+      const toReturn = flow.selectedIds
+        .map((id) => player.ringside.find((c) => c.instanceId === id))
+        .filter(Boolean);
+      for (const id of flow.selectedIds) {
+        const idx = player.ringside.findIndex((c) => c.instanceId === id);
+        if (idx >= 0) {
+          const [card] = player.ringside.splice(idx, 1);
+          player.hand.push(card);
+        }
+      }
+
+      const names = toReturn.map((c) => c.name).join(', ');
+      this.actionLog.push({
+        message: `${flow.sourceName}: returned ${names} from Ringside to hand.`,
       });
       await this._finishCardEffectResolution();
       return true;

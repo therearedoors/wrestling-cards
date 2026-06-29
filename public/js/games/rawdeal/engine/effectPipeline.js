@@ -266,6 +266,32 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'discardUpTo':
+        return engine._beginDiscardUpToPrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          step.max || 2
+        );
+
+      case 'returnFromRingside': {
+        const count = pipeline.discardedCount || 0;
+        if (count === 0) return false;
+        if (player.ringside.length === 0) {
+          engine.actionLog.push({
+            message: `${sourceName}: no cards in Ringside to return.`,
+          });
+          return false;
+        }
+        const toReturn = Math.min(count, player.ringside.length);
+        return engine._beginReturnFromRingsidePrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          toReturn
+        );
+      }
+
       case 'discardFromHand':
         return engine._beginDiscardFromHandPrompt(player, pipeline.playerIndex, sourceName, step.count || 1);
 

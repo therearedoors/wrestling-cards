@@ -77,6 +77,12 @@ class RoomGame {
       case 'confirmDrawCount':
         ok = await engine.confirmDrawCount(seat);
         break;
+      case 'adjustDiscardCount':
+        ok = engine.adjustDiscardCount(seat, action.delta ?? 0);
+        break;
+      case 'confirmDiscardCount':
+        ok = await engine.confirmDiscardCount(seat);
+        break;
       case 'dismissHandReveal':
         ok = await engine.dismissHandReveal(seat);
         break;

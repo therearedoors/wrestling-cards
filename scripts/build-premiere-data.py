@@ -724,6 +724,12 @@ def infer_action_effects(types_list, rules, name=''):
             effects[0]['draw'] = 1
         return effects
 
+    if 'discard up to 2' in blob and 'ringside' in blob and 'return' in blob:
+        return [
+            {'op': 'discardUpTo', 'max': 2},
+            {'op': 'returnFromRingside'},
+        ]
+
     if 'draw up to 3' in blob and 'discard 1' in blob:
         return [
             {'op': 'drawUpTo', 'max': 3},
