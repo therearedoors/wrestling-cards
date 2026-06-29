@@ -131,6 +131,14 @@
       await engine.selectChoice(0, optionId);
     };
 
+    board.onAdjustDrawCount = (delta) => {
+      engine.adjustDrawCount(0, delta);
+    };
+
+    board.onConfirmDrawCount = async () => {
+      await engine.confirmDrawCount(0);
+    };
+
     board.onShuffleArsenalReorder = async () => {
       await engine.shuffleArsenalFromPrompt(0);
     };

@@ -71,6 +71,12 @@ class RoomGame {
       case 'choiceSelect':
         ok = await engine.selectChoice(seat, action.optionId);
         break;
+      case 'adjustDrawCount':
+        ok = engine.adjustDrawCount(seat, action.delta ?? 0);
+        break;
+      case 'confirmDrawCount':
+        ok = await engine.confirmDrawCount(seat);
+        break;
       case 'dismissHandReveal':
         ok = await engine.dismissHandReveal(seat);
         break;

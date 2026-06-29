@@ -2158,6 +2158,107 @@ async function testShakeItOffRemovesOpponentRingCard() {
   );
 }
 
+async function createOfferHandshakeTest(RawDeal, { arsenalCount = 10 } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const handshake = cloneCard(RawDeal, 'offer-handshake', 'oh-test');
+
+  player.hand = [handshake];
+  player.arsenal = [];
+  for (let i = 0; i < arsenalCount; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `oh-arsenal-${i}`));
+  }
+  player.fortitude = 5;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, handshake };
+}
+
+async function testOfferHandshakeDrawTwoThenDiscard() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, handshake } = await createOfferHandshakeTest(RawDeal, {
+    arsenalCount: 10,
+  });
+  const filler = cloneCard(RawDeal, 'punch', 'oh-discard');
+  player.hand.push(filler);
+
+  const arsenalBefore = player.arsenal.length;
+  const handBefore = player.hand.length;
+
+  await engine.playCard(0, handshake.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Offer Handshake opens draw count choice'
+  );
+
+  engine.adjustDrawCount(0, 2);
+  await engine.confirmDrawCount(0);
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Offer Handshake prompts discard after drawing'
+  );
+  assert(player.arsenal.length === arsenalBefore - 2, 'Offer Handshake drew 2 from Arsenal');
+
+  await engine.selectForCardEffect(0, filler.instanceId);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === filler.instanceId),
+    'Offer Handshake discards chosen card to Ringside'
+  );
+  assert(
+    player.hand.length === handBefore - 1 + 2 - 1,
+    'Offer Handshake net hand change: -played card, +2 draw, -1 discard'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === handshake.instanceId),
+    'Offer Handshake is in Ring actions'
+  );
+}
+
+async function testOfferHandshakeDrawCappedByArsenal() {
+  const RawDeal = loadRawDeal();
+  const { engine, handshake } = await createOfferHandshakeTest(RawDeal, { arsenalCount: 1 });
+
+  await engine.playCard(0, handshake.instanceId, 'action');
+
+  const prompt = engine._publicSelectionPrompt(0);
+  assert(prompt?.mode === 'drawCount', 'Offer Handshake shows draw count prompt');
+  assert(prompt.max === 1, 'Draw count capped at Arsenal size when fewer than 3');
+
+  engine.adjustDrawCount(0, 5);
+  assert(engine.cardEffectFlow.selectedCount === 1, 'Draw count cannot exceed Arsenal size');
+}
+
+async function testOfferHandshakeDrawZeroStillDiscards() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, handshake } = await createOfferHandshakeTest(RawDeal, {
+    arsenalCount: 5,
+  });
+  const filler = cloneCard(RawDeal, 'kick', 'oh-zero-discard');
+  player.hand.push(filler);
+
+  await engine.playCard(0, handshake.instanceId, 'action');
+  await engine.confirmDrawCount(0);
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Offer Handshake still prompts discard after drawing 0'
+  );
+
+  await engine.selectForCardEffect(0, filler.instanceId);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === filler.instanceId),
+    'Offer Handshake discards after drawing 0'
+  );
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testSpinningHeelKickDiscardBeforeDamage();
@@ -2230,6 +2331,9 @@ async function main() {
   await testShakeItOffNotPlayableWhenFortitudeNotLower();
   await testShakeItOffPlayableWhenBehindWithoutRemovableTarget();
   await testShakeItOffRemovesOpponentRingCard();
+  await testOfferHandshakeDrawTwoThenDiscard();
+  await testOfferHandshakeDrawCappedByArsenal();
+  await testOfferHandshakeDrawZeroStillDiscards();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');

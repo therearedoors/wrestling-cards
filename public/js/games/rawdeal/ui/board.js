@@ -23,6 +23,12 @@ window.RawDeal.Board = class Board {
       this.choiceModal.onSelect = (optionId) => {
         if (this.onChoiceSelect) this.onChoiceSelect(optionId);
       };
+      this.choiceModal.onAdjust = (delta) => {
+        if (this.onAdjustDrawCount) this.onAdjustDrawCount(delta);
+      };
+      this.choiceModal.onConfirm = () => {
+        if (this.onConfirmDrawCount) this.onConfirmDrawCount();
+      };
     }
     if (this.handRevealModal) {
       this.handRevealModal.onDismiss = () => {
@@ -407,7 +413,7 @@ window.RawDeal.Board = class Board {
 
   _renderChoiceModal(prompt) {
     if (!this.choiceModal) return;
-    if (prompt?.mode === 'choice') {
+    if (prompt?.mode === 'choice' || prompt?.mode === 'drawCount') {
       this.choiceModal.show(prompt);
     } else {
       this.choiceModal.hide();
@@ -449,6 +455,7 @@ window.RawDeal.Board = class Board {
     const active =
       !!prompt &&
       prompt.mode !== 'choice' &&
+      prompt.mode !== 'drawCount' &&
       prompt.mode !== 'ringsideModal' &&
       prompt.mode !== 'opponentRingModal' &&
       prompt.mode !== 'arsenalReorder';
