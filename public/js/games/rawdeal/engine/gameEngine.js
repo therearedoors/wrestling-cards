@@ -66,6 +66,7 @@ window.RawDeal.GameEngine = class GameEngine {
     player.turnState.nextManeuverReversalTax = 0;
     player.turnState.nextCardManeuverBonus = 0;
     player.turnState.opponentReversalsBlocked = false;
+    this.nextManeuverBonus[this._playerIndex(player)] = 0;
   }
 
   _expireNextCardManeuverBonusIfNotManeuver(player, mode) {

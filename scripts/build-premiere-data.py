@@ -709,6 +709,18 @@ def infer_action_effects(types_list, rules, name=''):
         effects.append({'op': 'draw', 'count': 1})
         return effects
 
+    if 'get crowd support' in card_name or (
+        'draw 1 card' in blob
+        and 'next maneuver this turn' in blob
+        and '+4d' in blob
+        and '+12f' in blob
+    ):
+        return [
+            {'op': 'draw', 'count': 1},
+            {'op': 'nextManeuverBonus', 'value': 4},
+            {'op': 'nextManeuverReversalTax', 'value': 12},
+        ]
+
     if (
         'remove any 1 card in opponent' in blob
         and 'ring area' in blob
