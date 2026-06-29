@@ -476,7 +476,9 @@ def classify(types_blob, rules, name, damage):
             reverses.append('action')
         if '5d or less' in blob or '5 or less damage' in blob:
             reverses.append('low-damage')
-        if 'irish whip' in blob:
+        if 'may only reverse the card titled irish whip' in blob:
+            reverses.append('irish-whip')
+        if 'maneuver played after the card titled irish whip' in blob:
             reverses.append('after-irish-whip')
         if 'card titled jockeying for position' in blob:
             reverses.append('jockeying-for-position')
