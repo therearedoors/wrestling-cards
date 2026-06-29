@@ -603,6 +603,11 @@ def infer_action_effects(types_list, rules, name=''):
     blob = rules.lower()
     card_name = name.lower()
 
+    if 'look at the top' in blob and 'opponent' in blob and 'arrange them in any order' in blob:
+        m = re.search(r'top (\d+)', blob)
+        count = int(m.group(1)) if m else 5
+        return [{'op': 'reorderArsenalTop', 'count': count, 'target': 'opponent'}]
+
     if 'look at the top' in blob and 'your arsenal' in blob and 'arrange them in any order' in blob:
         m = re.search(r'top (\d+)', blob)
         count = int(m.group(1)) if m else 5

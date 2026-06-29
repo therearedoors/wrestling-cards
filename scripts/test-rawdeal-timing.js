@@ -1236,7 +1236,7 @@ async function testHmmmConfirmReordersTopCards() {
   assert(!engine.cardEffectFlow, 'Hmmm prompt clears after confirm');
 }
 
-async function testHmmmPassLeavesOrderUnchanged() {
+async function testHmmmShuffleRandomizesArsenal() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
   await engine.startGame('austin', 'rock');
@@ -1244,26 +1244,117 @@ async function testHmmmPassLeavesOrderUnchanged() {
   const player = engine.players[0];
   player.hand = [];
   player.fortitude = 20;
-  const ids = ['pass-a', 'pass-b', 'pass-c'];
+  player.arsenal = [];
+  const ids = ['shuffle-a', 'shuffle-b', 'shuffle-c'];
   for (const id of ids) {
     player.arsenal.push(cloneCard(RawDeal, 'chop', id));
   }
-  const before = player.arsenal.map((c) => c.instanceId);
 
-  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-pass-test');
+  engine._shuffle = (array) => {
+    array.reverse();
+    return array;
+  };
+
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-shuffle-test');
   player.hand.push(hmmm);
 
   await engine.playCard(0, hmmm.instanceId, 'action');
-  await engine.passArsenalReorder(0);
+  await engine.shuffleArsenalFromPrompt(0);
 
   const after = player.arsenal.map((c) => c.instanceId);
   assert(
-    before.every((id, i) => after[i] === id),
-    'Hmmm pass leaves Arsenal order unchanged'
+    after.join(',') === 'shuffle-c,shuffle-b,shuffle-a',
+    'Hmmm shuffle reorders entire Arsenal'
   );
   assert(
-    engine.actionLog.some((entry) => entry.message.includes('left Arsenal order unchanged')),
-    'Hmmm pass logs unchanged order'
+    engine.actionLog.some((entry) => entry.message.includes('shuffled your Arsenal')),
+    'Hmmm shuffle logs shuffled Arsenal'
+  );
+}
+
+async function testDontThinkTooHardOpensOpponentPrompt() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `dttth-opp-${i}`));
+  }
+
+  const card = cloneCard(RawDeal, 'don-t-think-too-hard', 'dttth-test');
+  player.hand.push(card);
+
+  await engine.playCard(0, card.instanceId, 'action');
+
+  assert(engine.cardEffectFlow?.type === 'arsenalReorder', 'DTTTH opens arsenal reorder prompt');
+  assert(engine.cardEffectFlow?.target === 'opponent', 'DTTTH targets opponent Arsenal');
+  assert(engine.cardEffectFlow?.targetPlayerIndex === 1, 'DTTTH targetPlayerIndex is opponent');
+  assert(engine.cardEffectFlow?.playerIndex === 0, 'DTTTH acting player controls modal');
+}
+
+async function testDontThinkTooHardConfirmReordersOpponentTop() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [];
+  const bottomIds = ['dttth-a', 'dttth-b', 'dttth-c', 'dttth-d', 'dttth-e'];
+  for (const id of bottomIds) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', id));
+  }
+
+  const card = cloneCard(RawDeal, 'don-t-think-too-hard', 'dttth-confirm-test');
+  player.hand.push(card);
+
+  await engine.playCard(0, card.instanceId, 'action');
+  await engine.confirmArsenalReorder(0, ['dttth-a', 'dttth-b', 'dttth-c', 'dttth-d', 'dttth-e']);
+
+  const topId = opponent.arsenal[opponent.arsenal.length - 1].instanceId;
+  assert(topId === 'dttth-a', 'DTTTH confirm puts chosen card on top of opponent Arsenal');
+}
+
+async function testDontThinkTooHardShuffleOpponentArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [];
+  for (const id of ['opp-shuf-a', 'opp-shuf-b', 'opp-shuf-c']) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', id));
+  }
+
+  engine._shuffle = (array) => {
+    array.reverse();
+    return array;
+  };
+
+  const card = cloneCard(RawDeal, 'don-t-think-too-hard', 'dttth-shuffle-test');
+  player.hand.push(card);
+
+  await engine.playCard(0, card.instanceId, 'action');
+  await engine.shuffleArsenalFromPrompt(0);
+
+  const after = opponent.arsenal.map((c) => c.instanceId);
+  assert(
+    after.join(',') === 'opp-shuf-c,opp-shuf-b,opp-shuf-a',
+    'DTTTH shuffle reorders entire opponent Arsenal'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes("shuffled opponent's Arsenal")),
+    'DTTTH shuffle logs opponent Arsenal shuffle'
   );
 }
 
@@ -1322,8 +1413,11 @@ async function main() {
   await testPatAndGerryGrantsExtraTurn();
   await testHmmmOpensReorderPrompt();
   await testHmmmConfirmReordersTopCards();
-  await testHmmmPassLeavesOrderUnchanged();
+  await testHmmmShuffleRandomizesArsenal();
   await testHmmmFewerThanFiveCards();
+  await testDontThinkTooHardOpensOpponentPrompt();
+  await testDontThinkTooHardConfirmReordersOpponentTop();
+  await testDontThinkTooHardShuffleOpponentArsenal();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
 

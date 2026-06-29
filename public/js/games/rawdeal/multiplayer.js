@@ -140,8 +140,8 @@
       emitAction({ type: 'choiceSelect', optionId });
     };
 
-    board.onPassArsenalReorder = () => {
-      emitAction({ type: 'passArsenalReorder' });
+    board.onShuffleArsenalReorder = () => {
+      emitAction({ type: 'shuffleArsenalReorder' });
     };
 
     board.onConfirmArsenalReorder = (orderedIds) => {

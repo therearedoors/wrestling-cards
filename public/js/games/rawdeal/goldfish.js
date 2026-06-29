@@ -126,8 +126,8 @@
       await engine.selectChoice(0, optionId);
     };
 
-    board.onPassArsenalReorder = async () => {
-      await engine.passArsenalReorder(0);
+    board.onShuffleArsenalReorder = async () => {
+      await engine.shuffleArsenalFromPrompt(0);
     };
 
     board.onConfirmArsenalReorder = async (orderedIds) => {

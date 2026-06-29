@@ -1193,7 +1193,7 @@ body:has(.rd-page) {
   justify-content: center;
 }
 
-.rd-arsenal-reorder-modal__pass,
+.rd-arsenal-reorder-modal__shuffle,
 .rd-arsenal-reorder-modal__confirm {
   min-width: 120px;
 }

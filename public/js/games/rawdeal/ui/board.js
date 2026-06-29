@@ -48,8 +48,8 @@ window.RawDeal.Board = class Board {
       };
     }
     if (this.arsenalReorderModal) {
-      this.arsenalReorderModal.onPass = () => {
-        if (this.onPassArsenalReorder) this.onPassArsenalReorder();
+      this.arsenalReorderModal.onShuffle = () => {
+        if (this.onShuffleArsenalReorder) this.onShuffleArsenalReorder();
       };
       this.arsenalReorderModal.onConfirm = (orderedIds) => {
         if (this.onConfirmArsenalReorder) this.onConfirmArsenalReorder(orderedIds);
@@ -105,7 +105,7 @@ window.RawDeal.Board = class Board {
     this.onPassSuperstarAbility = null;
     this.onConfirmSuperstarAbility = null;
     this.onToggleSuperstarAbilitySelect = null;
-    this.onPassArsenalReorder = null;
+    this.onShuffleArsenalReorder = null;
     this.onConfirmArsenalReorder = null;
     this.onArsenalReorderChange = null;
     this.onAbilitySelect = null;
