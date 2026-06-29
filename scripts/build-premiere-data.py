@@ -220,7 +220,7 @@ def parse_cards(text: str):
         type_lines = []
         rule_starters = (
             'When ', 'As ', 'May ', 'Can ', 'The card', 'To play', 'Reversals',
-            'If played', 'Unique', 'You must', 'All ', 'Draw', 'Shuffle', 'Look',
+            'If played', 'Unique', 'You must', 'You ', 'All ', 'Draw', 'Shuffle', 'Look',
             'Starting', 'Superstar', 'Once', 'At the', 'None,', 'He is', 'Play ',
             'Playable', 'Cannot', 'Reverse ', 'Count ', 'While ', 'Run-in', 'Search ',
             'Discard', 'Choose', 'Put ', 'Take ', 'Your ', 'Opponent', 'Reveal', 'Show ',
@@ -739,6 +739,12 @@ def infer_action_effects(types_list, rules, name=''):
         return [
             {'op': 'shuffleRingsideUpTo', 'max': 2},
             {'op': 'draw', 'count': 1},
+        ]
+
+    if 'you discard 1 card' in blob and 'opponent discards 4' in blob:
+        return [
+            {'op': 'discardFromHand', 'count': 1},
+            {'op': 'opponentDiscardFromHand', 'count': 4},
         ]
 
     if 'draw up to 3' in blob and 'discard 1' in blob:
