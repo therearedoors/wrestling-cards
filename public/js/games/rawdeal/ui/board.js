@@ -586,29 +586,30 @@ window.RawDeal.Board = class Board {
       const selectable =
         abilityHandMode && !selected && selectedCount < (abilityPrompt.count || 1);
       const isHybrid = utils.isHybrid(card);
+      const useHybridPlayZones = isHybrid && !selectable;
 
-      const playZones = isHybrid
+      const playZones = useHybridPlayZones
         ? this._buildHybridPlayZones(card, { canManeuver, canAction, canReversal })
         : null;
 
       const el = window.RawDeal.CardRenderer.createCardEl(card, {
-        clickable: !isHybrid && (canManeuver || canAction || selectable || canReversal),
+        clickable: selectable || canReversal || (!isHybrid && (canManeuver || canAction)),
         playZones,
-        onClick: !isHybrid && canReversal
+        onClick: selectable
           ? () => {
-              if (this.onPlayReversal) this.onPlayReversal(card.instanceId);
+              if (this.onAbilitySelect) this.onAbilitySelect(card.instanceId);
             }
-          : !isHybrid && canManeuver
+          : !isHybrid && canReversal
             ? () => {
-                if (this.onPlayCard) this.onPlayCard(card.instanceId, 'maneuver');
+                if (this.onPlayReversal) this.onPlayReversal(card.instanceId);
               }
-            : !isHybrid && canAction
+            : !isHybrid && canManeuver
               ? () => {
-                  if (this.onPlayCard) this.onPlayCard(card.instanceId, 'action');
+                  if (this.onPlayCard) this.onPlayCard(card.instanceId, 'maneuver');
                 }
-              : selectable
+              : !isHybrid && canAction
                 ? () => {
-                    if (this.onAbilitySelect) this.onAbilitySelect(card.instanceId);
+                    if (this.onPlayCard) this.onPlayCard(card.instanceId, 'action');
                   }
                 : undefined,
       });
