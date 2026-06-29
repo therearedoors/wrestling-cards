@@ -70,6 +70,34 @@ async function testKickArsenalBeforeDamage() {
   );
 }
 
+async function testHeadButtCanDiscardHybridCard() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  const headButt = cloneCard(RawDeal, 'head-butt', 'hb-test');
+  const hybridChop = cloneCard(RawDeal, 'chop', 'hb-chop');
+  const filler = cloneCard(RawDeal, 'punch', 'hb-filler');
+
+  player.hand = [headButt, hybridChop, filler];
+  for (let i = 0; i < 5; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `hb-opp-${i}`));
+  }
+
+  await engine.playCard(0, headButt.instanceId, 'maneuver');
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Head Butt prompts discard before damage'
+  );
+
+  const ok = await engine.selectForCardEffect(0, hybridChop.instanceId);
+  assert(ok, 'Head Butt can discard a Hybrid card from hand');
+  assert(
+    player.ringside.some((c) => c.instanceId === hybridChop.instanceId),
+    'Hybrid discard goes to Ringside'
+  );
+}
+
 async function testSpinningHeelKickDiscardBeforeDamage() {
   const RawDeal = loadRawDeal();
   const { engine, player } = await createTestEngine(RawDeal);
@@ -2261,6 +2289,7 @@ async function testOfferHandshakeDrawZeroStillDiscards() {
 
 async function main() {
   await testKickArsenalBeforeDamage();
+  await testHeadButtCanDiscardHybridCard();
   await testSpinningHeelKickDiscardBeforeDamage();
   await testHeadlockTakedownOpponentDrawBeforeDamage();
   await testBulldogChainBeforeDamage();
