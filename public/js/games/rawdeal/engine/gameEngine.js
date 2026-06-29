@@ -1367,10 +1367,21 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _beginOpponentDiscardFromHandEffect(player, opponent, sourceName, count) {
+    if (opponent.hand.length === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: opponent had no cards in hand to discard.`,
+      });
+      return false;
+    }
+
+    const effectiveCount = Math.min(count, opponent.hand.length);
     const autoPick = this.engineMode === 'goldfish' || !opponent.isHuman;
 
     if (autoPick) {
-      const { count: discarded, cards } = this._forceOpponentDiscardFromHand(opponent, count);
+      const { count: discarded, cards } = this._forceOpponentDiscardFromHand(
+        opponent,
+        effectiveCount
+      );
       if (discarded > 0) {
         const names = cards.map((c) => c.name).join(', ');
         this.actionLog.push({
@@ -1388,7 +1399,7 @@ window.RawDeal.GameEngine = class GameEngine {
       opponent,
       this._playerIndex(opponent),
       sourceName,
-      count
+      effectiveCount
     );
   }
 
@@ -1781,9 +1792,15 @@ window.RawDeal.GameEngine = class GameEngine {
         if (flow.superstarAbilityOwnerIndex !== undefined) {
           const owner = this.players[flow.superstarAbilityOwnerIndex];
           if (owner) owner.superstarAbilityUsed = true;
+          this.cardEffectFlow = null;
+          this._notify();
+          return true;
         }
         this.cardEffectFlow = null;
         this._notify();
+        if (this.effectPipelineFlow?.paused || this.pendingManeuverResolution) {
+          await this._finishCardEffectResolution();
+        }
         return true;
       }
 

@@ -2571,6 +2571,95 @@ async function testRecoveryEmptyRingsideSkipsShuffle() {
   assert(player.hand.length === 1, 'Recovery draw puts 1 card in hand when Ringside is empty');
 }
 
+async function createSpitAtOpponentTest(RawDeal, { opponentHandCount = 5 } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const spit = cloneCard(RawDeal, 'spit-at-opponent', 'spit-test');
+
+  player.hand = [spit, cloneCard(RawDeal, 'punch', 'spit-self-discard')];
+  player.fortitude = 6;
+  opponent.hand = [];
+  for (let i = 0; i < opponentHandCount; i++) {
+    opponent.hand.push(cloneCard(RawDeal, 'kick', `spit-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent, spit };
+}
+
+async function testSpitAtOpponentDiscardFour() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, spit } = await createSpitAtOpponentTest(RawDeal, {
+    opponentHandCount: 5,
+  });
+  const selfDiscard = player.hand.find((c) => c.instanceId === 'spit-self-discard');
+
+  await engine.playCard(0, spit.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Spit At Opponent prompts you to discard 1 first'
+  );
+
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === selfDiscard.instanceId),
+    'Spit At Opponent discards your chosen card to Ringside'
+  );
+  assert(opponent.hand.length === 1, 'Spit At Opponent makes opponent discard 4 cards');
+  assert(
+    opponent.ringside.length === 4,
+    'Opponent discarded cards go to Ringside'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === spit.instanceId),
+    'Spit At Opponent is in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Spit At Opponent effect completes');
+}
+
+async function testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, spit } = await createSpitAtOpponentTest(RawDeal, {
+    opponentHandCount: 3,
+  });
+  const selfDiscard = player.hand.find((c) => c.instanceId === 'spit-self-discard');
+  const opponentIds = opponent.hand.map((c) => c.instanceId);
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  assert(opponent.hand.length === 0, 'Spit At Opponent discards opponent whole hand when 3 or fewer');
+  assert(
+    opponentIds.every((id) => opponent.ringside.some((c) => c.instanceId === id)),
+    'All opponent hand cards go to Ringside when hand is 3 or fewer'
+  );
+  assert(player.hand.length === 0, 'You have no cards left after playing and discarding');
+}
+
+async function testSpitAtOpponentPlayableWithEmptyOpponentHand() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, spit } = await createSpitAtOpponentTest(RawDeal, {
+    opponentHandCount: 0,
+  });
+  const selfDiscard = player.hand.find((c) => c.instanceId === 'spit-self-discard');
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  assert(opponent.ringside.length === 0, 'No opponent discard when hand is empty');
+  assert(
+    player.ring.actions.some((c) => c.instanceId === spit.instanceId),
+    'Spit At Opponent still resolves when opponent hand is empty'
+  );
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testHeadButtCanDiscardHybridCard();
@@ -2654,6 +2743,9 @@ async function main() {
   await testRecoveryShuffleTwoThenDraw();
   await testRecoveryShuffleOneWhenOnlyOneInRingside();
   await testRecoveryEmptyRingsideSkipsShuffle();
+  await testSpitAtOpponentDiscardFour();
+  await testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess();
+  await testSpitAtOpponentPlayableWithEmptyOpponentHand();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');
