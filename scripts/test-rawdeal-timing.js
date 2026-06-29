@@ -2507,14 +2507,11 @@ async function testRecoveryShuffleTwoThenDraw() {
     player.arsenal.length === arsenalBefore + 1,
     'Recovery shuffles 2 into Arsenal then draws 1 (net +1)'
   );
-  assert(
-    player.arsenal.some((c) => c.instanceId === rs1.instanceId),
-    'Recovery keeps first shuffled card in Arsenal'
-  );
-  assert(
-    player.arsenal.some((c) => c.instanceId === rs2.instanceId),
-    'Recovery keeps second shuffled card in Arsenal'
-  );
+  const inDeckOrHand = (card) =>
+    player.arsenal.some((c) => c.instanceId === card.instanceId) ||
+    player.hand.some((c) => c.instanceId === card.instanceId);
+  assert(inDeckOrHand(rs1), 'Recovery keeps first shuffled card in Arsenal or hand');
+  assert(inDeckOrHand(rs2), 'Recovery keeps second shuffled card in Arsenal or hand');
   assert(
     !player.ringside.some((c) => c.instanceId === rs1.instanceId),
     'Shuffled card leaves Ringside'
@@ -2660,6 +2657,112 @@ async function testSpitAtOpponentPlayableWithEmptyOpponentHand() {
   );
 }
 
+async function testGetCrowdSupportDrawAndNextManeuverBoost() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const crowdSupport = cloneCard(RawDeal, 'get-crowd-support', 'gcs-test');
+  const punch = cloneCard(RawDeal, 'punch', 'gcs-punch');
+
+  player.hand = [crowdSupport, punch];
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'gcs-arsenal')];
+  player.fortitude = 12;
+
+  const handBefore = player.hand.length;
+  const arsenalBefore = player.arsenal.length;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, crowdSupport.instanceId, 'action');
+
+  assert(
+    player.hand.length === handBefore - 1 + 1,
+    'Get Crowd Support draws 1 card after being played'
+  );
+  assert(
+    player.arsenal.length === arsenalBefore - 1,
+    'Get Crowd Support draw comes from Arsenal'
+  );
+  assert(engine.nextManeuverBonus[0] === 4, 'Get Crowd Support sets +4D on next maneuver');
+  assert(
+    player.turnState?.nextManeuverReversalTax === 12,
+    'Get Crowd Support sets +12F reversal tax on next maneuver'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === crowdSupport.instanceId),
+    'Get Crowd Support is in Ring actions'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.damageLog.some((e) => e.damage === 7 && e.card === 'Punch'),
+    'Get Crowd Support +4D applies to next maneuver (Punch 3D + 4)'
+  );
+  assert(engine.nextManeuverBonus[0] === 0, 'Get Crowd Support +4D is consumed after use');
+}
+
+async function testGetCrowdSupportReversalTaxFromHandAndArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const crowdSupport = cloneCard(RawDeal, 'get-crowd-support', 'gcs-tax');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'gcs-grapple');
+  const escapeHand = cloneCard(RawDeal, 'escape-move', 'gcs-escape-hand');
+  const escapeArsenal = cloneCard(RawDeal, 'escape-move', 'gcs-escape-arsenal');
+
+  attacker.hand = [crowdSupport, grapple];
+  attacker.fortitude = 20;
+  defender.hand = [escapeHand];
+  defender.fortitude = 0;
+  defender.arsenal = [escapeArsenal];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, crowdSupport.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Get Crowd Support boosted grapple opens reversal window'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, escapeHand.instanceId),
+    'Get Crowd Support blocks hand reversal below +12F tax'
+  );
+
+  defender.fortitude = 12;
+  assert(
+    engine.canPlayReversalFromHand(1, escapeHand.instanceId),
+    'Get Crowd Support allows hand reversal at +12F tax'
+  );
+
+  defender.fortitude = 0;
+  assert(
+    !engine._reversalStops(escapeArsenal, grapple, defender, { attacker }),
+    'Get Crowd Support blocks Arsenal reversal below +12F tax'
+  );
+
+  defender.fortitude = 12;
+  assert(
+    engine._reversalStops(escapeArsenal, grapple, defender, { attacker }),
+    'Get Crowd Support allows Arsenal reversal at +12F tax'
+  );
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testHeadButtCanDiscardHybridCard();
@@ -2746,6 +2849,8 @@ async function main() {
   await testSpitAtOpponentDiscardFour();
   await testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess();
   await testSpitAtOpponentPlayableWithEmptyOpponentHand();
+  await testGetCrowdSupportDrawAndNextManeuverBoost();
+  await testGetCrowdSupportReversalTaxFromHandAndArsenal();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');

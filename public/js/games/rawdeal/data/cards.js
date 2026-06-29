@@ -1196,7 +1196,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 1 card. Your next maneuver this turn is +4D and opponent’s reversals are +12F.",
     flavor: "",
-    actionEffects: [{"op": "draw", "count": 1}],
+    actionEffects: [{"op": "draw", "count": 1}, {"op": "nextManeuverBonus", "value": 4}, {"op": "nextManeuverReversalTax", "value": 12}],
     set: "premiere",
   },
   'comeback': {
