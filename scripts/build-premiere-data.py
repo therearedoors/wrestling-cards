@@ -334,6 +334,9 @@ def parse_cards(text: str):
         reversal_effects = infer_reversal_effects(types_list, rules, dmg or 0)
         if reversal_effects:
             entry['reversalEffects'] = reversal_effects
+        max_damage = infer_max_damage(rules)
+        if max_damage is not None:
+            entry['maxDamage'] = max_damage
         requires = infer_requires_played(rules)
         if requires:
             entry.update(requires)
@@ -474,10 +477,19 @@ def classify(types_blob, rules, name, damage):
             reverses = ['strike', 'grapple', 'submission', 'high-risk', 'trademark', 'trademark-finisher']
         if 'reverse any action' in blob:
             reverses.append('action')
-        if '5d or less' in blob or '5 or less damage' in blob:
+        if (
+            '5d or less' in blob
+            or '5 or less damage' in blob
+            or '7d or less' in blob
+            or '7 or less damage' in blob
+        ):
             reverses.append('low-damage')
-        if 'irish whip' in blob:
+        if 'may only reverse the card titled irish whip' in blob:
+            reverses.append('irish-whip')
+        if 'maneuver played after the card titled irish whip' in blob:
             reverses.append('after-irish-whip')
+        if 'card titled jockeying for position' in blob:
+            reverses.append('jockeying-for-position')
 
     return subtype, reverses
 
@@ -585,11 +597,23 @@ def infer_maneuver_effects(types_list, rules):
     return effects or None
 
 
+def infer_max_damage(rules):
+    """Damage cap for low-damage / special reversals (e.g. 7D or less)."""
+    blob = rules.lower()
+    if '7d or less' in blob or '7 or less damage' in blob:
+        return 7
+    if '5d or less' in blob or '5 or less damage' in blob:
+        return 5
+    return None
+
+
 def infer_reversal_effects(types_list, rules, damage):
     """Effects when a reversal is played from hand during the reversal window."""
     if 'reversal' not in types_list:
         return None
     blob = rules.lower()
+    if '# = d of maneuver' in blob or '# = d of maneuver card' in blob:
+        return [{'op': 'dealDamage', 'fromReversedManeuver': True}]
     if damage <= 0:
         return None
     if 'read as 0 when in your ring' in blob:
@@ -602,6 +626,16 @@ def infer_action_effects(types_list, rules, name=''):
         return None
     blob = rules.lower()
     card_name = name.lower()
+
+    if 'look at the top' in blob and 'opponent' in blob and 'arrange them in any order' in blob:
+        m = re.search(r'top (\d+)', blob)
+        count = int(m.group(1)) if m else 5
+        return [{'op': 'reorderArsenalTop', 'count': count, 'target': 'opponent'}]
+
+    if 'look at the top' in blob and 'your arsenal' in blob and 'arrange them in any order' in blob:
+        m = re.search(r'top (\d+)', blob)
+        count = int(m.group(1)) if m else 5
+        return [{'op': 'reorderArsenalTop', 'count': count}]
 
     if 'opponent skips his next turn' in blob or 'opponent skips their next turn' in blob:
         return [{'op': 'skipOpponentNextTurn'}]
@@ -662,6 +696,14 @@ def infer_action_effects(types_list, rules, name=''):
         if '+20f' in blob:
             effects.append({'op': 'nextManeuverReversalTax', 'value': 20})
         effects.append({'op': 'draw', 'count': 1})
+        return effects
+
+    if 'take a card in your hand' in blob and 'shuffle it into your arsenal' in blob:
+        effects = [{'op': 'shuffleHandIntoArsenal'}]
+        if 'draw 2' in blob:
+            effects[0]['draw'] = 2
+        elif 'draw 1' in blob:
+            effects[0]['draw'] = 1
         return effects
 
     if 'draw up to 5' in blob:

@@ -31,6 +31,10 @@
   const superstarAbilityModal = superstarAbilityModalRoot
     ? new window.RawDeal.SuperstarAbilityModal(superstarAbilityModalRoot)
     : null;
+  const arsenalReorderModalRoot = document.getElementById('rd-arsenal-reorder-modal');
+  const arsenalReorderModal = arsenalReorderModalRoot
+    ? new window.RawDeal.ArsenalReorderModal(arsenalReorderModalRoot)
+    : null;
 
   async function loadDecks() {
     await window.RawDeal.DeckStore.load();
@@ -50,7 +54,8 @@
       choiceModal,
       handRevealModal,
       pileViewModal,
-      superstarAbilityModal
+      superstarAbilityModal,
+      arsenalReorderModal
     );
 
     engine = new window.RawDeal.GameEngine({
@@ -121,16 +126,28 @@
       await engine.selectChoice(0, optionId);
     };
 
-    board.onDismissHandReveal = () => {
-      engine.dismissHandReveal(0);
+    board.onShuffleArsenalReorder = async () => {
+      await engine.shuffleArsenalFromPrompt(0);
     };
 
-    board.onSkipHandReveal = () => {
-      engine.skipHandReveal(0);
+    board.onConfirmArsenalReorder = async (orderedIds) => {
+      await engine.confirmArsenalReorder(0, orderedIds);
     };
 
-    board.onConfirmHandReveal = (instanceIds) => {
-      engine.confirmHandRevealSelection(0, instanceIds);
+    board.onArsenalReorderChange = (orderedIds) => {
+      engine.updateArsenalReorderOrder(0, orderedIds);
+    };
+
+    board.onDismissHandReveal = async () => {
+      await engine.dismissHandReveal(0);
+    };
+
+    board.onSkipHandReveal = async () => {
+      await engine.skipHandReveal(0);
+    };
+
+    board.onConfirmHandReveal = async (instanceIds) => {
+      await engine.confirmHandRevealSelection(0, instanceIds);
     };
 
     board.onToggleHandRevealSelect = (instanceId) => {

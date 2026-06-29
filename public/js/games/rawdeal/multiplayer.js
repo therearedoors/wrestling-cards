@@ -45,6 +45,10 @@
   const superstarAbilityModal = superstarAbilityModalRoot
     ? new window.RawDeal.SuperstarAbilityModal(superstarAbilityModalRoot)
     : null;
+  const arsenalReorderModalRoot = document.getElementById('rd-arsenal-reorder-modal');
+  const arsenalReorderModal = arsenalReorderModalRoot
+    ? new window.RawDeal.ArsenalReorderModal(arsenalReorderModalRoot)
+    : null;
 
   function emitAction(action) {
     socket.emit('rd-action', roomId, action);
@@ -100,7 +104,8 @@
       choiceModal,
       handRevealModal,
       pileViewModal,
-      superstarAbilityModal
+      superstarAbilityModal,
+      arsenalReorderModal
     );
 
     board.onPlayCard = (instanceId, playAs) => {
@@ -135,6 +140,18 @@
       emitAction({ type: 'choiceSelect', optionId });
     };
 
+    board.onShuffleArsenalReorder = () => {
+      emitAction({ type: 'shuffleArsenalReorder' });
+    };
+
+    board.onConfirmArsenalReorder = (orderedIds) => {
+      emitAction({ type: 'confirmArsenalReorder', orderedIds });
+    };
+
+    board.onArsenalReorderChange = (orderedIds) => {
+      emitAction({ type: 'updateArsenalReorder', orderedIds });
+    };
+
     board.onPlayReversal = (instanceId) => {
       emitAction({ type: 'playReversal', instanceId });
     };
@@ -144,6 +161,10 @@
     };
 
     board.onDismissHandReveal = () => {
+      if (lastBoardState) {
+        lastBoardState = stateWithoutBlockingModals(lastBoardState);
+        board.render(lastBoardState);
+      }
       emitAction({ type: 'dismissHandReveal' });
     };
 
@@ -197,6 +218,15 @@
     lastDamageLogLen = state.damageLog.length;
   }
 
+  function stateWithoutBlockingModals(baseState) {
+    if (!baseState) return baseState;
+    return {
+      ...baseState,
+      handReveal: null,
+      selectionPrompt: null,
+    };
+  }
+
   async function applyState(state) {
     if (!board) setupBoard();
     showGame();
@@ -205,7 +235,7 @@
     const hasAnims = events.length > 0 && lastBoardState;
 
     if (hasAnims) {
-      board.render(lastBoardState);
+      board.render(stateWithoutBlockingModals(lastBoardState));
       for (const ev of events) {
         await playAnimationEvent(ev);
       }

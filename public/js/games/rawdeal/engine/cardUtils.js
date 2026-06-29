@@ -72,11 +72,13 @@ window.RawDeal.CardUtils = {
     return card?.stunValue || 0;
   },
 
-  /** Printed damage dealt when this reversal is played from hand. */
+  /** Printed damage dealt when this reversal is played from hand (0 if damage comes from reversed maneuver). */
   getReversalFromHandDamage(card) {
     if (!this.hasType(card, 'reversal')) return 0;
-    if (card.reversalEffects?.some((s) => s.op === 'dealDamage')) return card.damage || 0;
-    return 0;
+    const dealStep = card.reversalEffects?.find((s) => s.op === 'dealDamage');
+    if (!dealStep) return 0;
+    if (dealStep.fromReversedManeuver) return 0;
+    return dealStep.count ?? card.damage ?? 0;
   },
 
   actionHint(card) {
@@ -86,6 +88,12 @@ window.RawDeal.CardUtils = {
       return `Discard · Draw ${n}`;
     }
     return 'Action';
+  },
+
+  passesReversalDamageCap(reversalCard, damage) {
+    const cap = reversalCard.maxDamage;
+    if (cap == null) return true;
+    return damage <= cap;
   },
 
   /**
@@ -105,28 +113,32 @@ window.RawDeal.CardUtils = {
 
     const damage = effectiveDamage ?? (maneuver.damage || 0);
     const reverses = reversalCard.reverses;
+    const withinCap = (match) => match && this.passesReversalDamageCap(reversalCard, damage);
 
-    if (reverses.includes('irish-whip') && maneuver.id === 'irish-whip') return true;
+    if (withinCap(reverses.includes('irish-whip') && maneuver.id === 'irish-whip')) return true;
 
-    if (reverses.includes('after-irish-whip') && afterIrishWhip) {
+    if (withinCap(reverses.includes('after-irish-whip') && afterIrishWhip)) {
       return true;
     }
 
-    if (reverses.includes('low-damage') && damage <= (reversalCard.maxDamage ?? 7)) {
+    if (withinCap(reverses.includes('low-damage') && damage <= (reversalCard.maxDamage ?? 7))) {
       return true;
     }
 
     const subtype = maneuver.subtype || '';
-    if (subtype && reverses.includes(subtype)) return true;
-    if (reverses.includes('strike') && subtype === 'strike') return true;
-    if (reverses.includes('grapple') && subtype === 'grapple') return true;
-    if (reverses.includes('submission') && subtype === 'submission') return true;
+    if (withinCap(subtype && reverses.includes(subtype))) return true;
+    if (withinCap(reverses.includes('strike') && subtype === 'strike')) return true;
+    if (withinCap(reverses.includes('grapple') && subtype === 'grapple')) return true;
+    if (withinCap(reverses.includes('submission') && subtype === 'submission')) return true;
     if (
-      reverses.includes('strike') &&
-      reverses.includes('grapple') &&
-      reverses.includes('submission')
+      withinCap(
+        reverses.includes('strike') &&
+          reverses.includes('grapple') &&
+          reverses.includes('submission') &&
+          ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype)
+      )
     ) {
-      return ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype);
+      return true;
     }
     return false;
   },
