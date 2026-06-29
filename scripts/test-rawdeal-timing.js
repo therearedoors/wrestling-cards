@@ -1755,6 +1755,94 @@ async function testCleanBreakReversesJfp() {
   );
 }
 
+async function testIrishWhipSelfReverseEligible() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const iwAttacker = cloneCard(RawDeal, 'irish-whip', 'iw-atk');
+  const iwDefender = cloneCard(RawDeal, 'irish-whip', 'iw-def');
+
+  attacker.hand = [iwAttacker];
+  attacker.fortitude = 20;
+  defender.hand = [iwDefender];
+  defender.fortitude = 6;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, iwAttacker.instanceId, 'action');
+  assert(engine.reversalWindow?.kind === 'action', 'Irish Whip action opens reversal window');
+  assert(
+    engine.canPlayReversalFromHand(1, iwDefender.instanceId),
+    'Irish Whip can reverse Irish Whip action from hand at 6F'
+  );
+}
+
+async function testIrishWhipSelfReverseGrantsStrikeBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const iwAttacker = cloneCard(RawDeal, 'irish-whip', 'iw-atk-bonus');
+  const iwDefender = cloneCard(RawDeal, 'irish-whip', 'iw-def-bonus');
+
+  attacker.hand = [iwAttacker];
+  attacker.fortitude = 20;
+  defender.hand = [iwDefender];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, iwAttacker.instanceId, 'action');
+  await engine.playReversalFromHand(1, iwDefender.instanceId);
+
+  assert(
+    defender.turnState.nextStrikeBonus === 5,
+    'Irish Whip self-reverse grants +5D on next Strike'
+  );
+}
+
+async function testIrishWhipCannotReversePostIwManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'iw-post-punch');
+  const irishWhip = cloneCard(RawDeal, 'irish-whip', 'iw-post-iw');
+  const shoulderBlock = cloneCard(RawDeal, 'shoulder-block', 'iw-post-sb');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 20;
+  attacker.turnState = engine._emptyTurnState();
+  attacker.turnState.irishWhipPlayed = true;
+
+  defender.hand = [irishWhip, shoulderBlock];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(engine.reversalWindow?.kind === 'maneuver', 'Strike opens maneuver reversal window');
+
+  assert(
+    !engine.canPlayReversalFromHand(1, irishWhip.instanceId),
+    'Irish Whip cannot reverse a maneuver played after Irish Whip setup'
+  );
+  assert(
+    engine.canPlayReversalFromHand(1, shoulderBlock.instanceId),
+    'Shoulder Block can reverse a maneuver played after Irish Whip setup'
+  );
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testSpinningHeelKickDiscardBeforeDamage();
@@ -1811,6 +1899,9 @@ async function main() {
   await testJfpSelfReverseOpensChoice();
   await testJfpSelfReverseTaxAppliesToNextGrapple();
   await testCleanBreakReversesJfp();
+  await testIrishWhipSelfReverseEligible();
+  await testIrishWhipSelfReverseGrantsStrikeBonus();
+  await testIrishWhipCannotReversePostIwManeuver();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');
