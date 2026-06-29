@@ -250,8 +250,8 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     if (flow.type === 'arsenalReorder') {
-      const player = this.players[viewerIndex];
-      const topSlice = player.arsenal.slice(-flow.count);
+      const targetPlayer = this.players[flow.targetPlayerIndex];
+      const topSlice = targetPlayer.arsenal.slice(-flow.count);
       const byId = new Map(topSlice.map((c) => [c.instanceId, c]));
       const cards = flow.orderedIds
         .map((id) => {
@@ -259,12 +259,19 @@ window.RawDeal.GameEngine = class GameEngine {
           return card ? { ...card } : null;
         })
         .filter(Boolean);
+      const whose =
+        flow.target === 'opponent' ? "opponent's top" : 'your top';
+      const shuffleHint =
+        flow.target === 'opponent'
+          ? "Shuffle to shuffle opponent's entire Arsenal."
+          : 'Shuffle to shuffle your entire Arsenal.';
       return {
         mode: 'arsenalReorder',
-        message: `${flow.sourceName}: drag to reorder your top ${flow.count} Arsenal card${flow.count === 1 ? '' : 's'} (left = next to draw). Pass to keep the current order.`,
+        message: `${flow.sourceName}: drag to reorder ${whose} ${flow.count} Arsenal card${flow.count === 1 ? '' : 's'} (left = next to draw). ${shuffleHint}`,
         cards,
         orderedIds: [...flow.orderedIds],
         count: flow.count,
+        target: flow.target,
       };
     }
 
@@ -789,8 +796,16 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  _beginArsenalTopReorderPrompt(player, playerIndex, sourceName, count = 5) {
-    const n = Math.min(count, player.arsenal.length);
+  _beginArsenalTopReorderPrompt(
+    targetPlayer,
+    actingPlayerIndex,
+    sourceName,
+    count = 5,
+    { targetPlayerIndex } = {}
+  ) {
+    const resolvedTargetIndex =
+      targetPlayerIndex ?? this._playerIndex(targetPlayer);
+    const n = Math.min(count, targetPlayer.arsenal.length);
     if (n === 0) {
       this.actionLog.push({
         message: `${sourceName}: Arsenal is empty.`,
@@ -798,36 +813,45 @@ window.RawDeal.GameEngine = class GameEngine {
       return false;
     }
 
-    const topSlice = player.arsenal.slice(-n);
+    const topSlice = targetPlayer.arsenal.slice(-n);
     const orderedIds = topSlice.map((c) => c.instanceId).reverse();
+    const target =
+      resolvedTargetIndex === actingPlayerIndex ? 'self' : 'opponent';
 
     this.cardEffectFlow = {
       type: 'arsenalReorder',
-      playerIndex,
+      playerIndex: actingPlayerIndex,
+      targetPlayerIndex: resolvedTargetIndex,
+      target,
       sourceName,
       count: n,
       orderedIds,
     };
+    const lookTarget = target === 'opponent' ? "opponent's" : 'your';
     this.actionLog.push({
-      message: `${sourceName}: look at top ${n} card${n === 1 ? '' : 's'} of your Arsenal.`,
+      message: `${sourceName}: look at top ${n} card${n === 1 ? '' : 's'} of ${lookTarget} Arsenal.`,
     });
     this._notify();
     return true;
   }
 
-  _validateArsenalReorderIds(player, flow, orderedIds) {
+  _targetPlayerForArsenalReorder(flow) {
+    return this.players[flow.targetPlayerIndex];
+  }
+
+  _validateArsenalReorderIds(targetPlayer, flow, orderedIds) {
     if (!Array.isArray(orderedIds) || orderedIds.length !== flow.count) return false;
-    const topSlice = player.arsenal.slice(-flow.count);
+    const topSlice = targetPlayer.arsenal.slice(-flow.count);
     const expected = new Set(topSlice.map((c) => c.instanceId));
     return orderedIds.every((id) => expected.has(id));
   }
 
-  _applyArsenalReorder(player, orderedIds) {
+  _applyArsenalReorder(targetPlayer, orderedIds) {
     const n = orderedIds.length;
-    const topSlice = player.arsenal.splice(-n, n);
+    const topSlice = targetPlayer.arsenal.splice(-n, n);
     const byId = new Map(topSlice.map((c) => [c.instanceId, c]));
     for (let i = orderedIds.length - 1; i >= 0; i--) {
-      player.arsenal.push(byId.get(orderedIds[i]));
+      targetPlayer.arsenal.push(byId.get(orderedIds[i]));
     }
   }
 
@@ -835,22 +859,27 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
     if (this.cardEffectFlow.type !== 'arsenalReorder') return false;
 
-    const player = this.players[playerIndex];
     const flow = this.cardEffectFlow;
-    if (!this._validateArsenalReorderIds(player, flow, orderedIds)) return false;
+    const targetPlayer = this._targetPlayerForArsenalReorder(flow);
+    if (!this._validateArsenalReorderIds(targetPlayer, flow, orderedIds)) return false;
 
     flow.orderedIds = [...orderedIds];
     this._notify();
     return true;
   }
 
-  async passArsenalReorder(playerIndex) {
+  async shuffleArsenalFromPrompt(playerIndex) {
     if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
     if (this.cardEffectFlow.type !== 'arsenalReorder') return false;
 
-    const { sourceName } = this.cardEffectFlow;
+    const flow = this.cardEffectFlow;
+    const targetPlayer = this._targetPlayerForArsenalReorder(flow);
+    this._shuffle(targetPlayer.arsenal);
     this.actionLog.push({
-      message: `${sourceName}: left Arsenal order unchanged.`,
+      message:
+        flow.target === 'opponent'
+          ? `${flow.sourceName}: shuffled opponent's Arsenal.`
+          : `${flow.sourceName}: shuffled your Arsenal.`,
     });
     await this._finishCardEffectResolution();
     return true;
@@ -860,13 +889,14 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
     if (this.cardEffectFlow.type !== 'arsenalReorder') return false;
 
-    const player = this.players[playerIndex];
     const flow = this.cardEffectFlow;
-    if (!this._validateArsenalReorderIds(player, flow, orderedIds)) return false;
+    const targetPlayer = this._targetPlayerForArsenalReorder(flow);
+    if (!this._validateArsenalReorderIds(targetPlayer, flow, orderedIds)) return false;
 
-    this._applyArsenalReorder(player, orderedIds);
+    this._applyArsenalReorder(targetPlayer, orderedIds);
+    const whose = flow.target === 'opponent' ? "opponent's" : 'your';
     this.actionLog.push({
-      message: `${flow.sourceName}: rearranged top ${flow.count} Arsenal card${flow.count === 1 ? '' : 's'}.`,
+      message: `${flow.sourceName}: rearranged top ${flow.count} card${flow.count === 1 ? '' : 's'} of ${whose} Arsenal.`,
     });
     await this._finishCardEffectResolution();
     return true;

@@ -92,8 +92,8 @@ class RoomGame {
       case 'toggleSuperstarAbilitySelection':
         ok = engine.toggleSuperstarAbilitySelection(seat, action.instanceId);
         break;
-      case 'passArsenalReorder':
-        ok = await engine.passArsenalReorder(seat);
+      case 'shuffleArsenalReorder':
+        ok = await engine.shuffleArsenalFromPrompt(seat);
         break;
       case 'confirmArsenalReorder':
         ok = await engine.confirmArsenalReorder(seat, action.orderedIds || []);

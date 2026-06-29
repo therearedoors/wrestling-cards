@@ -8,17 +8,17 @@ window.RawDeal.ArsenalReorderModal = class ArsenalReorderModal {
     this.root = rootEl;
     this.messageEl = rootEl.querySelector('[data-rd-arsenal-reorder-message]');
     this.cardsEl = rootEl.querySelector('[data-rd-arsenal-reorder-cards]');
-    this.passBtn = rootEl.querySelector('[data-rd-arsenal-reorder-pass]');
+    this.shuffleBtn = rootEl.querySelector('[data-rd-arsenal-reorder-shuffle]');
     this.confirmBtn = rootEl.querySelector('[data-rd-arsenal-reorder-confirm]');
-    this.onPass = null;
+    this.onShuffle = null;
     this.onConfirm = null;
     this.onReorder = null;
     this._prompt = null;
     this._sortable = null;
 
-    this.passBtn?.addEventListener('click', () => {
+    this.shuffleBtn?.addEventListener('click', () => {
       this.hide();
-      if (this.onPass) this.onPass();
+      if (this.onShuffle) this.onShuffle();
     });
 
     this.confirmBtn?.addEventListener('click', () => {

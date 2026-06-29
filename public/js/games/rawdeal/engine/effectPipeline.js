@@ -271,13 +271,18 @@ window.RawDeal.EffectPipeline = {
       case 'opponentDiscardFromHand':
         return engine._beginOpponentDiscardFromHandEffect(player, opponent, sourceName, step.count || 1);
 
-      case 'reorderArsenalTop':
+      case 'reorderArsenalTop': {
+        const targetPlayer = step.target === 'opponent' ? opponent : player;
+        const targetPlayerIndex =
+          step.target === 'opponent' ? pipeline.opponentIndex : pipeline.playerIndex;
         return engine._beginArsenalTopReorderPrompt(
-          player,
+          targetPlayer,
           pipeline.playerIndex,
           sourceName,
-          step.count || 5
+          step.count || 5,
+          { targetPlayerIndex }
         );
+      }
 
       case 'opponentDraw': {
         engine._drawForOpponent(player, sourceName, step.count || 1);
