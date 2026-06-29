@@ -35,6 +35,10 @@
   const arsenalReorderModal = arsenalReorderModalRoot
     ? new window.RawDeal.ArsenalReorderModal(arsenalReorderModalRoot)
     : null;
+  const opponentRingModalRoot = document.getElementById('rd-opponent-ring-modal');
+  const opponentRingSelectModal = opponentRingModalRoot
+    ? new window.RawDeal.OpponentRingSelectModal(opponentRingModalRoot)
+    : null;
 
   async function loadDecks() {
     await window.RawDeal.DeckStore.load();
@@ -55,7 +59,8 @@
       handRevealModal,
       pileViewModal,
       superstarAbilityModal,
-      arsenalReorderModal
+      arsenalReorderModal,
+      opponentRingSelectModal
     );
 
     engine = new window.RawDeal.GameEngine({
@@ -152,6 +157,14 @@
 
     board.onToggleHandRevealSelect = (instanceId) => {
       engine.toggleHandRevealSelection(0, instanceId);
+    };
+
+    board.onToggleOpponentRingSelect = (instanceId, ringArea) => {
+      engine.toggleRemoveOpponentRingSelect(0, instanceId, ringArea);
+    };
+
+    board.onConfirmOpponentRingSelect = async () => {
+      await engine.confirmRemoveOpponentRingCard(0);
     };
 
     board.onRestart = () => {

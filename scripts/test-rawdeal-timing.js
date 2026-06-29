@@ -2032,6 +2032,128 @@ async function testIrishWhipCannotReversePostIwManeuver() {
   );
 }
 
+async function createShakeItOffTest(RawDeal) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const shake = cloneCard(RawDeal, 'shake-it-off', 'sio-test');
+
+  player.hand = [shake];
+  player.ring = { maneuvers: [], reversals: [], actions: [] };
+  opponent.ring = { maneuvers: [], reversals: [], actions: [] };
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent, shake };
+}
+
+async function testShakeItOffPlayableWhenLowerFortitude() {
+  const RawDeal = loadRawDeal();
+  const { engine, shake } = await createShakeItOffTest(RawDeal);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+
+  const punch = cloneCard(RawDeal, 'punch', 'sio-opp-punch');
+  opponent.ring.maneuvers.push(punch);
+  engine._syncFortitude(opponent);
+
+  player.fortitude = 3;
+  opponent.fortitude = 6;
+
+  assert(
+    engine.canPlayCard(0, shake.instanceId, 'action'),
+    'Shake It Off playable when your Fortitude is lower and a valid Ring target exists'
+  );
+}
+
+async function testShakeItOffNotPlayableWhenFortitudeNotLower() {
+  const RawDeal = loadRawDeal();
+  const { engine, shake } = await createShakeItOffTest(RawDeal);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+
+  const punch = cloneCard(RawDeal, 'punch', 'sio-opp-punch-block');
+  opponent.ring.maneuvers.push(punch);
+  engine._syncFortitude(opponent);
+
+  player.fortitude = 6;
+  opponent.fortitude = 6;
+
+  assert(
+    !engine.canPlayCard(0, shake.instanceId, 'action'),
+    'Shake It Off not playable when Fortitude is not less than opponent'
+  );
+}
+
+async function testShakeItOffNotPlayableWithoutValidTarget() {
+  const RawDeal = loadRawDeal();
+  const { engine, shake } = await createShakeItOffTest(RawDeal);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+
+  const kick = cloneCard(RawDeal, 'kick', 'sio-opp-kick');
+  opponent.ring.maneuvers.push(kick);
+  engine._syncFortitude(opponent);
+
+  player.fortitude = 3;
+  opponent.fortitude = 6;
+
+  assert(
+    !engine.canPlayCard(0, shake.instanceId, 'action'),
+    'Shake It Off not playable when no opponent Ring card has D at or below your Fortitude'
+  );
+}
+
+async function testShakeItOffRemovesOpponentRingCard() {
+  const RawDeal = loadRawDeal();
+  const { engine, shake } = await createShakeItOffTest(RawDeal);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+
+  const punch = cloneCard(RawDeal, 'punch', 'sio-remove-punch');
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'sio-remove-clothesline');
+  opponent.ring.maneuvers.push(punch, clothesline);
+  engine._syncFortitude(opponent);
+
+  player.fortitude = 5;
+  opponent.fortitude = 12;
+
+  await engine.playCard(0, shake.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'removeOpponentRingCard',
+    'Shake It Off opens opponent Ring selection prompt'
+  );
+
+  assert(
+    engine.toggleRemoveOpponentRingSelect(0, punch.instanceId, 'maneuvers'),
+    'Can select opponent Ring card within Fortitude cap'
+  );
+  assert(
+    !engine.toggleRemoveOpponentRingSelect(0, clothesline.instanceId, 'maneuvers'),
+    'Cannot select opponent Ring card above Fortitude cap'
+  );
+
+  await engine.confirmRemoveOpponentRingCard(0);
+
+  assert(
+    !opponent.ring.maneuvers.some((c) => c.instanceId === punch.instanceId),
+    'Removed maneuver leaves opponent Ring'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === punch.instanceId),
+    'Removed maneuver goes to opponent Ringside'
+  );
+  assert(opponent.fortitude === 7, 'Opponent Fortitude drops after removing maneuver');
+  assert(
+    player.ring.actions.some((c) => c.instanceId === shake.instanceId),
+    'Shake It Off is placed in your Ring actions area'
+  );
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testSpinningHeelKickDiscardBeforeDamage();
@@ -2100,6 +2222,10 @@ async function main() {
   await testIrishWhipSelfReverseEligible();
   await testIrishWhipSelfReverseGrantsStrikeBonus();
   await testIrishWhipCannotReversePostIwManeuver();
+  await testShakeItOffPlayableWhenLowerFortitude();
+  await testShakeItOffNotPlayableWhenFortitudeNotLower();
+  await testShakeItOffNotPlayableWithoutValidTarget();
+  await testShakeItOffRemovesOpponentRingCard();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');

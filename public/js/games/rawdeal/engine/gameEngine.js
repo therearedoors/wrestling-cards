@@ -264,6 +264,17 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'removeOpponentRingCard') {
+      const opponent = this.players[1 - flow.playerIndex];
+      const sections = this._buildOpponentRingSelectSections(opponent, flow.maxDamage);
+      return {
+        mode: 'opponentRingModal',
+        message: `${flow.sourceName}: choose 1 card in opponent's Ring (D ≤ ${flow.maxDamage}) to put in Ringside.`,
+        sections,
+        selectedId: flow.selectedId || null,
+      };
+    }
+
     if (flow.type === 'arsenalReorder') {
       const targetPlayer = this.players[flow.targetPlayerIndex];
       const topSlice = targetPlayer.arsenal.slice(-flow.count);
@@ -668,6 +679,11 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!utils.canPlayFromHandAs(card, mode)) return false;
     if (!utils.meetsPlayRequirement(player, card, mode)) return false;
 
+    const opponent = this.players[1 - playerIndex];
+    if (mode === 'action' && !utils.meetsActionPlayRequirement(player, opponent, card)) {
+      return false;
+    }
+
     const cost = this._effectiveFortitudeCost(player, card, mode);
     return player.fortitude >= cost;
   }
@@ -870,6 +886,124 @@ window.RawDeal.GameEngine = class GameEngine {
       ],
     };
     this._notify();
+    return true;
+  }
+
+  _buildOpponentRingSelectSections(opponent, maxDamage) {
+    const utils = window.RawDeal.CardUtils;
+    const ring = opponent.ring || { maneuvers: [], reversals: [], actions: [] };
+    const labels = {
+      maneuvers: 'Maneuvers',
+      reversals: 'Reversals',
+      actions: 'Actions',
+    };
+
+    return ['maneuvers', 'reversals', 'actions']
+      .map((area) => ({
+        label: labels[area],
+        ringArea: area,
+        cards: (ring[area] || []).map((card) => {
+          const ringDamage = utils.getRingDamageValue(card, area);
+          return {
+            ...card,
+            ringArea: area,
+            ringDamage,
+            selectable: ringDamage <= maxDamage,
+          };
+        }),
+      }))
+      .filter((section) => section.cards.length > 0);
+  }
+
+  _beginRemoveOpponentRingCardPrompt(player, opponent, playerIndex, sourceName) {
+    const maxDamage = player.fortitude;
+    const sections = this._buildOpponentRingSelectSections(opponent, maxDamage);
+    const hasSelectable = sections.some((section) =>
+      section.cards.some((card) => card.selectable)
+    );
+
+    if (!hasSelectable) {
+      this.actionLog.push({
+        message: `${sourceName}: no valid cards in opponent's Ring to remove.`,
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'removeOpponentRingCard',
+      playerIndex,
+      sourceName,
+      maxDamage,
+      selectedId: null,
+      selectedRingArea: null,
+    };
+    this._notify();
+    return true;
+  }
+
+  _removeCardFromOpponentRing(opponent, instanceId, ringArea) {
+    const area = opponent.ring?.[ringArea];
+    if (!area) return null;
+
+    const idx = area.findIndex((c) => c.instanceId === instanceId);
+    if (idx < 0) return null;
+
+    const [card] = area.splice(idx, 1);
+    opponent.ringside.push(card);
+    if (ringArea === 'maneuvers' || ringArea === 'reversals') {
+      this._syncFortitude(opponent);
+    }
+    return card;
+  }
+
+  toggleRemoveOpponentRingSelect(playerIndex, instanceId, ringArea) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.type !== 'removeOpponentRingCard' || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    const opponent = this.players[1 - playerIndex];
+    const utils = window.RawDeal.CardUtils;
+    const card = opponent.ring?.[ringArea]?.find((c) => c.instanceId === instanceId);
+    if (!card) return false;
+    if (utils.getRingDamageValue(card, ringArea) > flow.maxDamage) return false;
+
+    if (flow.selectedId === instanceId) {
+      flow.selectedId = null;
+      flow.selectedRingArea = null;
+    } else {
+      flow.selectedId = instanceId;
+      flow.selectedRingArea = ringArea;
+    }
+
+    this._notify();
+    return true;
+  }
+
+  async confirmRemoveOpponentRingCard(playerIndex) {
+    const flow = this.cardEffectFlow;
+    if (
+      !flow ||
+      flow.type !== 'removeOpponentRingCard' ||
+      flow.playerIndex !== playerIndex ||
+      !flow.selectedId ||
+      !flow.selectedRingArea
+    ) {
+      return false;
+    }
+
+    const opponent = this.players[1 - playerIndex];
+    const card = this._removeCardFromOpponentRing(
+      opponent,
+      flow.selectedId,
+      flow.selectedRingArea
+    );
+    if (!card) return false;
+
+    this.actionLog.push({
+      message: `${flow.sourceName}: removed ${card.name} from opponent's Ring to Ringside.`,
+    });
+    await this._finishCardEffectResolution();
     return true;
   }
 
