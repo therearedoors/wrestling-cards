@@ -72,13 +72,13 @@ class RoomGame {
         ok = await engine.selectChoice(seat, action.optionId);
         break;
       case 'dismissHandReveal':
-        ok = engine.dismissHandReveal(seat);
+        ok = await engine.dismissHandReveal(seat);
         break;
       case 'skipHandReveal':
-        ok = engine.skipHandReveal(seat);
+        ok = await engine.skipHandReveal(seat);
         break;
       case 'confirmHandRevealSelection':
-        ok = engine.confirmHandRevealSelection(seat, action.instanceIds || []);
+        ok = await engine.confirmHandRevealSelection(seat, action.instanceIds || []);
         break;
       case 'toggleHandRevealSelection':
         ok = engine.toggleHandRevealSelection(seat, action.instanceId);
