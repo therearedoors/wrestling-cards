@@ -959,6 +959,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Reversal: Special If played from your hand, may reverse the card titled Jockeying for Position. Opponent must discard 4 cards. End your opponent’s turn. Draw 1 card.",
     flavor: "",
+    reverses: ["jockeying-for-position"],
     set: "premiere",
   },
   'manager-interferes': {
@@ -1059,6 +1060,7 @@ window.RawDeal.CARDS = {
     text: "Action: Set-up / Reversal: Special As an action, if your next card played is a Grapple maneuver, declare whether it will be +4D or your opponent’s reversal to it will be +8F. As a reversal, may only reverse the card titled Jockeying for Position. If so, you end opponent’s turn; and if your next card played on your turn is a Grapple maneuver, declare whether it will be +4D or your opponent’s reversal to it will be +8F.",
     flavor: "",
     hybrid: true,
+    reverses: ["jockeying-for-position"],
     actionEffects: [{"op": "jockeyingChoice"}],
     set: "premiere",
   },

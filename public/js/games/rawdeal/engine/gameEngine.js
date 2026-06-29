@@ -1083,6 +1083,9 @@ window.RawDeal.GameEngine = class GameEngine {
     if (damage > 0) {
       const damageResult = await this._resolveDamage(player, opponent, played, damage);
       this._clearNextManeuverReversalTax(player);
+      if (played.subtype === 'grapple') {
+        this._clearGrappleJockeyingTax(player);
+      }
       this.damageLog.push({
         card: played.name,
         damage,
@@ -1109,6 +1112,9 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     this._clearNextManeuverReversalTax(player);
+    if (played.subtype === 'grapple') {
+      this._clearGrappleJockeyingTax(player);
+    }
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
     return true;
@@ -1117,10 +1123,6 @@ window.RawDeal.GameEngine = class GameEngine {
   async _continueManeuverAfterReversal(player, opponent, played, damage, {
     skipManeuverEffects = false,
   } = {}) {
-    if (played.subtype === 'grapple') {
-      this._clearGrappleJockeyingTax(player);
-    }
-
     if (!skipManeuverEffects && played.maneuverEffects?.length) {
       this.pendingManeuverResolution = { player, opponent, played, damage, resumeAt: 'maneuver' };
       const paused = await this._startEffectPipeline(player, played.name, played.maneuverEffects, 'maneuver');
@@ -1225,6 +1227,8 @@ window.RawDeal.GameEngine = class GameEngine {
         reversal.id === 'irish-whip' && played.id === 'irish-whip';
       const grantJockeyingChoice =
         reversal.id === 'jockeying-for-position' && played.id === 'jockeying-for-position';
+      const cleanBreakVsJfp =
+        reversal.id === 'clean-break' && played.id === 'jockeying-for-position';
 
       this.actionLog.push({
         message: `${reversal.name} reversed ${played.name} — action has no effect.`,
@@ -1232,9 +1236,28 @@ window.RawDeal.GameEngine = class GameEngine {
       this.reversalWindow = null;
       this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
       this._notify();
+
+      if (cleanBreakVsJfp) {
+        const { count, cards } = this._forceOpponentDiscardFromHand(attacker, 4);
+        const names = cards.map((c) => c.name).join(', ');
+        this.actionLog.push({
+          message: count
+            ? `${reversal.name}: opponent discarded ${names} to Ringside.`
+            : `${reversal.name}: opponent had no cards in hand to discard.`,
+        });
+        this._notify();
+      }
+
       await this._runAutoPhases();
 
-      if (grantIrishWhipSetup) {
+      if (cleanBreakVsJfp) {
+        const drawn = this._drawCard(player);
+        if (drawn) {
+          this.actionLog.push({
+            message: `${reversal.name}: drew 1 card.`,
+          });
+        }
+      } else if (grantIrishWhipSetup) {
         this._applyIrishWhipSetup(player, reversal);
       } else if (grantJockeyingChoice) {
         this._beginJockeyingChoice(player, reversalPlayerIndex, reversal.name);
