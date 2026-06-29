@@ -47,6 +47,33 @@ window.RawDeal.CardUtils = {
     return true;
   },
 
+  /** Damage value of a card while in a Ring area (reversals read as 0). */
+  getRingDamageValue(card, ringArea) {
+    if (ringArea === 'reversals') return 0;
+    return card.damage || 0;
+  },
+
+  listOpponentRingCards(opponent) {
+    const ring = opponent.ring || { maneuvers: [], reversals: [], actions: [] };
+    const entries = [];
+    for (const area of ['maneuvers', 'reversals', 'actions']) {
+      for (const card of ring[area] || []) {
+        entries.push({ card, ringArea: area });
+      }
+    }
+    return entries;
+  },
+
+  meetsActionPlayRequirement(player, opponent, card) {
+    if (!card.requiresLowerFortitudeThanOpponent) return true;
+    if (!opponent || player.fortitude >= opponent.fortitude) return false;
+
+    const maxDamage = player.fortitude;
+    return this.listOpponentRingCards(opponent).some(
+      ({ card: ringCard, ringArea }) => this.getRingDamageValue(ringCard, ringArea) <= maxDamage
+    );
+  },
+
 
   _hasDiscardSelfToDraw(card) {
     return card.actionEffects?.some((step) => step.op === 'discardSelfToDraw');

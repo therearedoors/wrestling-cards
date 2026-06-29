@@ -101,6 +101,16 @@ class RoomGame {
       case 'updateArsenalReorder':
         ok = engine.updateArsenalReorderOrder(seat, action.orderedIds || []);
         break;
+      case 'toggleRemoveOpponentRingSelect':
+        ok = engine.toggleRemoveOpponentRingSelect(
+          seat,
+          action.instanceId,
+          action.ringArea
+        );
+        break;
+      case 'confirmRemoveOpponentRingCard':
+        ok = await engine.confirmRemoveOpponentRingCard(seat);
+        break;
       case 'devCommand': {
         const { loadRawDeal } = require('./bootstrap');
         const RawDeal = loadRawDeal();

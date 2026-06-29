@@ -293,6 +293,14 @@ window.RawDeal.EffectPipeline = {
         );
       }
 
+      case 'removeOpponentRingCard':
+        return engine._beginRemoveOpponentRingCardPrompt(
+          player,
+          opponent,
+          pipeline.playerIndex,
+          sourceName
+        );
+
       case 'opponentDraw': {
         engine._drawForOpponent(player, sourceName, step.count || 1);
         return false;

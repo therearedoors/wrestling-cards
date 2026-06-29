@@ -1073,6 +1073,89 @@ body:has(.rd-page) {
   outline-offset: 2px;
 }
 
+.rd-opponent-ring-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 92;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rd-opponent-ring-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 18, 30, 0.72);
+  pointer-events: none;
+}
+
+.rd-opponent-ring-modal__panel {
+  position: relative;
+  background: var(--main-color-darker);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 24px 28px;
+  max-width: min(960px, calc(100vw - 32px));
+  width: calc(100% - 32px);
+  max-height: min(80vh, 720px);
+  overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.rd-opponent-ring-modal__message {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+.rd-opponent-ring-modal__body {
+  text-align: left;
+  margin-bottom: 16px;
+}
+
+.rd-opponent-ring-modal__section-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 12px 0 8px;
+}
+
+.rd-opponent-ring-modal__section-label:first-child {
+  margin-top: 0;
+}
+
+.rd-opponent-ring-modal__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-start;
+  margin-bottom: 4px;
+}
+
+.rd-opponent-ring-modal__empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 8px 0;
+}
+
+.rd-opponent-ring-modal__actions {
+  display: flex;
+  justify-content: center;
+}
+
+.rd-opponent-ring-modal__confirm {
+  min-width: 120px;
+}
+
+.rd-opponent-ring-modal .rd-card--selected {
+  outline: 3px solid var(--bg-orange);
+  outline-offset: 2px;
+}
+
 .rd-arsenal-reorder-modal {
   position: absolute;
   inset: 0;
