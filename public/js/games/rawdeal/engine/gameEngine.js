@@ -26,6 +26,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.reversalWindow = null;
     this.handRevealFlow = null;
     this.effectPipelineFlow = null;
+    this.reversedManeuverDamage = null;
     this.animationEvents = [];
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
     this.stateMachine.activePlayer = 0;
@@ -159,15 +160,15 @@ window.RawDeal.GameEngine = class GameEngine {
     );
   }
 
-  dismissHandReveal(playerIndex) {
+  async dismissHandReveal(playerIndex) {
     return window.RawDeal.EffectPipeline.resume(this, playerIndex, { skipped: false });
   }
 
-  skipHandReveal(playerIndex) {
+  async skipHandReveal(playerIndex) {
     return window.RawDeal.EffectPipeline.resume(this, playerIndex, { skipped: true });
   }
 
-  confirmHandRevealSelection(playerIndex, instanceIds) {
+  async confirmHandRevealSelection(playerIndex, instanceIds) {
     return window.RawDeal.EffectPipeline.resume(this, playerIndex, { selectedIds: instanceIds });
   }
 
@@ -246,6 +247,46 @@ window.RawDeal.GameEngine = class GameEngine {
         count: n,
         message,
         selectedIds: [...flow.selectedIds],
+      };
+    }
+
+    if (flow.type === 'shuffleHandIntoArsenal') {
+      const drawCount = flow.drawCount || 0;
+      const drawHint =
+        drawCount > 0
+          ? ` Then draw ${drawCount} card${drawCount === 1 ? '' : 's'}.`
+          : '';
+      return {
+        mode: 'hand',
+        count: 1,
+        message: `${flow.sourceName}: choose 1 card from your hand to shuffle into your Arsenal.${drawHint}`,
+        selectedIds: [...flow.selectedIds],
+      };
+    }
+
+    if (flow.type === 'arsenalReorder') {
+      const targetPlayer = this.players[flow.targetPlayerIndex];
+      const topSlice = targetPlayer.arsenal.slice(-flow.count);
+      const byId = new Map(topSlice.map((c) => [c.instanceId, c]));
+      const cards = flow.orderedIds
+        .map((id) => {
+          const card = byId.get(id);
+          return card ? { ...card } : null;
+        })
+        .filter(Boolean);
+      const whose =
+        flow.target === 'opponent' ? "opponent's top" : 'your top';
+      const shuffleHint =
+        flow.target === 'opponent'
+          ? "Shuffle to shuffle opponent's entire Arsenal."
+          : 'Shuffle to shuffle your entire Arsenal.';
+      return {
+        mode: 'arsenalReorder',
+        message: `${flow.sourceName}: drag to reorder ${whose} ${flow.count} Arsenal card${flow.count === 1 ? '' : 's'} (left = next to draw). ${shuffleHint}`,
+        cards,
+        orderedIds: [...flow.orderedIds],
+        count: flow.count,
+        target: flow.target,
       };
     }
 
@@ -399,6 +440,68 @@ window.RawDeal.GameEngine = class GameEngine {
       [array[i], array[j]] = [array[j], array[i]];
     }
     return array;
+  }
+
+  _shuffleCardIntoArsenal(player, card) {
+    const insertAt = Math.floor(Math.random() * (player.arsenal.length + 1));
+    player.arsenal.splice(insertAt, 0, card);
+  }
+
+  _drawCardsForEffect(player, sourceName, drawCount) {
+    if (!drawCount) return;
+    let drawn = 0;
+    for (let i = 0; i < drawCount; i++) {
+      if (this._drawCard(player)) drawn += 1;
+    }
+    if (drawn > 0) {
+      this.actionLog.push({
+        message: `${sourceName}: drew ${drawn} card${drawn === 1 ? '' : 's'}.`,
+      });
+    } else {
+      this.actionLog.push({
+        message: `${sourceName}: Arsenal was empty — could not draw.`,
+      });
+    }
+  }
+
+  async _completeShuffleHandIntoArsenal(player, flow, card) {
+    this._shuffleCardIntoArsenal(player, card);
+    this.actionLog.push({
+      message: `${flow.sourceName}: shuffled ${card.name} from hand into Arsenal.`,
+    });
+    this._drawCardsForEffect(player, flow.sourceName, flow.drawCount || 0);
+    await this._finishCardEffectResolution();
+  }
+
+  _beginShuffleHandIntoArsenalPrompt(player, playerIndex, sourceName, drawCount = 0) {
+    if (player.hand.length === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: no cards in hand to shuffle into Arsenal.`,
+      });
+      return false;
+    }
+
+    if (!player.isHuman) {
+      const idx = Math.floor(Math.random() * player.hand.length);
+      const card = player.hand.splice(idx, 1)[0];
+      this._shuffleCardIntoArsenal(player, card);
+      this.actionLog.push({
+        message: `${sourceName}: shuffled ${card.name} from hand into Arsenal.`,
+      });
+      this._drawCardsForEffect(player, sourceName, drawCount);
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'shuffleHandIntoArsenal',
+      playerIndex,
+      sourceName,
+      drawCount,
+      count: 1,
+      selectedIds: [],
+    };
+    this._notify();
+    return true;
   }
 
   _dealOpeningHands() {
@@ -770,6 +873,112 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
+  _beginArsenalTopReorderPrompt(
+    targetPlayer,
+    actingPlayerIndex,
+    sourceName,
+    count = 5,
+    { targetPlayerIndex } = {}
+  ) {
+    const resolvedTargetIndex =
+      targetPlayerIndex ?? this._playerIndex(targetPlayer);
+    const n = Math.min(count, targetPlayer.arsenal.length);
+    if (n === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: Arsenal is empty.`,
+      });
+      return false;
+    }
+
+    const topSlice = targetPlayer.arsenal.slice(-n);
+    const orderedIds = topSlice.map((c) => c.instanceId).reverse();
+    const target =
+      resolvedTargetIndex === actingPlayerIndex ? 'self' : 'opponent';
+
+    this.cardEffectFlow = {
+      type: 'arsenalReorder',
+      playerIndex: actingPlayerIndex,
+      targetPlayerIndex: resolvedTargetIndex,
+      target,
+      sourceName,
+      count: n,
+      orderedIds,
+    };
+    const lookTarget = target === 'opponent' ? "opponent's" : 'your';
+    this.actionLog.push({
+      message: `${sourceName}: look at top ${n} card${n === 1 ? '' : 's'} of ${lookTarget} Arsenal.`,
+    });
+    this._notify();
+    return true;
+  }
+
+  _targetPlayerForArsenalReorder(flow) {
+    return this.players[flow.targetPlayerIndex];
+  }
+
+  _validateArsenalReorderIds(targetPlayer, flow, orderedIds) {
+    if (!Array.isArray(orderedIds) || orderedIds.length !== flow.count) return false;
+    const topSlice = targetPlayer.arsenal.slice(-flow.count);
+    const expected = new Set(topSlice.map((c) => c.instanceId));
+    return orderedIds.every((id) => expected.has(id));
+  }
+
+  _applyArsenalReorder(targetPlayer, orderedIds) {
+    const n = orderedIds.length;
+    const topSlice = targetPlayer.arsenal.splice(-n, n);
+    const byId = new Map(topSlice.map((c) => [c.instanceId, c]));
+    for (let i = orderedIds.length - 1; i >= 0; i--) {
+      targetPlayer.arsenal.push(byId.get(orderedIds[i]));
+    }
+  }
+
+  updateArsenalReorderOrder(playerIndex, orderedIds) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'arsenalReorder') return false;
+
+    const flow = this.cardEffectFlow;
+    const targetPlayer = this._targetPlayerForArsenalReorder(flow);
+    if (!this._validateArsenalReorderIds(targetPlayer, flow, orderedIds)) return false;
+
+    flow.orderedIds = [...orderedIds];
+    this._notify();
+    return true;
+  }
+
+  async shuffleArsenalFromPrompt(playerIndex) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'arsenalReorder') return false;
+
+    const flow = this.cardEffectFlow;
+    const targetPlayer = this._targetPlayerForArsenalReorder(flow);
+    this._shuffle(targetPlayer.arsenal);
+    this.actionLog.push({
+      message:
+        flow.target === 'opponent'
+          ? `${flow.sourceName}: shuffled opponent's Arsenal.`
+          : `${flow.sourceName}: shuffled your Arsenal.`,
+    });
+    await this._finishCardEffectResolution();
+    return true;
+  }
+
+  async confirmArsenalReorder(playerIndex, orderedIds) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'arsenalReorder') return false;
+
+    const flow = this.cardEffectFlow;
+    const targetPlayer = this._targetPlayerForArsenalReorder(flow);
+    if (!this._validateArsenalReorderIds(targetPlayer, flow, orderedIds)) return false;
+
+    this._applyArsenalReorder(targetPlayer, orderedIds);
+    const whose = flow.target === 'opponent' ? "opponent's" : 'your';
+    this.actionLog.push({
+      message: `${flow.sourceName}: rearranged top ${flow.count} card${flow.count === 1 ? '' : 's'} of ${whose} Arsenal.`,
+    });
+    await this._finishCardEffectResolution();
+    return true;
+  }
+
   _drawForOpponent(player, sourceName, count) {
     const opponent = this.players[1 - this._playerIndex(player)];
     let drawn = 0;
@@ -875,6 +1084,9 @@ window.RawDeal.GameEngine = class GameEngine {
     if (damage > 0) {
       const damageResult = await this._resolveDamage(player, opponent, played, damage);
       this._clearNextManeuverReversalTax(player);
+      if (played.subtype === 'grapple') {
+        this._clearGrappleJockeyingTax(player);
+      }
       this.damageLog.push({
         card: played.name,
         damage,
@@ -901,6 +1113,9 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     this._clearNextManeuverReversalTax(player);
+    if (played.subtype === 'grapple') {
+      this._clearGrappleJockeyingTax(player);
+    }
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
     return true;
@@ -909,17 +1124,15 @@ window.RawDeal.GameEngine = class GameEngine {
   async _continueManeuverAfterReversal(player, opponent, played, damage, {
     skipManeuverEffects = false,
   } = {}) {
-    if (played.subtype === 'grapple') {
-      this._clearGrappleJockeyingTax(player);
-    }
-
     if (!skipManeuverEffects && played.maneuverEffects?.length) {
       this.pendingManeuverResolution = { player, opponent, played, damage, resumeAt: 'maneuver' };
       const paused = await this._startEffectPipeline(player, played.name, played.maneuverEffects, 'maneuver');
       if (paused || this.cardEffectFlow || this.handRevealFlow) {
         return true;
       }
-      this.pendingManeuverResolution = null;
+      if (this.pendingManeuverResolution) {
+        return await this._continuePendingManeuverDamage();
+      }
       return true;
     }
 
@@ -1015,6 +1228,8 @@ window.RawDeal.GameEngine = class GameEngine {
         reversal.id === 'irish-whip' && played.id === 'irish-whip';
       const grantJockeyingChoice =
         reversal.id === 'jockeying-for-position' && played.id === 'jockeying-for-position';
+      const cleanBreakVsJfp =
+        reversal.id === 'clean-break' && played.id === 'jockeying-for-position';
 
       this.actionLog.push({
         message: `${reversal.name} reversed ${played.name} — action has no effect.`,
@@ -1022,9 +1237,28 @@ window.RawDeal.GameEngine = class GameEngine {
       this.reversalWindow = null;
       this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
       this._notify();
+
+      if (cleanBreakVsJfp) {
+        const { count, cards } = this._forceOpponentDiscardFromHand(attacker, 4);
+        const names = cards.map((c) => c.name).join(', ');
+        this.actionLog.push({
+          message: count
+            ? `${reversal.name}: opponent discarded ${names} to Ringside.`
+            : `${reversal.name}: opponent had no cards in hand to discard.`,
+        });
+        this._notify();
+      }
+
       await this._runAutoPhases();
 
-      if (grantIrishWhipSetup) {
+      if (cleanBreakVsJfp) {
+        const drawn = this._drawCard(player);
+        if (drawn) {
+          this.actionLog.push({
+            message: `${reversal.name}: drew 1 card.`,
+          });
+        }
+      } else if (grantIrishWhipSetup) {
         this._applyIrishWhipSetup(player, reversal);
       } else if (grantJockeyingChoice) {
         this._beginJockeyingChoice(player, reversalPlayerIndex, reversal.name);
@@ -1047,6 +1281,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this._clearNextManeuverReversalTax(attacker);
 
     this._applyStunValueDraw(attacker, played);
+    this.reversedManeuverDamage = this.reversalWindow.damage;
     this.reversalWindow = null;
 
     if (reversal.reversalEffects?.length) {
@@ -1065,6 +1300,7 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async _finishHandReversalTurn() {
+    this.reversedManeuverDamage = null;
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
     this._notify();
     await this._runAutoPhases();
@@ -1118,7 +1354,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
   async _finishCardEffectResolution() {
     this.cardEffectFlow = null;
-    if (this.effectPipelineFlow?.paused && this.pendingManeuverResolution) {
+    if (this.effectPipelineFlow?.paused) {
       await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
       return;
     }
@@ -1136,6 +1372,18 @@ window.RawDeal.GameEngine = class GameEngine {
 
     const player = this.players[playerIndex];
     const flow = this.cardEffectFlow;
+
+    if (flow.type === 'shuffleHandIntoArsenal') {
+      if (flow.selectedIds.includes(instanceId)) return false;
+      if (!player.hand.some((c) => c.instanceId === instanceId)) return false;
+
+      const card = player.hand.find((c) => c.instanceId === instanceId);
+      if (!card) return false;
+
+      player.hand = player.hand.filter((c) => c.instanceId !== instanceId);
+      await this._completeShuffleHandIntoArsenal(player, flow, card);
+      return true;
+    }
 
     if (flow.type === 'discardFromHand' || flow.type === 'opponentDiscardFromHand') {
       if (flow.selectedIds.includes(instanceId)) return false;
@@ -1278,7 +1526,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const reversed = allowArsenalReversals
         ? this._reversalStops(overturned, maneuver, opponent, {
             attacker,
-            effectiveDamage: this._peekManeuverDamage(attacker, opponent, maneuver),
+            effectiveDamage: damage,
           })
         : false;
 

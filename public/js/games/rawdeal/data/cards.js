@@ -921,6 +921,8 @@ window.RawDeal.CARDS = {
     text: "Reversal: Grapple: Special Can only reverse a Grapple that does 7D or less. End your opponent’s turn. # = D of maneuver card being reversed. Read as 0 when in your Ring area.",
     flavor: "",
     reverses: ["grapple"],
+    maxDamage: 7,
+    reversalEffects: [{"op": "dealDamage", "fromReversedManeuver": true}],
     set: "premiere",
   },
   'knee-to-the-gut': {
@@ -934,6 +936,8 @@ window.RawDeal.CARDS = {
     text: "Reversal: Strike: Special Can only reverse a Strike that does 7D or less. End your opponent’s turn. # = D of maneuver card being reversed. Read as 0 when in your Ring area.",
     flavor: "",
     reverses: ["strike"],
+    maxDamage: 7,
+    reversalEffects: [{"op": "dealDamage", "fromReversedManeuver": true}],
     set: "premiere",
   },
   'elbow-to-the-face': {
@@ -945,7 +949,8 @@ window.RawDeal.CARDS = {
     damage: 2,
     text: "Reversal: Special May reverse any maneuver that does 7D or less. End your opponent’s turn.",
     flavor: "",
-    reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher"],
+    reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher", "low-damage"],
+    maxDamage: 7,
     reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },
@@ -959,6 +964,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Reversal: Special If played from your hand, may reverse the card titled Jockeying for Position. Opponent must discard 4 cards. End your opponent’s turn. Draw 1 card.",
     flavor: "",
+    reverses: ["jockeying-for-position"],
     set: "premiere",
   },
   'manager-interferes': {
@@ -1009,6 +1015,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Look at the top 5 cards of your Arsenal. You may either arrange them in any order or shuffle your Arsenal.",
     flavor: "",
+    actionEffects: [{"op": "reorderArsenalTop", "count": 5}],
     set: "premiere",
   },
   'don-t-think-too-hard': {
@@ -1020,6 +1027,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Look at the top 5 cards of an opponent’s Arsenal. You may either arrange them in any order or make him shuffle his Arsenal.",
     flavor: "",
+    actionEffects: [{"op": "reorderArsenalTop", "count": 5, "target": "opponent"}],
     set: "premiere",
   },
   'whaddya-got': {
@@ -1043,7 +1051,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Take a card in your hand, shuffle it into your Arsenal, then draw 2 cards.",
     flavor: "",
-    actionEffects: [{"op": "draw", "count": 2}],
+    actionEffects: [{"op": "shuffleHandIntoArsenal", "draw": 2}],
     set: "premiere",
   },
   'jockeying-for-position': {
@@ -1057,6 +1065,7 @@ window.RawDeal.CARDS = {
     text: "Action: Set-up / Reversal: Special As an action, if your next card played is a Grapple maneuver, declare whether it will be +4D or your opponent’s reversal to it will be +8F. As a reversal, may only reverse the card titled Jockeying for Position. If so, you end opponent’s turn; and if your next card played on your turn is a Grapple maneuver, declare whether it will be +4D or your opponent’s reversal to it will be +8F.",
     flavor: "",
     hybrid: true,
+    reverses: ["jockeying-for-position"],
     actionEffects: [{"op": "jockeyingChoice"}],
     set: "premiere",
   },
@@ -1071,7 +1080,7 @@ window.RawDeal.CARDS = {
     text: "Action: Set-up / Reversal: Special As an action, if your next card played is a Strike maneuver it is +5D. As a reversal, may only reverse the card titled Irish Whip. If so, you end opponent’s turn; and if your next card played on your turn is a Strike maneuver it is +5D.",
     flavor: "",
     hybrid: true,
-    reverses: ["after-irish-whip"],
+    reverses: ["irish-whip"],
     actionEffects: [{"op": "setupIrishWhip", "strikeBonus": 5}],
     set: "premiere",
   },

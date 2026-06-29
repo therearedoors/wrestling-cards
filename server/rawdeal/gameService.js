@@ -72,13 +72,13 @@ class RoomGame {
         ok = await engine.selectChoice(seat, action.optionId);
         break;
       case 'dismissHandReveal':
-        ok = engine.dismissHandReveal(seat);
+        ok = await engine.dismissHandReveal(seat);
         break;
       case 'skipHandReveal':
-        ok = engine.skipHandReveal(seat);
+        ok = await engine.skipHandReveal(seat);
         break;
       case 'confirmHandRevealSelection':
-        ok = engine.confirmHandRevealSelection(seat, action.instanceIds || []);
+        ok = await engine.confirmHandRevealSelection(seat, action.instanceIds || []);
         break;
       case 'toggleHandRevealSelection':
         ok = engine.toggleHandRevealSelection(seat, action.instanceId);
@@ -91,6 +91,15 @@ class RoomGame {
         break;
       case 'toggleSuperstarAbilitySelection':
         ok = engine.toggleSuperstarAbilitySelection(seat, action.instanceId);
+        break;
+      case 'shuffleArsenalReorder':
+        ok = await engine.shuffleArsenalFromPrompt(seat);
+        break;
+      case 'confirmArsenalReorder':
+        ok = await engine.confirmArsenalReorder(seat, action.orderedIds || []);
+        break;
+      case 'updateArsenalReorder':
+        ok = engine.updateArsenalReorderOrder(seat, action.orderedIds || []);
         break;
       case 'devCommand': {
         const { loadRawDeal } = require('./bootstrap');

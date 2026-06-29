@@ -63,7 +63,7 @@ window.RawDeal.EffectPipeline = {
     };
   },
 
-  resume(engine, playerIndex, { skipped = false, selectedIds = null } = {}) {
+  async resume(engine, playerIndex, { skipped = false, selectedIds = null } = {}) {
     const pipeline = engine.effectPipelineFlow;
     if (!pipeline?.paused || pipeline.playerIndex !== playerIndex) return false;
 
@@ -86,8 +86,9 @@ window.RawDeal.EffectPipeline = {
 
     engine.handRevealFlow = null;
     pipeline.paused = false;
+    engine._notify();
 
-    void this._runUntilPause(engine);
+    await this._runUntilPause(engine);
     return true;
   },
 
@@ -271,6 +272,27 @@ window.RawDeal.EffectPipeline = {
       case 'opponentDiscardFromHand':
         return engine._beginOpponentDiscardFromHandEffect(player, opponent, sourceName, step.count || 1);
 
+      case 'shuffleHandIntoArsenal':
+        return engine._beginShuffleHandIntoArsenalPrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          step.draw || step.count || 0
+        );
+
+      case 'reorderArsenalTop': {
+        const targetPlayer = step.target === 'opponent' ? opponent : player;
+        const targetPlayerIndex =
+          step.target === 'opponent' ? pipeline.opponentIndex : pipeline.playerIndex;
+        return engine._beginArsenalTopReorderPrompt(
+          targetPlayer,
+          pipeline.playerIndex,
+          sourceName,
+          step.count || 5,
+          { targetPlayerIndex }
+        );
+      }
+
       case 'opponentDraw': {
         engine._drawForOpponent(player, sourceName, step.count || 1);
         return false;
@@ -292,7 +314,9 @@ window.RawDeal.EffectPipeline = {
 
       case 'dealDamage': {
         const sourceCard = pipeline.sourceCard;
-        const damage = step.count ?? sourceCard?.damage ?? 0;
+        const damage = step.fromReversedManeuver
+          ? engine.reversedManeuverDamage ?? 0
+          : step.count ?? sourceCard?.damage ?? 0;
         const result = await engine._applyReversalFromHandDamage(
           player,
           opponent,

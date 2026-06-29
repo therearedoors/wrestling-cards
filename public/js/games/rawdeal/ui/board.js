@@ -7,7 +7,8 @@ window.RawDeal.Board = class Board {
     choiceModal = null,
     handRevealModal = null,
     pileViewModal = null,
-    superstarAbilityModal = null
+    superstarAbilityModal = null,
+    arsenalReorderModal = null
   ) {
     this.root = rootEl;
     this.cardPreview = cardPreview;
@@ -15,6 +16,7 @@ window.RawDeal.Board = class Board {
     this.handRevealModal = handRevealModal;
     this.pileViewModal = pileViewModal;
     this.superstarAbilityModal = superstarAbilityModal;
+    this.arsenalReorderModal = arsenalReorderModal;
     if (this.choiceModal) {
       this.choiceModal.onSelect = (optionId) => {
         if (this.onChoiceSelect) this.onChoiceSelect(optionId);
@@ -43,6 +45,17 @@ window.RawDeal.Board = class Board {
       };
       this.superstarAbilityModal.onToggleSelect = (instanceId) => {
         if (this.onToggleSuperstarAbilitySelect) this.onToggleSuperstarAbilitySelect(instanceId);
+      };
+    }
+    if (this.arsenalReorderModal) {
+      this.arsenalReorderModal.onShuffle = () => {
+        if (this.onShuffleArsenalReorder) this.onShuffleArsenalReorder();
+      };
+      this.arsenalReorderModal.onConfirm = (orderedIds) => {
+        if (this.onConfirmArsenalReorder) this.onConfirmArsenalReorder(orderedIds);
+      };
+      this.arsenalReorderModal.onReorder = (orderedIds) => {
+        if (this.onArsenalReorderChange) this.onArsenalReorderChange(orderedIds);
       };
     }
     this._state = null;
@@ -92,6 +105,9 @@ window.RawDeal.Board = class Board {
     this.onPassSuperstarAbility = null;
     this.onConfirmSuperstarAbility = null;
     this.onToggleSuperstarAbilitySelect = null;
+    this.onShuffleArsenalReorder = null;
+    this.onConfirmArsenalReorder = null;
+    this.onArsenalReorderChange = null;
     this.onAbilitySelect = null;
     this.onChoiceSelect = null;
     this.onPlayReversal = null;
@@ -315,6 +331,7 @@ window.RawDeal.Board = class Board {
       !!activePrompt || !!state.handReveal || !!state.reversalWindow?.canRespond;
 
     this._renderChoiceModal(activePrompt);
+    this._renderArsenalReorderModal(activePrompt);
     this._renderHandReveal(state.handReveal);
     this._renderSuperstarAbilityModal(ability.prompt);
     this._renderSuperstarAbility(player, ability, state.canPlay, activePrompt);
@@ -382,6 +399,15 @@ window.RawDeal.Board = class Board {
     }
   }
 
+  _renderArsenalReorderModal(prompt) {
+    if (!this.arsenalReorderModal) return;
+    if (prompt?.mode === 'arsenalReorder') {
+      this.arsenalReorderModal.show(prompt);
+    } else {
+      this.arsenalReorderModal.hide();
+    }
+  }
+
   _renderHandReveal(handReveal) {
     if (!this.handRevealModal) return;
     if (handReveal) {
@@ -396,7 +422,11 @@ window.RawDeal.Board = class Board {
     const text = this.els.abilityPromptText;
     if (!panel || !text) return;
 
-    const active = !!prompt && prompt.mode !== 'choice' && prompt.mode !== 'ringsideModal';
+    const active =
+      !!prompt &&
+      prompt.mode !== 'choice' &&
+      prompt.mode !== 'ringsideModal' &&
+      prompt.mode !== 'arsenalReorder';
     panel.classList.toggle('hidden', !active);
     if (active) {
       text.textContent = prompt.message;

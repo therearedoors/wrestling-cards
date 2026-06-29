@@ -129,6 +129,18 @@
                     </div>
                 </div>
 
+                <div id="rd-arsenal-reorder-modal" class="rd-arsenal-reorder-modal hidden" role="dialog" aria-modal="true">
+                    <div class="rd-arsenal-reorder-modal__backdrop" aria-hidden="true"></div>
+                    <div class="rd-arsenal-reorder-modal__panel">
+                        <p class="rd-arsenal-reorder-modal__message" data-rd-arsenal-reorder-message></p>
+                        <div class="rd-arsenal-reorder-modal__scroll" data-rd-arsenal-reorder-cards></div>
+                        <div class="rd-arsenal-reorder-modal__actions">
+                            <button type="button" class="rd-btn rd-btn--secondary rd-arsenal-reorder-modal__shuffle" data-rd-arsenal-reorder-shuffle>Shuffle</button>
+                            <button type="button" class="rd-btn rd-btn--primary rd-arsenal-reorder-modal__confirm" data-rd-arsenal-reorder-confirm>Confirm</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="rd-hand-reveal-modal" class="rd-hand-reveal-modal hidden" role="dialog" aria-modal="true">
                     <div class="rd-hand-reveal-modal__backdrop" aria-hidden="true"></div>
                     <div class="rd-hand-reveal-modal__panel">
@@ -201,6 +213,8 @@
 <script src="/js/games/rawdeal/ui/choiceModal.js"></script>
 <script src="/js/games/rawdeal/ui/handRevealModal.js"></script>
 <script src="/js/games/rawdeal/ui/superstarAbilityModal.js"></script>
+<script src="/vendor/sortable.min.js"></script>
+<script src="/js/games/rawdeal/ui/arsenalReorderModal.js"></script>
 <script src="/js/games/rawdeal/ui/pileViewModal.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
 <% if (devMode) { %>

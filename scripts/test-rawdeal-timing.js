@@ -146,6 +146,8 @@ async function createHandReversalTest(RawDeal, options = {}) {
     reversalId = 'elbow-to-the-face',
     arsenalCount = 10,
     afterIrishWhip = false,
+    effectiveDamage = null,
+    defenderFortitude = 0,
   } = options;
 
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -167,7 +169,7 @@ async function createHandReversalTest(RawDeal, options = {}) {
     attacker.turnState.irishWhipPlayed = true;
   }
   attacker.fortitude = engine._calcFortitude(attacker);
-  defender.fortitude = 0;
+  defender.fortitude = defenderFortitude;
 
   for (let i = 0; i < arsenalCount; i++) {
     attacker.arsenal.push(cloneCard(RawDeal, 'chop', `atk-arsenal-${i}`));
@@ -183,7 +185,7 @@ async function createHandReversalTest(RawDeal, options = {}) {
     player: attacker,
     opponent: defender,
     played: maneuver,
-    damage: maneuver.damage || 0,
+    damage: effectiveDamage ?? maneuver.damage ?? 0,
   };
 
   return { engine, attacker, defender, maneuver, reversal };
@@ -1124,12 +1126,12 @@ async function testWhoopCanReversalTaxFromHand() {
   const defender = engine.players[1];
 
   const whoop = cloneCard(RawDeal, 'open-up-a-can', 'whoop-0');
-  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
-  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'elbow-0');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'dlt-whoop');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'escape-whoop');
 
-  attacker.hand = [whoop, punch];
+  attacker.hand = [whoop, grapple];
   attacker.fortitude = 20;
-  defender.hand = [elbow];
+  defender.hand = [escapeMove];
   defender.fortitude = 0;
 
   engine.stateMachine.phase = RawDeal.PHASES.MAIN;
@@ -1144,19 +1146,19 @@ async function testWhoopCanReversalTaxFromHand() {
     'Open Up a Can sets +20F reversal tax on next maneuver'
   );
 
-  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
   assert(
     engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
-    'Boosted punch opens reversal window'
+    'Boosted grapple opens reversal window'
   );
   assert(
-    !engine.canPlayReversalFromHand(1, elbow.instanceId),
+    !engine.canPlayReversalFromHand(1, escapeMove.instanceId),
     'Opponent cannot reverse from hand without 20F'
   );
 
   defender.fortitude = 20;
   assert(
-    engine.canPlayReversalFromHand(1, elbow.instanceId),
+    engine.canPlayReversalFromHand(1, escapeMove.instanceId),
     'Opponent can reverse from hand with 20F'
   );
 }
@@ -1184,6 +1186,849 @@ async function testWhoopCanReversalTaxFromArsenal() {
   assert(
     engine._reversalStops(stepAside, punch, defender, { attacker }),
     'Arsenal reversal allowed at 20F'
+  );
+}
+
+async function testHmmmOpensReorderPrompt() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  for (let i = 0; i < 5; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `hmmm-arsenal-${i}`));
+  }
+
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-test');
+  player.hand.push(hmmm);
+
+  await engine.playCard(0, hmmm.instanceId, 'action');
+
+  assert(engine.cardEffectFlow?.type === 'arsenalReorder', 'Hmmm opens arsenal reorder prompt');
+  assert(engine.cardEffectFlow.count === 5, 'Hmmm shows top 5 cards');
+  assert(
+    engine.cardEffectFlow.orderedIds.length === 5,
+    'Hmmm prompt includes 5 ordered card ids'
+  );
+}
+
+async function testHmmmConfirmReordersTopCards() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  const bottomIds = ['hmmm-a', 'hmmm-b', 'hmmm-c', 'hmmm-d', 'hmmm-e'];
+  for (const id of bottomIds) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', id));
+  }
+
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-confirm-test');
+  player.hand.push(hmmm);
+
+  await engine.playCard(0, hmmm.instanceId, 'action');
+  await engine.confirmArsenalReorder(0, ['hmmm-a', 'hmmm-b', 'hmmm-c', 'hmmm-d', 'hmmm-e']);
+
+  const topId = player.arsenal[player.arsenal.length - 1].instanceId;
+  assert(topId === 'hmmm-a', 'Hmmm confirm puts chosen card on top of Arsenal');
+  assert(!engine.cardEffectFlow, 'Hmmm prompt clears after confirm');
+}
+
+async function testHmmmShuffleRandomizesArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  player.arsenal = [];
+  const ids = ['shuffle-a', 'shuffle-b', 'shuffle-c'];
+  for (const id of ids) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', id));
+  }
+
+  engine._shuffle = (array) => {
+    array.reverse();
+    return array;
+  };
+
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-shuffle-test');
+  player.hand.push(hmmm);
+
+  await engine.playCard(0, hmmm.instanceId, 'action');
+  await engine.shuffleArsenalFromPrompt(0);
+
+  const after = player.arsenal.map((c) => c.instanceId);
+  assert(
+    after.join(',') === 'shuffle-c,shuffle-b,shuffle-a',
+    'Hmmm shuffle reorders entire Arsenal'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('shuffled your Arsenal')),
+    'Hmmm shuffle logs shuffled Arsenal'
+  );
+}
+
+async function testDontThinkTooHardOpensOpponentPrompt() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `dttth-opp-${i}`));
+  }
+
+  const card = cloneCard(RawDeal, 'don-t-think-too-hard', 'dttth-test');
+  player.hand.push(card);
+
+  await engine.playCard(0, card.instanceId, 'action');
+
+  assert(engine.cardEffectFlow?.type === 'arsenalReorder', 'DTTTH opens arsenal reorder prompt');
+  assert(engine.cardEffectFlow?.target === 'opponent', 'DTTTH targets opponent Arsenal');
+  assert(engine.cardEffectFlow?.targetPlayerIndex === 1, 'DTTTH targetPlayerIndex is opponent');
+  assert(engine.cardEffectFlow?.playerIndex === 0, 'DTTTH acting player controls modal');
+}
+
+async function testDontThinkTooHardConfirmReordersOpponentTop() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [];
+  const bottomIds = ['dttth-a', 'dttth-b', 'dttth-c', 'dttth-d', 'dttth-e'];
+  for (const id of bottomIds) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', id));
+  }
+
+  const card = cloneCard(RawDeal, 'don-t-think-too-hard', 'dttth-confirm-test');
+  player.hand.push(card);
+
+  await engine.playCard(0, card.instanceId, 'action');
+  await engine.confirmArsenalReorder(0, ['dttth-a', 'dttth-b', 'dttth-c', 'dttth-d', 'dttth-e']);
+
+  const topId = opponent.arsenal[opponent.arsenal.length - 1].instanceId;
+  assert(topId === 'dttth-a', 'DTTTH confirm puts chosen card on top of opponent Arsenal');
+}
+
+async function testDontThinkTooHardShuffleOpponentArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [];
+  for (const id of ['opp-shuf-a', 'opp-shuf-b', 'opp-shuf-c']) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', id));
+  }
+
+  engine._shuffle = (array) => {
+    array.reverse();
+    return array;
+  };
+
+  const card = cloneCard(RawDeal, 'don-t-think-too-hard', 'dttth-shuffle-test');
+  player.hand.push(card);
+
+  await engine.playCard(0, card.instanceId, 'action');
+  await engine.shuffleArsenalFromPrompt(0);
+
+  const after = opponent.arsenal.map((c) => c.instanceId);
+  assert(
+    after.join(',') === 'opp-shuf-c,opp-shuf-b,opp-shuf-a',
+    'DTTTH shuffle reorders entire opponent Arsenal'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes("shuffled opponent's Arsenal")),
+    'DTTTH shuffle logs opponent Arsenal shuffle'
+  );
+}
+
+async function testHmmmFewerThanFiveCards() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'only-top')];
+
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'hmmm-short-test');
+  player.hand.push(hmmm);
+
+  await engine.playCard(0, hmmm.instanceId, 'action');
+
+  assert(engine.cardEffectFlow?.count === 1, 'Hmmm shows all Arsenal cards when fewer than 5');
+}
+
+async function testFiremansCarryHandRevealViewOnlyDone() {
+  const RawDeal = loadRawDeal();
+  const prompt = RawDeal.EffectPipeline.publicHandReveal(
+    await (async () => {
+      const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+      await engine.startGame('austin', 'rock');
+      engine.handRevealFlow = {
+        viewerIndex: 0,
+        opponentIndex: 1,
+        sourceName: "Fireman's Carry",
+        cards: [{ id: 'punch', name: 'Punch', instanceId: 'x' }],
+        mode: 'view',
+        allowSkip: true,
+        selectCount: 0,
+        selectedIds: [],
+      };
+      engine.effectPipelineFlow = { paused: true, playerIndex: 0 };
+      return engine;
+    })(),
+    0
+  );
+
+  assert(prompt?.mode === 'view', 'Fireman\'s Carry hand reveal is view-only');
+  assert(prompt?.allowSkip === true, 'Fireman\'s Carry reveal is optional at engine level');
+}
+
+async function testFiremansCarryDamageAfterHandRevealDismiss() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  let damageResolved = false;
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    damageResolved = true;
+    return origDamage(...args);
+  };
+
+  const fmc = cloneCard(RawDeal, 'fireman-s-carry', 'fmc-test');
+  player.hand.push(fmc);
+  opponent.hand = [cloneCard(RawDeal, 'kick', 'opp-reveal-0')];
+
+  await engine.playCard(0, fmc.instanceId, 'maneuver');
+
+  assert(!damageResolved, 'Fireman\'s Carry damage waits during hand reveal');
+  assert(engine.handRevealFlow, 'Fireman\'s Carry opens hand reveal');
+  assert(!engine.handRevealFlow.allowSkip || engine.handRevealFlow.mode === 'view', 'Fireman\'s Carry uses view reveal');
+
+  await engine.dismissHandReveal(0);
+
+  assert(damageResolved, 'Fireman\'s Carry resolves damage after hand reveal dismiss');
+  assert(!engine.handRevealFlow, 'Hand reveal clears before damage completes');
+}
+
+async function testFiremansCarryThreeDamageStepsAfterDismiss() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  let damageSteps = 0;
+  engine.onDamageStep = async ({ onReveal }) => {
+    damageSteps += 1;
+    onReveal();
+  };
+
+  const fmc = cloneCard(RawDeal, 'fireman-s-carry', 'fmc-3d-test');
+  player.hand.push(fmc);
+  opponent.hand = [cloneCard(RawDeal, 'kick', 'opp-reveal-1')];
+
+  await engine.playCard(0, fmc.instanceId, 'maneuver');
+  assert(engine.handRevealFlow, 'Fireman\'s Carry pauses on hand reveal');
+
+  await engine.dismissHandReveal(0);
+
+  assert(damageSteps === 3, 'Fireman\'s Carry resolves all 3 damage steps after dismiss');
+  const lastEntry = engine.damageLog[engine.damageLog.length - 1];
+  assert(lastEntry?.cardsOverturned === 3, 'Fireman\'s Carry overturns 3 arsenal cards');
+  assert(lastEntry?.result === 'hit', 'Fireman\'s Carry damage completes without reversal');
+}
+
+async function testFiremansCarryMultiplayerDamageAfterDismiss() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  engine.onDamageStep = async ({ card, reversed, playerSeat, onReveal }) => {
+    engine.animationEvents.push({
+      type: 'damageFlip',
+      seat: playerSeat,
+      card,
+      reversed: !!reversed,
+    });
+    if (onReveal) onReveal();
+  };
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.hand = [cloneCard(RawDeal, 'kick', 'mp-opp-hand')];
+  for (let i = 0; i < 12; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `mp-opp-arsenal-${i}`));
+  }
+
+  const fmc = cloneCard(RawDeal, 'fireman-s-carry', 'fmc-mp-test');
+  player.hand.push(fmc);
+
+  await engine.playCard(0, fmc.instanceId, 'maneuver');
+  assert(engine.reversalWindow, 'Multiplayer opens reversal window for maneuver');
+  await engine.passPriority(1);
+  assert(engine.handRevealFlow, 'Multiplayer Fireman\'s Carry pauses on hand reveal');
+
+  engine.clearAnimationEvents();
+  await engine.dismissHandReveal(0);
+
+  assert(engine.animationEvents.length === 3, 'Multiplayer batches 3 damage flip animations after dismiss');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Multiplayer returns to MAIN after Fireman\'s Carry resolves'
+  );
+  const lastEntry = engine.damageLog[engine.damageLog.length - 1];
+  assert(lastEntry?.cardsOverturned === 3, 'Multiplayer Fireman\'s Carry overturns 3 cards');
+}
+
+async function testNotYetOpensHandPrompt() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  player.hand.push(
+    cloneCard(RawDeal, 'punch', 'not-yet-filler'),
+    cloneCard(RawDeal, 'not-yet', 'not-yet-test')
+  );
+
+  await engine.playCard(0, 'not-yet-test', 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'shuffleHandIntoArsenal',
+    'Not Yet opens hand shuffle prompt before draw'
+  );
+  assert(engine.cardEffectFlow?.drawCount === 2, 'Not Yet will draw 2 after shuffle');
+}
+
+async function testNotYetShuffleAndDraw() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.arsenal = [
+    cloneCard(RawDeal, 'chop', 'arsenal-0'),
+    cloneCard(RawDeal, 'chop', 'arsenal-1'),
+    cloneCard(RawDeal, 'chop', 'arsenal-2'),
+  ];
+  player.fortitude = 20;
+  player.hand.push(
+    cloneCard(RawDeal, 'punch', 'shuffle-this'),
+    cloneCard(RawDeal, 'not-yet', 'not-yet-complete')
+  );
+
+  const arsenalBefore = player.arsenal.length;
+
+  engine._shuffleCardIntoArsenal = (p, card) => {
+    p.arsenal.unshift(card);
+  };
+
+  await engine.playCard(0, 'not-yet-complete', 'action');
+  await engine.selectForCardEffect(0, 'shuffle-this');
+
+  assert(
+    player.arsenal[0]?.instanceId === 'shuffle-this',
+    'Not Yet shuffled chosen card into Arsenal'
+  );
+  assert(player.arsenal.length === arsenalBefore - 1, 'Not Yet net Arsenal after shuffle in and draw 2');
+  assert(player.hand.length === 2, 'Not Yet drew 2 cards after shuffle');
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('shuffled Punch from hand into Arsenal')),
+    'Not Yet logs shuffle into Arsenal'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('drew 2 cards')),
+    'Not Yet logs drawing 2 cards'
+  );
+  assert(!engine.cardEffectFlow, 'Not Yet prompt clears after completion');
+}
+
+async function testNotYetEmptyHandSkipsEffect() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [cloneCard(RawDeal, 'not-yet', 'not-yet-only')];
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'only-arsenal')];
+  player.fortitude = 20;
+
+  await engine.playCard(0, 'not-yet-only', 'action');
+
+  assert(!engine.cardEffectFlow, 'Not Yet does not prompt when hand is empty after playing');
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('no cards in hand to shuffle')),
+    'Not Yet logs empty hand for shuffle step'
+  );
+  assert(player.hand.length === 0, 'Not Yet left hand empty');
+  assert(player.arsenal.length === 1, 'Not Yet did not draw when shuffle was skipped');
+}
+
+async function testJfpGrappleReversalTaxFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  const jfp = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-arsenal-tax');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'jfp-grapple-tax');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'jfp-escape-move');
+
+  player.hand = [jfp, grapple];
+  player.fortitude = 20;
+
+  await engine.playCard(0, jfp.instanceId, 'action');
+  assert(
+    engine.cardEffectFlow?.choiceId === 'jockeyingForPosition',
+    'JFP action opens jockeying choice'
+  );
+  await engine.selectChoice(0, 'grappleReversalTax');
+  assert(player.turnState.nextGrappleReversalTax === 8, 'JFP sets +8F grapple reversal tax');
+
+  opponent.fortitude = 7;
+  assert(
+    !engine._reversalStops(escapeMove, grapple, opponent, { attacker: player }),
+    'Arsenal reversal blocked by JFP +8F tax at 7F'
+  );
+  opponent.fortitude = 8;
+  assert(
+    engine._reversalStops(escapeMove, grapple, opponent, { attacker: player }),
+    'Arsenal reversal allowed by JFP +8F tax at 8F'
+  );
+
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
+  assert(
+    player.turnState.nextGrappleReversalTax === 0,
+    'JFP grapple reversal tax clears after maneuver resolves'
+  );
+}
+
+async function testJfpGrappleDamageBonus() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  const jfp = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-dmg-bonus');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'jfp-grapple-dmg');
+
+  player.hand = [jfp];
+  player.fortitude = 20;
+
+  await engine.playCard(0, jfp.instanceId, 'action');
+  await engine.selectChoice(0, 'grappleDamage');
+
+  const damage = engine._peekManeuverDamage(player, opponent, grapple);
+  assert(damage === 7, 'JFP next Grapple is +4D (3 + 4)');
+}
+
+async function testJfpSelfReverseOpensChoice() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const jfpAttacker = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-atk');
+  const jfpDefender = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-def');
+
+  attacker.hand = [jfpAttacker];
+  attacker.fortitude = 20;
+  defender.hand = [jfpDefender];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, jfpAttacker.instanceId, 'action');
+  assert(engine.reversalWindow?.kind === 'action', 'JFP action opens reversal window');
+  assert(
+    engine.canPlayReversalFromHand(1, jfpDefender.instanceId),
+    'JFP can reverse JFP action from hand'
+  );
+
+  await engine.playReversalFromHand(1, jfpDefender.instanceId);
+
+  assert(engine.stateMachine.phase === RawDeal.PHASES.MAIN, 'Self-reverse returns to MAIN');
+  assert(engine.stateMachine.activePlayer === 1, 'Turn passes to reversal player');
+  assert(
+    engine.cardEffectFlow?.choiceId === 'jockeyingForPosition',
+    'JFP self-reverse opens jockeying choice on incoming turn'
+  );
+}
+
+async function testJfpSelfReverseTaxAppliesToNextGrapple() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const jfpAttacker = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-atk-tax');
+  const jfpDefender = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-def-tax');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'jfp-self-grapple');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'jfp-self-escape');
+
+  attacker.hand = [jfpAttacker];
+  attacker.fortitude = 20;
+  defender.hand = [jfpDefender, grapple];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, jfpAttacker.instanceId, 'action');
+  await engine.playReversalFromHand(1, jfpDefender.instanceId);
+  await engine.selectChoice(1, 'grappleReversalTax');
+
+  attacker.fortitude = 7;
+  assert(
+    !engine._reversalStops(escapeMove, grapple, attacker, { attacker: defender }),
+    'Self-reverse JFP tax blocks arsenal reversal at 7F'
+  );
+  attacker.fortitude = 8;
+  assert(
+    engine._reversalStops(escapeMove, grapple, attacker, { attacker: defender }),
+    'Self-reverse JFP tax allows arsenal reversal at 8F'
+  );
+}
+
+async function testCleanBreakReversesJfp() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const jfp = cloneCard(RawDeal, 'jockeying-for-position', 'jfp-clean');
+  const cleanBreak = cloneCard(RawDeal, 'clean-break', 'clean-break-test');
+
+  attacker.hand = [
+    jfp,
+    cloneCard(RawDeal, 'punch', 'jfp-filler-0'),
+    cloneCard(RawDeal, 'punch', 'jfp-filler-1'),
+    cloneCard(RawDeal, 'punch', 'jfp-filler-2'),
+    cloneCard(RawDeal, 'punch', 'jfp-filler-3'),
+  ];
+  attacker.fortitude = 20;
+  defender.hand = [cleanBreak];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, jfp.instanceId, 'action');
+  assert(
+    engine.canPlayReversalFromHand(1, cleanBreak.instanceId),
+    'Clean Break can reverse JFP action from hand'
+  );
+
+  await engine.playReversalFromHand(1, cleanBreak.instanceId);
+
+  assert(attacker.hand.length === 0, 'Clean Break forces attacker to discard 4 hand cards');
+  assert(defender.hand.length >= 1, 'Clean Break reversal player draws at least 1 card');
+  assert(!engine.cardEffectFlow, 'Clean Break does not open jockeying choice');
+  assert(engine.stateMachine.activePlayer === 1, 'Clean Break ends attacker turn');
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('opponent discarded')),
+    'Clean Break logs opponent discard'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('drew 1 card')),
+    'Clean Break logs draw'
+  );
+}
+
+async function testElbowBlocksManeuverOver7D() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'bulldog',
+    effectiveDamage: 8,
+  });
+
+  assert(
+    !engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Elbow cannot reverse a maneuver dealing more than 7D'
+  );
+}
+
+async function testElbowAllowsManeuverAt7D() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'kick',
+    effectiveDamage: 7,
+  });
+
+  assert(
+    engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Elbow can reverse a maneuver dealing 7D or less'
+  );
+}
+
+async function testKneeBlockedWhenEffectiveDamageOver7() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'punch',
+    reversalId: 'knee-to-the-gut',
+    effectiveDamage: 8,
+    afterIrishWhip: true,
+    defenderFortitude: 5,
+  });
+
+  assert(
+    !engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Knee cannot reverse Strike when Irish Whip bonus pushes damage above 7D'
+  );
+}
+
+async function testKneeAllowedAt7DWithIrishWhip() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'chop',
+    reversalId: 'knee-to-the-gut',
+    effectiveDamage: 7,
+    afterIrishWhip: true,
+    defenderFortitude: 5,
+  });
+
+  assert(
+    engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Knee can reverse Strike at exactly 7D with Irish Whip bonus'
+  );
+}
+
+async function testKneeDealsManeuverDamageFromHand() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'kick',
+    reversalId: 'knee-to-the-gut',
+    effectiveDamage: 5,
+    defenderFortitude: 5,
+    arsenalCount: 10,
+  });
+  const arsenalBefore = attacker.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 5,
+    'Knee deals irreversible damage equal to reversed maneuver D'
+  );
+}
+
+async function testRollingDealsManeuverDamageFromHand() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'double-leg-takedown',
+    reversalId: 'rolling-takedown',
+    effectiveDamage: 3,
+    defenderFortitude: 5,
+    arsenalCount: 10,
+  });
+  const arsenalBefore = attacker.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 3,
+    'Rolling Takedown deals irreversible damage equal to reversed maneuver D'
+  );
+}
+
+async function testArsenalReversalBlockedOver7D() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const kick = cloneCard(RawDeal, 'kick', 'cap-kick');
+  const knee = cloneCard(RawDeal, 'knee-to-the-gut', 'cap-knee');
+
+  attacker.turnState = engine._emptyTurnState();
+  attacker.turnState.irishWhipPlayed = true;
+  attacker.turnState.nextStrikeBonus = 5;
+  defender.fortitude = 20;
+
+  assert(
+    !engine._reversalStops(knee, kick, defender, {
+      attacker,
+      effectiveDamage: 10,
+    }),
+    'Arsenal Knee cannot reverse 10D effective Strike'
+  );
+  assert(
+    engine._reversalStops(knee, kick, defender, {
+      attacker,
+      effectiveDamage: 7,
+    }),
+    'Arsenal Knee can reverse 7D effective Strike'
+  );
+}
+
+async function createPostIwStrikeDamageTest(RawDeal, { reversalId, reversalInstanceId }) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'iw-8d-punch');
+  const reversal = cloneCard(RawDeal, reversalId, reversalInstanceId);
+
+  attacker.turnState = engine._emptyTurnState();
+  attacker.turnState.irishWhipPlayed = true;
+  attacker.turnState.nextStrikeBonus = 5;
+  attacker.fortitude = 20;
+  defender.fortitude = 20;
+
+  for (let i = 0; i < 10; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `iw-fill-${reversalId}-${i}`));
+  }
+  defender.arsenal.push(reversal);
+
+  const damage = engine._calcManeuverDamage(attacker, defender, punch);
+  assert(damage === 8, 'Punch deals 8D after Irish Whip self-reverse setup');
+  assert(
+    attacker.turnState.nextStrikeBonus === 0,
+    'Strike bonus consumed before arsenal damage resolution'
+  );
+  assert(
+    engine._peekManeuverDamage(attacker, defender, punch) === 3,
+    'Peek shows base Punch damage after bonus consumed'
+  );
+
+  return { engine, attacker, defender, punch, reversal, damage };
+}
+
+async function testArsenalElbowCannotReverse8DPunchAfterIwSelfReverse() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, punch, damage } = await createPostIwStrikeDamageTest(
+    RawDeal,
+    { reversalId: 'elbow-to-the-face', reversalInstanceId: 'iw-elbow-8d' }
+  );
+
+  const result = await engine._resolveDamage(attacker, defender, punch, damage);
+
+  assert(result.result === 'hit', 'Arsenal Elbow cannot reverse 8D Punch after IW self-reverse');
+  assert(result.cardsOverturned === 8, '8D Punch overturns 8 Arsenal cards without reversal');
+}
+
+async function testArsenalKneeCannotReverse8DPunchAfterIwSelfReverse() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, punch, damage } = await createPostIwStrikeDamageTest(
+    RawDeal,
+    { reversalId: 'knee-to-the-gut', reversalInstanceId: 'iw-knee-8d' }
+  );
+
+  const result = await engine._resolveDamage(attacker, defender, punch, damage);
+
+  assert(result.result === 'hit', 'Arsenal Knee cannot reverse 8D Punch after IW self-reverse');
+  assert(result.cardsOverturned === 8, '8D Punch overturns 8 Arsenal cards without reversal');
+}
+
+async function testIrishWhipSelfReverseEligible() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const iwAttacker = cloneCard(RawDeal, 'irish-whip', 'iw-atk');
+  const iwDefender = cloneCard(RawDeal, 'irish-whip', 'iw-def');
+
+  attacker.hand = [iwAttacker];
+  attacker.fortitude = 20;
+  defender.hand = [iwDefender];
+  defender.fortitude = 6;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, iwAttacker.instanceId, 'action');
+  assert(engine.reversalWindow?.kind === 'action', 'Irish Whip action opens reversal window');
+  assert(
+    engine.canPlayReversalFromHand(1, iwDefender.instanceId),
+    'Irish Whip can reverse Irish Whip action from hand at 6F'
+  );
+}
+
+async function testIrishWhipSelfReverseGrantsStrikeBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const iwAttacker = cloneCard(RawDeal, 'irish-whip', 'iw-atk-bonus');
+  const iwDefender = cloneCard(RawDeal, 'irish-whip', 'iw-def-bonus');
+
+  attacker.hand = [iwAttacker];
+  attacker.fortitude = 20;
+  defender.hand = [iwDefender];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, iwAttacker.instanceId, 'action');
+  await engine.playReversalFromHand(1, iwDefender.instanceId);
+
+  assert(
+    defender.turnState.nextStrikeBonus === 5,
+    'Irish Whip self-reverse grants +5D on next Strike'
+  );
+}
+
+async function testIrishWhipCannotReversePostIwManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'iw-post-punch');
+  const irishWhip = cloneCard(RawDeal, 'irish-whip', 'iw-post-iw');
+  const shoulderBlock = cloneCard(RawDeal, 'shoulder-block', 'iw-post-sb');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 20;
+  attacker.turnState = engine._emptyTurnState();
+  attacker.turnState.irishWhipPlayed = true;
+
+  defender.hand = [irishWhip, shoulderBlock];
+  defender.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(engine.reversalWindow?.kind === 'maneuver', 'Strike opens maneuver reversal window');
+
+  assert(
+    !engine.canPlayReversalFromHand(1, irishWhip.instanceId),
+    'Irish Whip cannot reverse a maneuver played after Irish Whip setup'
+  );
+  assert(
+    engine.canPlayReversalFromHand(1, shoulderBlock.instanceId),
+    'Shoulder Block can reverse a maneuver played after Irish Whip setup'
   );
 }
 
@@ -1222,8 +2067,39 @@ async function main() {
   await testKaneTombstoneCanPlayAtDiscountedCost();
   await testPatAndGerrySetsSkipFlag();
   await testPatAndGerryGrantsExtraTurn();
+  await testHmmmOpensReorderPrompt();
+  await testHmmmConfirmReordersTopCards();
+  await testHmmmShuffleRandomizesArsenal();
+  await testHmmmFewerThanFiveCards();
+  await testDontThinkTooHardOpensOpponentPrompt();
+  await testDontThinkTooHardConfirmReordersOpponentTop();
+  await testDontThinkTooHardShuffleOpponentArsenal();
+  await testFiremansCarryHandRevealViewOnlyDone();
+  await testFiremansCarryDamageAfterHandRevealDismiss();
+  await testFiremansCarryThreeDamageStepsAfterDismiss();
+  await testFiremansCarryMultiplayerDamageAfterDismiss();
+  await testNotYetOpensHandPrompt();
+  await testNotYetShuffleAndDraw();
+  await testNotYetEmptyHandSkipsEffect();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
+  await testJfpGrappleReversalTaxFromArsenal();
+  await testJfpGrappleDamageBonus();
+  await testJfpSelfReverseOpensChoice();
+  await testJfpSelfReverseTaxAppliesToNextGrapple();
+  await testCleanBreakReversesJfp();
+  await testElbowBlocksManeuverOver7D();
+  await testElbowAllowsManeuverAt7D();
+  await testKneeBlockedWhenEffectiveDamageOver7();
+  await testKneeAllowedAt7DWithIrishWhip();
+  await testKneeDealsManeuverDamageFromHand();
+  await testRollingDealsManeuverDamageFromHand();
+  await testArsenalReversalBlockedOver7D();
+  await testArsenalElbowCannotReverse8DPunchAfterIwSelfReverse();
+  await testArsenalKneeCannotReverse8DPunchAfterIwSelfReverse();
+  await testIrishWhipSelfReverseEligible();
+  await testIrishWhipSelfReverseGrantsStrikeBonus();
+  await testIrishWhipCannotReversePostIwManeuver();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');
