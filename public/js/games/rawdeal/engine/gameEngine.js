@@ -249,6 +249,20 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'shuffleHandIntoArsenal') {
+      const drawCount = flow.drawCount || 0;
+      const drawHint =
+        drawCount > 0
+          ? ` Then draw ${drawCount} card${drawCount === 1 ? '' : 's'}.`
+          : '';
+      return {
+        mode: 'hand',
+        count: 1,
+        message: `${flow.sourceName}: choose 1 card from your hand to shuffle into your Arsenal.${drawHint}`,
+        selectedIds: [...flow.selectedIds],
+      };
+    }
+
     if (flow.type === 'arsenalReorder') {
       const targetPlayer = this.players[flow.targetPlayerIndex];
       const topSlice = targetPlayer.arsenal.slice(-flow.count);
@@ -425,6 +439,68 @@ window.RawDeal.GameEngine = class GameEngine {
       [array[i], array[j]] = [array[j], array[i]];
     }
     return array;
+  }
+
+  _shuffleCardIntoArsenal(player, card) {
+    const insertAt = Math.floor(Math.random() * (player.arsenal.length + 1));
+    player.arsenal.splice(insertAt, 0, card);
+  }
+
+  _drawCardsForEffect(player, sourceName, drawCount) {
+    if (!drawCount) return;
+    let drawn = 0;
+    for (let i = 0; i < drawCount; i++) {
+      if (this._drawCard(player)) drawn += 1;
+    }
+    if (drawn > 0) {
+      this.actionLog.push({
+        message: `${sourceName}: drew ${drawn} card${drawn === 1 ? '' : 's'}.`,
+      });
+    } else {
+      this.actionLog.push({
+        message: `${sourceName}: Arsenal was empty — could not draw.`,
+      });
+    }
+  }
+
+  async _completeShuffleHandIntoArsenal(player, flow, card) {
+    this._shuffleCardIntoArsenal(player, card);
+    this.actionLog.push({
+      message: `${flow.sourceName}: shuffled ${card.name} from hand into Arsenal.`,
+    });
+    this._drawCardsForEffect(player, flow.sourceName, flow.drawCount || 0);
+    await this._finishCardEffectResolution();
+  }
+
+  _beginShuffleHandIntoArsenalPrompt(player, playerIndex, sourceName, drawCount = 0) {
+    if (player.hand.length === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: no cards in hand to shuffle into Arsenal.`,
+      });
+      return false;
+    }
+
+    if (!player.isHuman) {
+      const idx = Math.floor(Math.random() * player.hand.length);
+      const card = player.hand.splice(idx, 1)[0];
+      this._shuffleCardIntoArsenal(player, card);
+      this.actionLog.push({
+        message: `${sourceName}: shuffled ${card.name} from hand into Arsenal.`,
+      });
+      this._drawCardsForEffect(player, sourceName, drawCount);
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'shuffleHandIntoArsenal',
+      playerIndex,
+      sourceName,
+      drawCount,
+      count: 1,
+      selectedIds: [],
+    };
+    this._notify();
+    return true;
   }
 
   _dealOpeningHands() {
@@ -1268,6 +1344,18 @@ window.RawDeal.GameEngine = class GameEngine {
 
     const player = this.players[playerIndex];
     const flow = this.cardEffectFlow;
+
+    if (flow.type === 'shuffleHandIntoArsenal') {
+      if (flow.selectedIds.includes(instanceId)) return false;
+      if (!player.hand.some((c) => c.instanceId === instanceId)) return false;
+
+      const card = player.hand.find((c) => c.instanceId === instanceId);
+      if (!card) return false;
+
+      player.hand = player.hand.filter((c) => c.instanceId !== instanceId);
+      await this._completeShuffleHandIntoArsenal(player, flow, card);
+      return true;
+    }
 
     if (flow.type === 'discardFromHand' || flow.type === 'opponentDiscardFromHand') {
       if (flow.selectedIds.includes(instanceId)) return false;

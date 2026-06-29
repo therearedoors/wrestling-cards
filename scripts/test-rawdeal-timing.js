@@ -1376,6 +1376,93 @@ async function testHmmmFewerThanFiveCards() {
   assert(engine.cardEffectFlow?.count === 1, 'Hmmm shows all Arsenal cards when fewer than 5');
 }
 
+async function testNotYetOpensHandPrompt() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  player.hand.push(
+    cloneCard(RawDeal, 'punch', 'not-yet-filler'),
+    cloneCard(RawDeal, 'not-yet', 'not-yet-test')
+  );
+
+  await engine.playCard(0, 'not-yet-test', 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'shuffleHandIntoArsenal',
+    'Not Yet opens hand shuffle prompt before draw'
+  );
+  assert(engine.cardEffectFlow?.drawCount === 2, 'Not Yet will draw 2 after shuffle');
+}
+
+async function testNotYetShuffleAndDraw() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.arsenal = [
+    cloneCard(RawDeal, 'chop', 'arsenal-0'),
+    cloneCard(RawDeal, 'chop', 'arsenal-1'),
+    cloneCard(RawDeal, 'chop', 'arsenal-2'),
+  ];
+  player.fortitude = 20;
+  player.hand.push(
+    cloneCard(RawDeal, 'punch', 'shuffle-this'),
+    cloneCard(RawDeal, 'not-yet', 'not-yet-complete')
+  );
+
+  const arsenalBefore = player.arsenal.length;
+
+  engine._shuffleCardIntoArsenal = (p, card) => {
+    p.arsenal.unshift(card);
+  };
+
+  await engine.playCard(0, 'not-yet-complete', 'action');
+  await engine.selectForCardEffect(0, 'shuffle-this');
+
+  assert(
+    player.arsenal[0]?.instanceId === 'shuffle-this',
+    'Not Yet shuffled chosen card into Arsenal'
+  );
+  assert(player.arsenal.length === arsenalBefore - 1, 'Not Yet net Arsenal after shuffle in and draw 2');
+  assert(player.hand.length === 2, 'Not Yet drew 2 cards after shuffle');
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('shuffled Punch from hand into Arsenal')),
+    'Not Yet logs shuffle into Arsenal'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('drew 2 cards')),
+    'Not Yet logs drawing 2 cards'
+  );
+  assert(!engine.cardEffectFlow, 'Not Yet prompt clears after completion');
+}
+
+async function testNotYetEmptyHandSkipsEffect() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [cloneCard(RawDeal, 'not-yet', 'not-yet-only')];
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'only-arsenal')];
+  player.fortitude = 20;
+
+  await engine.playCard(0, 'not-yet-only', 'action');
+
+  assert(!engine.cardEffectFlow, 'Not Yet does not prompt when hand is empty after playing');
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('no cards in hand to shuffle')),
+    'Not Yet logs empty hand for shuffle step'
+  );
+  assert(player.hand.length === 0, 'Not Yet left hand empty');
+  assert(player.arsenal.length === 1, 'Not Yet did not draw when shuffle was skipped');
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testSpinningHeelKickDiscardBeforeDamage();
@@ -1418,6 +1505,9 @@ async function main() {
   await testDontThinkTooHardOpensOpponentPrompt();
   await testDontThinkTooHardConfirmReordersOpponentTop();
   await testDontThinkTooHardShuffleOpponentArsenal();
+  await testNotYetOpensHandPrompt();
+  await testNotYetShuffleAndDraw();
+  await testNotYetEmptyHandSkipsEffect();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
 

@@ -1045,7 +1045,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Take a card in your hand, shuffle it into your Arsenal, then draw 2 cards.",
     flavor: "",
-    actionEffects: [{"op": "draw", "count": 2}],
+    actionEffects: [{"op": "shuffleHandIntoArsenal", "draw": 2}],
     set: "premiere",
   },
   'jockeying-for-position': {
