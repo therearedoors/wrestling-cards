@@ -129,8 +129,12 @@
       emitAction({ type: 'passSuperstarAbility' });
     };
 
-    board.onConfirmSuperstarAbility = (instanceId) => {
-      emitAction({ type: 'confirmSuperstarAbility', instanceId });
+    board.onConfirmSuperstarAbility = (selection) => {
+      emitAction({
+        type: 'confirmSuperstarAbility',
+        instanceId: Array.isArray(selection) ? undefined : selection,
+        instanceIds: Array.isArray(selection) ? selection : undefined,
+      });
     };
 
     board.onToggleSuperstarAbilitySelect = (instanceId) => {

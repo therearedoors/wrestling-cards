@@ -113,8 +113,8 @@
       await engine.passSuperstarAbilityPrompt(0);
     };
 
-    board.onConfirmSuperstarAbility = async (instanceId) => {
-      await engine.confirmSuperstarAbilityPrompt(0, instanceId);
+    board.onConfirmSuperstarAbility = async (selection) => {
+      await engine.confirmSuperstarAbilityPrompt(0, selection);
     };
 
     board.onToggleSuperstarAbilitySelect = (instanceId) => {

@@ -99,7 +99,10 @@ class RoomGame {
         ok = await engine.passSuperstarAbilityPrompt(seat);
         break;
       case 'confirmSuperstarAbility':
-        ok = await engine.confirmSuperstarAbilityPrompt(seat, action.instanceId);
+        ok = await engine.confirmSuperstarAbilityPrompt(
+          seat,
+          action.instanceIds || action.instanceId
+        );
         break;
       case 'toggleSuperstarAbilitySelection':
         ok = engine.toggleSuperstarAbilitySelection(seat, action.instanceId);
