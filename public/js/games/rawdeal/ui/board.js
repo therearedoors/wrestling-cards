@@ -558,7 +558,7 @@ window.RawDeal.Board = class Board {
       const affordableManeuver = player.fortitude >= maneuverCost;
       const affordableAction = player.fortitude >= actionCost;
       const meetsManeuverReq = utils.meetsPlayRequirement(player, card, 'maneuver');
-      const opponent = this._state?.players?.[1 - (this._state.myIndex ?? 0)];
+      const opponent = this._state?.players?.[1];
       const meetsActionReq = utils.meetsActionPlayRequirement(player, opponent, card);
       const canManeuver =
         canPlay &&
