@@ -244,6 +244,36 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'shuffleRingsideCountChoice') {
+      const player = this.players[flow.playerIndex];
+      const available = this._shuffleRingsideUpToAvailableMax(player, flow.max);
+      return {
+        mode: 'shuffleRingsideCount',
+        message: `${flow.sourceName}: shuffle how many cards from Ringside into Arsenal? (0–${available})`,
+        min: 0,
+        max: available,
+        selected: flow.selectedCount ?? 0,
+      };
+    }
+
+    if (flow.type === 'shuffleRingsideIntoArsenal') {
+      const n = flow.count || 1;
+      const picked = flow.selectedIds.length;
+      const player = this.players[flow.playerIndex];
+      const message =
+        n === 1
+          ? `${flow.sourceName}: choose 1 card from your Ringside to shuffle into your Arsenal.`
+          : `${flow.sourceName}: choose ${n} cards from your Ringside to shuffle into your Arsenal (${picked}/${n}).`;
+      return {
+        mode: 'ringsideModal',
+        message,
+        cards: player.ringside.map((c) => ({ ...c })),
+        selectCount: n,
+        selectedIds: [...flow.selectedIds],
+        allowPass: false,
+      };
+    }
+
     if (flow.type === 'returnFromRingside') {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
@@ -939,6 +969,91 @@ window.RawDeal.GameEngine = class GameEngine {
 
   _discardUpToAvailableMax(player, max) {
     return Math.min(max || 0, player.hand.length);
+  }
+
+  _shuffleRingsideUpToAvailableMax(player, max) {
+    return Math.min(max || 0, player.ringside.length);
+  }
+
+  _beginShuffleRingsideUpToPrompt(player, playerIndex, sourceName, max = 2) {
+    const available = this._shuffleRingsideUpToAvailableMax(player, max);
+    if (available === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: shuffled 0 cards from Ringside into Arsenal.`,
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'shuffleRingsideCountChoice',
+      playerIndex,
+      sourceName,
+      max,
+      selectedCount: 0,
+    };
+    this._notify();
+    return true;
+  }
+
+  adjustShuffleRingsideCount(playerIndex, delta) {
+    const flow = this.cardEffectFlow;
+    if (
+      !flow ||
+      flow.type !== 'shuffleRingsideCountChoice' ||
+      flow.playerIndex !== playerIndex
+    ) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const available = this._shuffleRingsideUpToAvailableMax(player, flow.max);
+    const next = (flow.selectedCount ?? 0) + delta;
+    flow.selectedCount = Math.max(0, Math.min(available, next));
+    this._notify();
+    return true;
+  }
+
+  async confirmShuffleRingsideCount(playerIndex) {
+    const flow = this.cardEffectFlow;
+    if (
+      !flow ||
+      flow.type !== 'shuffleRingsideCountChoice' ||
+      flow.playerIndex !== playerIndex
+    ) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const count = flow.selectedCount ?? 0;
+    const sourceName = flow.sourceName;
+
+    if (count === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: shuffled 0 cards from Ringside into Arsenal.`,
+      });
+      this.cardEffectFlow = null;
+      this._notify();
+      if (this.effectPipelineFlow?.paused) {
+        await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
+      }
+      return true;
+    }
+
+    this.cardEffectFlow = null;
+    this._notify();
+    return this._beginShuffleRingsideSelectPrompt(player, playerIndex, sourceName, count);
+  }
+
+  _beginShuffleRingsideSelectPrompt(player, playerIndex, sourceName, count) {
+    this.cardEffectFlow = {
+      type: 'shuffleRingsideIntoArsenal',
+      playerIndex,
+      sourceName,
+      count,
+      selectedIds: [],
+    };
+    this._notify();
+    return true;
   }
 
   _beginDiscardUpToPrompt(player, playerIndex, sourceName, max = 2) {
@@ -1751,7 +1866,10 @@ window.RawDeal.GameEngine = class GameEngine {
       return true;
     }
 
-    if (flow.type === 'returnFromRingside') {
+    if (
+      flow.type === 'returnFromRingside' ||
+      flow.type === 'shuffleRingsideIntoArsenal'
+    ) {
       return this.toggleSuperstarAbilitySelection(playerIndex, instanceId);
     }
 
@@ -2023,7 +2141,8 @@ window.RawDeal.GameEngine = class GameEngine {
     const cardFlow = this.cardEffectFlow;
     if (
       cardFlow?.playerIndex === playerIndex &&
-      cardFlow.type === 'returnFromRingside'
+      (cardFlow.type === 'returnFromRingside' ||
+        cardFlow.type === 'shuffleRingsideIntoArsenal')
     ) {
       if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
       if (cardFlow.selectedIds.includes(instanceId)) return false;
@@ -2113,6 +2232,36 @@ window.RawDeal.GameEngine = class GameEngine {
       const names = toReturn.map((c) => c.name).join(', ');
       this.actionLog.push({
         message: `${cardFlow.sourceName}: returned ${names} from Ringside to hand.`,
+      });
+      await this._finishCardEffectResolution();
+      return true;
+    }
+
+    if (
+      cardFlow?.playerIndex === playerIndex &&
+      cardFlow.type === 'shuffleRingsideIntoArsenal'
+    ) {
+      const ids = Array.isArray(selection) ? selection : cardFlow.selectedIds;
+      const needed = cardFlow.count || 1;
+      if (ids.length !== needed) return false;
+
+      const valid = new Set(player.ringside.map((c) => c.instanceId));
+      if (!ids.every((id) => valid.has(id))) return false;
+
+      const toShuffle = ids
+        .map((id) => player.ringside.find((c) => c.instanceId === id))
+        .filter(Boolean);
+      for (const id of ids) {
+        const idx = player.ringside.findIndex((c) => c.instanceId === id);
+        if (idx >= 0) {
+          const [card] = player.ringside.splice(idx, 1);
+          this._shuffleCardIntoArsenal(player, card);
+        }
+      }
+
+      const names = toShuffle.map((c) => c.name).join(', ');
+      this.actionLog.push({
+        message: `${cardFlow.sourceName}: shuffled ${names} from Ringside into Arsenal.`,
       });
       await this._finishCardEffectResolution();
       return true;

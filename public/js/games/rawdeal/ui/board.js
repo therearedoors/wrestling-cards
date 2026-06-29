@@ -27,6 +27,8 @@ window.RawDeal.Board = class Board {
         const mode = this.choiceModal._prompt?.mode;
         if (mode === 'discardCount') {
           if (this.onAdjustDiscardCount) this.onAdjustDiscardCount(delta);
+        } else if (mode === 'shuffleRingsideCount') {
+          if (this.onAdjustShuffleRingsideCount) this.onAdjustShuffleRingsideCount(delta);
         } else if (this.onAdjustDrawCount) {
           this.onAdjustDrawCount(delta);
         }
@@ -35,6 +37,8 @@ window.RawDeal.Board = class Board {
         const mode = this.choiceModal._prompt?.mode;
         if (mode === 'discardCount') {
           if (this.onConfirmDiscardCount) this.onConfirmDiscardCount();
+        } else if (mode === 'shuffleRingsideCount') {
+          if (this.onConfirmShuffleRingsideCount) this.onConfirmShuffleRingsideCount();
         } else if (this.onConfirmDrawCount) {
           this.onConfirmDrawCount();
         }
@@ -424,7 +428,12 @@ window.RawDeal.Board = class Board {
 
   _renderChoiceModal(prompt) {
     if (!this.choiceModal) return;
-    if (prompt?.mode === 'choice' || prompt?.mode === 'drawCount' || prompt?.mode === 'discardCount') {
+    if (
+      prompt?.mode === 'choice' ||
+      prompt?.mode === 'drawCount' ||
+      prompt?.mode === 'discardCount' ||
+      prompt?.mode === 'shuffleRingsideCount'
+    ) {
       this.choiceModal.show(prompt);
     } else {
       this.choiceModal.hide();
@@ -468,6 +477,7 @@ window.RawDeal.Board = class Board {
       prompt.mode !== 'choice' &&
       prompt.mode !== 'drawCount' &&
       prompt.mode !== 'discardCount' &&
+      prompt.mode !== 'shuffleRingsideCount' &&
       prompt.mode !== 'ringsideModal' &&
       prompt.mode !== 'opponentRingModal' &&
       prompt.mode !== 'arsenalReorder';

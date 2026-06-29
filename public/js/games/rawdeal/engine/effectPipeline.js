@@ -274,6 +274,14 @@ window.RawDeal.EffectPipeline = {
           step.max || 2
         );
 
+      case 'shuffleRingsideUpTo':
+        return engine._beginShuffleRingsideUpToPrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          step.max || 2
+        );
+
       case 'returnFromRingside': {
         const count = pipeline.discardedCount || 0;
         if (count === 0) return false;

@@ -165,6 +165,14 @@
       emitAction({ type: 'confirmDiscardCount' });
     };
 
+    board.onAdjustShuffleRingsideCount = (delta) => {
+      emitAction({ type: 'adjustShuffleRingsideCount', delta });
+    };
+
+    board.onConfirmShuffleRingsideCount = () => {
+      emitAction({ type: 'confirmShuffleRingsideCount' });
+    };
+
     board.onShuffleArsenalReorder = () => {
       emitAction({ type: 'shuffleArsenalReorder' });
     };
