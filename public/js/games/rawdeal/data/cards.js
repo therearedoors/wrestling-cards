@@ -1170,7 +1170,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Shuffle any 2 cards from your Ringside pile back into your Arsenal. Then draw 1 card.",
     flavor: "",
-    actionEffects: [{"op": "draw", "count": 1}],
+    actionEffects: [{"op": "shuffleRingsideUpTo", "max": 2}, {"op": "draw", "count": 1}],
     set: "premiere",
   },
   'spit-at-opponent': {

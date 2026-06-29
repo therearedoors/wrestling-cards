@@ -83,6 +83,12 @@ class RoomGame {
       case 'confirmDiscardCount':
         ok = await engine.confirmDiscardCount(seat);
         break;
+      case 'adjustShuffleRingsideCount':
+        ok = engine.adjustShuffleRingsideCount(seat, action.delta ?? 0);
+        break;
+      case 'confirmShuffleRingsideCount':
+        ok = await engine.confirmShuffleRingsideCount(seat);
+        break;
       case 'dismissHandReveal':
         ok = await engine.dismissHandReveal(seat);
         break;

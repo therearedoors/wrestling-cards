@@ -730,6 +730,17 @@ def infer_action_effects(types_list, rules, name=''):
             {'op': 'returnFromRingside'},
         ]
 
+    if (
+        'shuffle any 2' in blob
+        and 'ringside' in blob
+        and 'arsenal' in blob
+        and 'draw 1' in blob
+    ):
+        return [
+            {'op': 'shuffleRingsideUpTo', 'max': 2},
+            {'op': 'draw', 'count': 1},
+        ]
+
     if 'draw up to 3' in blob and 'discard 1' in blob:
         return [
             {'op': 'drawUpTo', 'max': 3},
