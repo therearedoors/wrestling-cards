@@ -674,6 +674,14 @@ def infer_action_effects(types_list, rules, name=''):
         effects.append({'op': 'draw', 'count': 1})
         return effects
 
+    if 'take a card in your hand' in blob and 'shuffle it into your arsenal' in blob:
+        effects = [{'op': 'shuffleHandIntoArsenal'}]
+        if 'draw 2' in blob:
+            effects[0]['draw'] = 2
+        elif 'draw 1' in blob:
+            effects[0]['draw'] = 1
+        return effects
+
     if 'draw up to 5' in blob:
         return [{'op': 'draw', 'count': 5}]
     if 'draw 2' in blob or 'draw up to 2' in blob:
