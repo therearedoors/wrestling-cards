@@ -2352,9 +2352,13 @@ async function testRollOutFullSwap() {
     engine.cardEffectFlow?.type === 'returnFromRingside',
     'Roll Out prompts Ringside return after discarding'
   );
+  const returnPrompt = engine._publicSelectionPrompt(0);
+  assert(returnPrompt?.mode === 'ringsideModal', 'Roll Out opens Ringside return modal');
+  assert(returnPrompt.cards.length === 4, 'Roll Out modal lists all Ringside cards');
 
-  await engine.selectForCardEffect(0, return1.instanceId);
-  await engine.selectForCardEffect(0, return2.instanceId);
+  engine.toggleSuperstarAbilitySelection(0, return1.instanceId);
+  engine.toggleSuperstarAbilitySelection(0, return2.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, [return1.instanceId, return2.instanceId]);
 
   assert(
     player.hand.some((c) => c.instanceId === return1.instanceId),
@@ -2434,10 +2438,12 @@ async function testRollOutDiscardCappedReturnsOne() {
   await engine.selectForCardEffect(0, discard1.instanceId);
 
   const prompt = engine._publicSelectionPrompt(0);
-  assert(prompt?.mode === 'ringside', 'Roll Out shows Ringside return prompt');
-  assert(prompt.count === 1, 'Roll Out returns equal to actual discarded count when capped');
+  assert(prompt?.mode === 'ringsideModal', 'Roll Out shows Ringside return modal');
+  assert(prompt.selectCount === 1, 'Roll Out returns equal to actual discarded count when capped');
+  assert(prompt.cards.length === 2, 'Roll Out modal shows all Ringside cards');
 
-  await engine.selectForCardEffect(0, preExisting.instanceId);
+  engine.toggleSuperstarAbilitySelection(0, preExisting.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, preExisting.instanceId);
 
   assert(
     player.hand.some((c) => c.instanceId === preExisting.instanceId),

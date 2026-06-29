@@ -356,7 +356,6 @@ window.RawDeal.Board = class Board {
 
     const ability = state.superstarAbility || {};
     const activePrompt = state.selectionPrompt || ability.prompt;
-    const inlineAbilityPrompt = activePrompt?.mode === 'ringside' ? activePrompt : null;
     const uiBlocked =
       !!activePrompt || !!state.handReveal || !!state.reversalWindow?.canRespond;
 
@@ -364,14 +363,16 @@ window.RawDeal.Board = class Board {
     this._renderArsenalReorderModal(activePrompt);
     this._renderOpponentRingSelectModal(activePrompt);
     this._renderHandReveal(state.handReveal);
-    this._renderSuperstarAbilityModal(ability.prompt);
+    this._renderSuperstarAbilityModal(
+      activePrompt?.mode === 'ringsideModal' ? activePrompt : ability.prompt
+    );
     this._renderSuperstarAbility(player, ability, state.canPlay, activePrompt);
     this._renderAbilityPrompt(activePrompt);
     this._renderReversalPrompt(state.reversalWindow);
     this._renderHand(player, state.canPlay, activePrompt, state.reversalWindow, state.handReveal);
     this._renderCompactRing(this.els.playerRingCards, player.ring);
     this._renderRingside(this.els.opponentRingsideCards, opponent.ringside);
-    this._renderRingside(this.els.playerRingsideCards, player.ringside, inlineAbilityPrompt);
+    this._renderRingside(this.els.playerRingsideCards, player.ringside);
     this._updatePileLabels(player, opponent);
 
     this.els.endTurnBtn.disabled = !state.canPlay || uiBlocked;
@@ -753,31 +754,13 @@ window.RawDeal.Board = class Board {
     }
   }
 
-  _renderRingside(container, cards, abilityPrompt) {
+  _renderRingside(container, cards) {
     if (!container) return;
     container.querySelectorAll('.rd-card').forEach((el) => el.remove());
-    const ringsideMode = abilityPrompt?.mode === 'ringside';
-    const visible = ringsideMode ? cards : cards.slice(-6);
-
-    const selectedIds = abilityPrompt?.selectedIds || [];
+    const visible = cards.slice(-6);
 
     for (const card of visible) {
-      const selectable = ringsideMode;
-      const el = window.RawDeal.CardRenderer.createCardEl(card, {
-        small: true,
-        clickable: selectable,
-        onClick: selectable
-          ? () => {
-              if (this.onAbilitySelect) this.onAbilitySelect(card.instanceId);
-            }
-          : undefined,
-      });
-      if (selectable) {
-        el.classList.add('rd-card--ability-target');
-        if (selectedIds.includes(card.instanceId)) {
-          el.classList.add('rd-card--selected');
-        }
-      }
+      const el = window.RawDeal.CardRenderer.createCardEl(card, { small: true });
       container.appendChild(el);
     }
   }

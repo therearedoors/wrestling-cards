@@ -251,11 +251,14 @@ window.RawDeal.GameEngine = class GameEngine {
         n === 1
           ? `${flow.sourceName}: choose 1 card from your Ringside to return to your hand.`
           : `${flow.sourceName}: choose ${n} cards from your Ringside to return to your hand (${picked}/${n}).`;
+      const player = this.players[flow.playerIndex];
       return {
-        mode: 'ringside',
-        count: n,
+        mode: 'ringsideModal',
         message,
+        cards: player.ringside.map((c) => ({ ...c })),
+        selectCount: n,
         selectedIds: [...flow.selectedIds],
+        allowPass: false,
       };
     }
 
@@ -392,10 +395,12 @@ window.RawDeal.GameEngine = class GameEngine {
         };
       } else if (flow.step === 'pickRingside') {
         prompt = {
-          mode: 'ringside',
-          count: 1,
-          message: 'Choose 1 card from your Ringside to put into your hand.',
-          selectedIds: [],
+          mode: 'ringsideModal',
+          message: 'Undertaker: choose 1 card from your Ringside to put into your hand.',
+          cards: player.ringside.map((c) => ({ ...c })),
+          selectCount: 1,
+          selectedId: flow.selectedId || null,
+          allowPass: false,
         };
       } else if (flow.step === 'jerichoDiscardSelf') {
         prompt = {
@@ -1747,34 +1752,7 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     if (flow.type === 'returnFromRingside') {
-      if (flow.selectedIds.includes(instanceId)) return false;
-      if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
-
-      flow.selectedIds.push(instanceId);
-      const needed = flow.count || 1;
-
-      if (flow.selectedIds.length < needed) {
-        this._notify();
-        return true;
-      }
-
-      const toReturn = flow.selectedIds
-        .map((id) => player.ringside.find((c) => c.instanceId === id))
-        .filter(Boolean);
-      for (const id of flow.selectedIds) {
-        const idx = player.ringside.findIndex((c) => c.instanceId === id);
-        if (idx >= 0) {
-          const [card] = player.ringside.splice(idx, 1);
-          player.hand.push(card);
-        }
-      }
-
-      const names = toReturn.map((c) => c.name).join(', ');
-      this.actionLog.push({
-        message: `${flow.sourceName}: returned ${names} from Ringside to hand.`,
-      });
-      await this._finishCardEffectResolution();
-      return true;
+      return this.toggleSuperstarAbilitySelection(playerIndex, instanceId);
     }
 
     return false;
@@ -2027,16 +2005,38 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   toggleSuperstarAbilitySelection(playerIndex, instanceId) {
-    if (!this.abilityFlow || this.abilityFlow.playerIndex !== playerIndex) return false;
-    if (this.abilityFlow.step !== 'rockRingside') return false;
-
     const player = this.players[playerIndex];
-    if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
+    if (!player) return false;
 
-    this.abilityFlow.selectedId =
-      this.abilityFlow.selectedId === instanceId ? null : instanceId;
-    this._notify();
-    return true;
+    const ability = this.abilityFlow;
+    if (ability?.playerIndex === playerIndex) {
+      if (ability.step === 'rockRingside' || ability.step === 'pickRingside') {
+        if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
+
+        ability.selectedId =
+          ability.selectedId === instanceId ? null : instanceId;
+        this._notify();
+        return true;
+      }
+    }
+
+    const cardFlow = this.cardEffectFlow;
+    if (
+      cardFlow?.playerIndex === playerIndex &&
+      cardFlow.type === 'returnFromRingside'
+    ) {
+      if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
+      if (cardFlow.selectedIds.includes(instanceId)) return false;
+
+      const needed = cardFlow.count || 1;
+      if (cardFlow.selectedIds.length >= needed) return false;
+
+      cardFlow.selectedIds.push(instanceId);
+      this._notify();
+      return true;
+    }
+
+    return false;
   }
 
   async passSuperstarAbilityPrompt(playerIndex) {
@@ -2051,21 +2051,74 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  async confirmSuperstarAbilityPrompt(playerIndex, instanceId) {
-    if (!this.abilityFlow || this.abilityFlow.playerIndex !== playerIndex) return false;
-    if (this.abilityFlow.step !== 'rockRingside') return false;
-
+  async confirmSuperstarAbilityPrompt(playerIndex, selection) {
     const player = this.players[playerIndex];
-    const idx = player.ringside.findIndex((c) => c.instanceId === instanceId);
-    if (idx < 0) return false;
+    if (!player) return false;
 
-    const [card] = player.ringside.splice(idx, 1);
-    player.arsenal.unshift(card);
-    this.actionLog.push({
-      message: `The Rock put ${card.name} from Ringside on the bottom of your Arsenal.`,
-    });
-    await this._finishPreDrawSuperstarAbility(player);
-    return true;
+    const ability = this.abilityFlow;
+    if (ability?.playerIndex === playerIndex && ability.step === 'rockRingside') {
+      const instanceId = Array.isArray(selection) ? selection[0] : selection;
+      const idx = player.ringside.findIndex((c) => c.instanceId === instanceId);
+      if (idx < 0) return false;
+
+      const [card] = player.ringside.splice(idx, 1);
+      player.arsenal.unshift(card);
+      this.actionLog.push({
+        message: `The Rock put ${card.name} from Ringside on the bottom of your Arsenal.`,
+      });
+      await this._finishPreDrawSuperstarAbility(player);
+      return true;
+    }
+
+    if (ability?.playerIndex === playerIndex && ability.step === 'pickRingside') {
+      const instanceId = Array.isArray(selection) ? selection[0] : selection;
+      const idx = player.ringside.findIndex((c) => c.instanceId === instanceId);
+      if (idx < 0) return false;
+
+      const [card] = player.ringside.splice(idx, 1);
+      player.hand.push(card);
+      player.superstarAbilityUsed = true;
+      const discarded = (ability.discardedNames || []).join(' and ');
+      this.actionLog.push({
+        message: `Undertaker discarded ${discarded} and retrieved ${card.name} from Ringside.`,
+      });
+      this.abilityFlow = null;
+      this._notify();
+      return true;
+    }
+
+    const cardFlow = this.cardEffectFlow;
+    if (
+      cardFlow?.playerIndex === playerIndex &&
+      cardFlow.type === 'returnFromRingside'
+    ) {
+      const ids = Array.isArray(selection) ? selection : cardFlow.selectedIds;
+      const needed = cardFlow.count || 1;
+      if (ids.length !== needed) return false;
+
+      const valid = new Set(player.ringside.map((c) => c.instanceId));
+      if (!ids.every((id) => valid.has(id))) return false;
+
+      const toReturn = ids
+        .map((id) => player.ringside.find((c) => c.instanceId === id))
+        .filter(Boolean);
+      for (const id of ids) {
+        const idx = player.ringside.findIndex((c) => c.instanceId === id);
+        if (idx >= 0) {
+          const [card] = player.ringside.splice(idx, 1);
+          player.hand.push(card);
+        }
+      }
+
+      const names = toReturn.map((c) => c.name).join(', ');
+      this.actionLog.push({
+        message: `${cardFlow.sourceName}: returned ${names} from Ringside to hand.`,
+      });
+      await this._finishCardEffectResolution();
+      return true;
+    }
+
+    return false;
   }
 
   canUseSuperstarAbility(playerIndex) {
@@ -2198,24 +2251,14 @@ window.RawDeal.GameEngine = class GameEngine {
 
       flow.step = 'pickRingside';
       flow.discardSelected = [];
+      flow.selectedId = null;
       flow.discardedNames = toDiscard.map((c) => c.name);
       this._notify();
       return true;
     }
 
     if (flow.step === 'pickRingside') {
-      const idx = player.ringside.findIndex((c) => c.instanceId === instanceId);
-      if (idx < 0) return false;
-      const [card] = player.ringside.splice(idx, 1);
-      player.hand.push(card);
-      player.superstarAbilityUsed = true;
-      const discarded = (flow.discardedNames || []).join(' and ');
-      this.actionLog.push({
-        message: `Undertaker discarded ${discarded} and retrieved ${card.name} from Ringside.`,
-      });
-      this.abilityFlow = null;
-      this._notify();
-      return true;
+      return this.toggleSuperstarAbilitySelection(playerIndex, instanceId);
     }
 
     if (flow.step === 'jerichoDiscardSelf') {
