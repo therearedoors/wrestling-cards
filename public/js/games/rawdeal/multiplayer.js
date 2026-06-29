@@ -153,6 +153,14 @@
       emitAction({ type: 'confirmDrawCount' });
     };
 
+    board.onAdjustDiscardCount = (delta) => {
+      emitAction({ type: 'adjustDiscardCount', delta });
+    };
+
+    board.onConfirmDiscardCount = () => {
+      emitAction({ type: 'confirmDiscardCount' });
+    };
+
     board.onShuffleArsenalReorder = () => {
       emitAction({ type: 'shuffleArsenalReorder' });
     };

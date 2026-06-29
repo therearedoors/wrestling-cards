@@ -24,10 +24,20 @@ window.RawDeal.Board = class Board {
         if (this.onChoiceSelect) this.onChoiceSelect(optionId);
       };
       this.choiceModal.onAdjust = (delta) => {
-        if (this.onAdjustDrawCount) this.onAdjustDrawCount(delta);
+        const mode = this.choiceModal._prompt?.mode;
+        if (mode === 'discardCount') {
+          if (this.onAdjustDiscardCount) this.onAdjustDiscardCount(delta);
+        } else if (this.onAdjustDrawCount) {
+          this.onAdjustDrawCount(delta);
+        }
       };
       this.choiceModal.onConfirm = () => {
-        if (this.onConfirmDrawCount) this.onConfirmDrawCount();
+        const mode = this.choiceModal._prompt?.mode;
+        if (mode === 'discardCount') {
+          if (this.onConfirmDiscardCount) this.onConfirmDiscardCount();
+        } else if (this.onConfirmDrawCount) {
+          this.onConfirmDrawCount();
+        }
       };
     }
     if (this.handRevealModal) {
@@ -413,7 +423,7 @@ window.RawDeal.Board = class Board {
 
   _renderChoiceModal(prompt) {
     if (!this.choiceModal) return;
-    if (prompt?.mode === 'choice' || prompt?.mode === 'drawCount') {
+    if (prompt?.mode === 'choice' || prompt?.mode === 'drawCount' || prompt?.mode === 'discardCount') {
       this.choiceModal.show(prompt);
     } else {
       this.choiceModal.hide();
@@ -456,6 +466,7 @@ window.RawDeal.Board = class Board {
       !!prompt &&
       prompt.mode !== 'choice' &&
       prompt.mode !== 'drawCount' &&
+      prompt.mode !== 'discardCount' &&
       prompt.mode !== 'ringsideModal' &&
       prompt.mode !== 'opponentRingModal' &&
       prompt.mode !== 'arsenalReorder';
@@ -748,6 +759,8 @@ window.RawDeal.Board = class Board {
     const ringsideMode = abilityPrompt?.mode === 'ringside';
     const visible = ringsideMode ? cards : cards.slice(-6);
 
+    const selectedIds = abilityPrompt?.selectedIds || [];
+
     for (const card of visible) {
       const selectable = ringsideMode;
       const el = window.RawDeal.CardRenderer.createCardEl(card, {
@@ -761,6 +774,9 @@ window.RawDeal.Board = class Board {
       });
       if (selectable) {
         el.classList.add('rd-card--ability-target');
+        if (selectedIds.includes(card.instanceId)) {
+          el.classList.add('rd-card--selected');
+        }
       }
       container.appendChild(el);
     }

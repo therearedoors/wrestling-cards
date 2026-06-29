@@ -5,6 +5,7 @@ window.RawDeal = window.RawDeal || {};
  * Modes:
  * - choice: { message, options: [{ id, label }] }
  * - drawCount: { message, min, max, selected }
+ * - discardCount: { message, min, max, selected }
  */
 window.RawDeal.ChoiceModal = class ChoiceModal {
   constructor(rootEl) {
@@ -23,8 +24,8 @@ window.RawDeal.ChoiceModal = class ChoiceModal {
       return;
     }
 
-    if (prompt.mode === 'drawCount') {
-      this._showDrawCount(prompt);
+    if (prompt.mode === 'drawCount' || prompt.mode === 'discardCount') {
+      this._showCountStepper(prompt);
       return;
     }
 
@@ -54,12 +55,12 @@ window.RawDeal.ChoiceModal = class ChoiceModal {
     }
   }
 
-  _showDrawCount(prompt) {
+  _showCountStepper(prompt) {
     this._prompt = prompt;
     this.root.classList.remove('hidden');
 
     if (this.messageEl) {
-      this.messageEl.textContent = prompt.message || 'Draw how many cards?';
+      this.messageEl.textContent = prompt.message || 'Choose how many:';
     }
 
     if (!this.actionsEl) return;

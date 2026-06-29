@@ -2287,6 +2287,169 @@ async function testOfferHandshakeDrawZeroStillDiscards() {
   );
 }
 
+async function createRollOutTest(RawDeal, { handCards = [], ringsideCards = [] } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const rollOut = cloneCard(RawDeal, 'roll-out-of-the-ring', 'ro-test');
+
+  player.hand = [rollOut, ...handCards];
+  player.ringside = [...ringsideCards];
+  player.fortitude = 5;
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'ro-arsenal')];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, rollOut };
+}
+
+async function testRollOutFullSwap() {
+  const RawDeal = loadRawDeal();
+  const discard1 = cloneCard(RawDeal, 'punch', 'ro-discard-1');
+  const discard2 = cloneCard(RawDeal, 'kick', 'ro-discard-2');
+  const extra = cloneCard(RawDeal, 'chop', 'ro-extra');
+  const return1 = cloneCard(RawDeal, 'elbow', 'ro-return-1');
+  const return2 = cloneCard(RawDeal, 'shoulder-block', 'ro-return-2');
+
+  const { engine, player, rollOut } = await createRollOutTest(RawDeal, {
+    handCards: [discard1, discard2, extra],
+    ringsideCards: [return1, return2],
+  });
+
+  const handBefore = player.hand.length;
+  const ringsideBefore = player.ringside.length;
+
+  await engine.playCard(0, rollOut.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardCountChoice',
+    'Roll Out opens discard count choice'
+  );
+
+  engine.adjustDiscardCount(0, 2);
+  await engine.confirmDiscardCount(0);
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Roll Out prompts hand discard after choosing 2'
+  );
+
+  await engine.selectForCardEffect(0, discard1.instanceId);
+  await engine.selectForCardEffect(0, discard2.instanceId);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === discard1.instanceId),
+    'Roll Out discards first card to Ringside'
+  );
+  assert(
+    player.ringside.some((c) => c.instanceId === discard2.instanceId),
+    'Roll Out discards second card to Ringside'
+  );
+
+  assert(
+    engine.cardEffectFlow?.type === 'returnFromRingside',
+    'Roll Out prompts Ringside return after discarding'
+  );
+
+  await engine.selectForCardEffect(0, return1.instanceId);
+  await engine.selectForCardEffect(0, return2.instanceId);
+
+  assert(
+    player.hand.some((c) => c.instanceId === return1.instanceId),
+    'Roll Out returns first Ringside card to hand'
+  );
+  assert(
+    player.hand.some((c) => c.instanceId === return2.instanceId),
+    'Roll Out returns second Ringside card to hand'
+  );
+  assert(
+    !player.ringside.some((c) => c.instanceId === return1.instanceId),
+    'Returned card leaves Ringside'
+  );
+  assert(
+    player.hand.length === handBefore - 1 - 2 + 2,
+    'Roll Out net hand: -played, -2 discard, +2 return'
+  );
+  assert(
+    player.ringside.length === ringsideBefore + 2 - 2,
+    'Roll Out net Ringside: +2 discard, -2 return'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === rollOut.instanceId),
+    'Roll Out is in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Roll Out effect completes');
+}
+
+async function testRollOutDiscardZero() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, rollOut } = await createRollOutTest(RawDeal, {
+    handCards: [cloneCard(RawDeal, 'punch', 'ro-zero-extra')],
+    ringsideCards: [cloneCard(RawDeal, 'elbow', 'ro-zero-rs')],
+  });
+
+  const handBefore = player.hand.length;
+  const ringsideBefore = player.ringside.length;
+
+  await engine.playCard(0, rollOut.instanceId, 'action');
+  await engine.confirmDiscardCount(0);
+
+  assert(!engine.cardEffectFlow, 'Roll Out completes after discarding 0');
+  assert(player.hand.length === handBefore - 1, 'Roll Out discard 0: only played card leaves hand');
+  assert(player.ringside.length === ringsideBefore, 'Roll Out discard 0: Ringside unchanged');
+}
+
+async function testRollOutCapByHand() {
+  const RawDeal = loadRawDeal();
+  const { engine, rollOut } = await createRollOutTest(RawDeal, {
+    handCards: [cloneCard(RawDeal, 'punch', 'ro-cap')],
+  });
+
+  await engine.playCard(0, rollOut.instanceId, 'action');
+
+  const prompt = engine._publicSelectionPrompt(0);
+  assert(prompt?.mode === 'discardCount', 'Roll Out shows discard count prompt');
+  assert(prompt.max === 1, 'Roll Out discard count capped by hand size when fewer than 2');
+
+  engine.adjustDiscardCount(0, 5);
+  assert(engine.cardEffectFlow.selectedCount === 1, 'Roll Out discard count cannot exceed hand size');
+}
+
+async function testRollOutDiscardCappedReturnsOne() {
+  const RawDeal = loadRawDeal();
+  const discard1 = cloneCard(RawDeal, 'punch', 'ro-cap-discard');
+  const preExisting = cloneCard(RawDeal, 'elbow', 'ro-cap-rs');
+
+  const { engine, player, rollOut } = await createRollOutTest(RawDeal, {
+    handCards: [discard1],
+    ringsideCards: [preExisting],
+  });
+
+  await engine.playCard(0, rollOut.instanceId, 'action');
+  engine.adjustDiscardCount(0, 2);
+  assert(engine.cardEffectFlow.selectedCount === 1, 'Roll Out cannot discard more than hand allows');
+  await engine.confirmDiscardCount(0);
+  await engine.selectForCardEffect(0, discard1.instanceId);
+
+  const prompt = engine._publicSelectionPrompt(0);
+  assert(prompt?.mode === 'ringside', 'Roll Out shows Ringside return prompt');
+  assert(prompt.count === 1, 'Roll Out returns equal to actual discarded count when capped');
+
+  await engine.selectForCardEffect(0, preExisting.instanceId);
+
+  assert(
+    player.hand.some((c) => c.instanceId === preExisting.instanceId),
+    'Roll Out can return a pre-existing Ringside card'
+  );
+  assert(
+    player.ringside.some((c) => c.instanceId === discard1.instanceId),
+    'Discarded card remains in Ringside when another card is returned'
+  );
+  assert(!engine.cardEffectFlow, 'Roll Out completes after capped swap');
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
   await testHeadButtCanDiscardHybridCard();
@@ -2363,6 +2526,10 @@ async function main() {
   await testOfferHandshakeDrawTwoThenDiscard();
   await testOfferHandshakeDrawCappedByArsenal();
   await testOfferHandshakeDrawZeroStillDiscards();
+  await testRollOutFullSwap();
+  await testRollOutDiscardZero();
+  await testRollOutCapByHand();
+  await testRollOutDiscardCappedReturnsOne();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');

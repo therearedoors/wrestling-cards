@@ -139,6 +139,14 @@
       await engine.confirmDrawCount(0);
     };
 
+    board.onAdjustDiscardCount = (delta) => {
+      engine.adjustDiscardCount(0, delta);
+    };
+
+    board.onConfirmDiscardCount = async () => {
+      await engine.confirmDiscardCount(0);
+    };
+
     board.onShuffleArsenalReorder = async () => {
       await engine.shuffleArsenalFromPrompt(0);
     };

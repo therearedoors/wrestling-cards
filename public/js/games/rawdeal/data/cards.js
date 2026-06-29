@@ -1145,6 +1145,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Discard up to 2 cards from your hand to your Ringside pile. Return an equal number of cards of your choice to your hand from your Ringside pile.",
     flavor: "",
+    actionEffects: [{"op": "discardUpTo", "max": 2}, {"op": "returnFromRingside"}],
     set: "premiere",
   },
   'distract-the-ref': {
