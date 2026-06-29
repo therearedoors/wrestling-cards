@@ -66,11 +66,15 @@ window.RawDeal.CardUtils = {
 
   meetsActionPlayRequirement(player, opponent, card) {
     if (!card.requiresLowerFortitudeThanOpponent) return true;
-    if (!opponent || player.fortitude >= opponent.fortitude) return false;
+    if (!opponent) return false;
+    return player.fortitude < opponent.fortitude;
+  },
 
+  hasRemovableOpponentRingTarget(player, opponent) {
     const maxDamage = player.fortitude;
     return this.listOpponentRingCards(opponent).some(
-      ({ card: ringCard, ringArea }) => this.getRingDamageValue(ringCard, ringArea) <= maxDamage
+      ({ card: ringCard, ringArea }) =>
+        this.getRingDamageValue(ringCard, ringArea) <= maxDamage
     );
   },
 

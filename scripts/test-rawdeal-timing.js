@@ -2088,22 +2088,26 @@ async function testShakeItOffNotPlayableWhenFortitudeNotLower() {
   );
 }
 
-async function testShakeItOffNotPlayableWithoutValidTarget() {
+async function testShakeItOffPlayableWhenBehindWithoutRemovableTarget() {
   const RawDeal = loadRawDeal();
   const { engine, shake } = await createShakeItOffTest(RawDeal);
   const player = engine.players[0];
   const opponent = engine.players[1];
 
-  const kick = cloneCard(RawDeal, 'kick', 'sio-opp-kick');
-  opponent.ring.maneuvers.push(kick);
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'sio-opp-clothesline');
+  opponent.ring.maneuvers.push(clothesline);
   engine._syncFortitude(opponent);
 
   player.fortitude = 3;
-  opponent.fortitude = 6;
+  opponent.fortitude = 7;
 
   assert(
-    !engine.canPlayCard(0, shake.instanceId, 'action'),
-    'Shake It Off not playable when no opponent Ring card has D at or below your Fortitude'
+    engine.canPlayCard(0, shake.instanceId, 'action'),
+    'Shake It Off playable when behind even if no opponent Ring card is within your Fortitude cap'
+  );
+  assert(
+    !RawDeal.CardUtils.hasRemovableOpponentRingTarget(player, opponent),
+    'No removable opponent Ring target at 3F vs 7D Clothesline'
   );
 }
 
@@ -2224,7 +2228,7 @@ async function main() {
   await testIrishWhipCannotReversePostIwManeuver();
   await testShakeItOffPlayableWhenLowerFortitude();
   await testShakeItOffNotPlayableWhenFortitudeNotLower();
-  await testShakeItOffNotPlayableWithoutValidTarget();
+  await testShakeItOffPlayableWhenBehindWithoutRemovableTarget();
   await testShakeItOffRemovesOpponentRingCard();
 
   if (process.exitCode) {
