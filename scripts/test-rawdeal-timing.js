@@ -1376,6 +1376,127 @@ async function testHmmmFewerThanFiveCards() {
   assert(engine.cardEffectFlow?.count === 1, 'Hmmm shows all Arsenal cards when fewer than 5');
 }
 
+async function testFiremansCarryHandRevealViewOnlyDone() {
+  const RawDeal = loadRawDeal();
+  const prompt = RawDeal.EffectPipeline.publicHandReveal(
+    await (async () => {
+      const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+      await engine.startGame('austin', 'rock');
+      engine.handRevealFlow = {
+        viewerIndex: 0,
+        opponentIndex: 1,
+        sourceName: "Fireman's Carry",
+        cards: [{ id: 'punch', name: 'Punch', instanceId: 'x' }],
+        mode: 'view',
+        allowSkip: true,
+        selectCount: 0,
+        selectedIds: [],
+      };
+      engine.effectPipelineFlow = { paused: true, playerIndex: 0 };
+      return engine;
+    })(),
+    0
+  );
+
+  assert(prompt?.mode === 'view', 'Fireman\'s Carry hand reveal is view-only');
+  assert(prompt?.allowSkip === true, 'Fireman\'s Carry reveal is optional at engine level');
+}
+
+async function testFiremansCarryDamageAfterHandRevealDismiss() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  let damageResolved = false;
+  const origDamage = engine._resolveDamage.bind(engine);
+  engine._resolveDamage = async (...args) => {
+    damageResolved = true;
+    return origDamage(...args);
+  };
+
+  const fmc = cloneCard(RawDeal, 'fireman-s-carry', 'fmc-test');
+  player.hand.push(fmc);
+  opponent.hand = [cloneCard(RawDeal, 'kick', 'opp-reveal-0')];
+
+  await engine.playCard(0, fmc.instanceId, 'maneuver');
+
+  assert(!damageResolved, 'Fireman\'s Carry damage waits during hand reveal');
+  assert(engine.handRevealFlow, 'Fireman\'s Carry opens hand reveal');
+  assert(!engine.handRevealFlow.allowSkip || engine.handRevealFlow.mode === 'view', 'Fireman\'s Carry uses view reveal');
+
+  await engine.dismissHandReveal(0);
+
+  assert(damageResolved, 'Fireman\'s Carry resolves damage after hand reveal dismiss');
+  assert(!engine.handRevealFlow, 'Hand reveal clears before damage completes');
+}
+
+async function testFiremansCarryThreeDamageStepsAfterDismiss() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  let damageSteps = 0;
+  engine.onDamageStep = async ({ onReveal }) => {
+    damageSteps += 1;
+    onReveal();
+  };
+
+  const fmc = cloneCard(RawDeal, 'fireman-s-carry', 'fmc-3d-test');
+  player.hand.push(fmc);
+  opponent.hand = [cloneCard(RawDeal, 'kick', 'opp-reveal-1')];
+
+  await engine.playCard(0, fmc.instanceId, 'maneuver');
+  assert(engine.handRevealFlow, 'Fireman\'s Carry pauses on hand reveal');
+
+  await engine.dismissHandReveal(0);
+
+  assert(damageSteps === 3, 'Fireman\'s Carry resolves all 3 damage steps after dismiss');
+  const lastEntry = engine.damageLog[engine.damageLog.length - 1];
+  assert(lastEntry?.cardsOverturned === 3, 'Fireman\'s Carry overturns 3 arsenal cards');
+  assert(lastEntry?.result === 'hit', 'Fireman\'s Carry damage completes without reversal');
+}
+
+async function testFiremansCarryMultiplayerDamageAfterDismiss() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  engine.onDamageStep = async ({ card, reversed, playerSeat, onReveal }) => {
+    engine.animationEvents.push({
+      type: 'damageFlip',
+      seat: playerSeat,
+      card,
+      reversed: !!reversed,
+    });
+    if (onReveal) onReveal();
+  };
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.hand = [cloneCard(RawDeal, 'kick', 'mp-opp-hand')];
+  for (let i = 0; i < 12; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `mp-opp-arsenal-${i}`));
+  }
+
+  const fmc = cloneCard(RawDeal, 'fireman-s-carry', 'fmc-mp-test');
+  player.hand.push(fmc);
+
+  await engine.playCard(0, fmc.instanceId, 'maneuver');
+  assert(engine.reversalWindow, 'Multiplayer opens reversal window for maneuver');
+  await engine.passPriority(1);
+  assert(engine.handRevealFlow, 'Multiplayer Fireman\'s Carry pauses on hand reveal');
+
+  engine.clearAnimationEvents();
+  await engine.dismissHandReveal(0);
+
+  assert(engine.animationEvents.length === 3, 'Multiplayer batches 3 damage flip animations after dismiss');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Multiplayer returns to MAIN after Fireman\'s Carry resolves'
+  );
+  const lastEntry = engine.damageLog[engine.damageLog.length - 1];
+  assert(lastEntry?.cardsOverturned === 3, 'Multiplayer Fireman\'s Carry overturns 3 cards');
+}
+
 async function testNotYetOpensHandPrompt() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -1505,6 +1626,10 @@ async function main() {
   await testDontThinkTooHardOpensOpponentPrompt();
   await testDontThinkTooHardConfirmReordersOpponentTop();
   await testDontThinkTooHardShuffleOpponentArsenal();
+  await testFiremansCarryHandRevealViewOnlyDone();
+  await testFiremansCarryDamageAfterHandRevealDismiss();
+  await testFiremansCarryThreeDamageStepsAfterDismiss();
+  await testFiremansCarryMultiplayerDamageAfterDismiss();
   await testNotYetOpensHandPrompt();
   await testNotYetShuffleAndDraw();
   await testNotYetEmptyHandSkipsEffect();

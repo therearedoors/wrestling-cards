@@ -138,16 +138,16 @@
       engine.updateArsenalReorderOrder(0, orderedIds);
     };
 
-    board.onDismissHandReveal = () => {
-      engine.dismissHandReveal(0);
+    board.onDismissHandReveal = async () => {
+      await engine.dismissHandReveal(0);
     };
 
-    board.onSkipHandReveal = () => {
-      engine.skipHandReveal(0);
+    board.onSkipHandReveal = async () => {
+      await engine.skipHandReveal(0);
     };
 
-    board.onConfirmHandReveal = (instanceIds) => {
-      engine.confirmHandRevealSelection(0, instanceIds);
+    board.onConfirmHandReveal = async (instanceIds) => {
+      await engine.confirmHandRevealSelection(0, instanceIds);
     };
 
     board.onToggleHandRevealSelect = (instanceId) => {

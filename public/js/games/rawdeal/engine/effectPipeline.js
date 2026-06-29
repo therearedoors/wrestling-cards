@@ -63,7 +63,7 @@ window.RawDeal.EffectPipeline = {
     };
   },
 
-  resume(engine, playerIndex, { skipped = false, selectedIds = null } = {}) {
+  async resume(engine, playerIndex, { skipped = false, selectedIds = null } = {}) {
     const pipeline = engine.effectPipelineFlow;
     if (!pipeline?.paused || pipeline.playerIndex !== playerIndex) return false;
 
@@ -86,8 +86,9 @@ window.RawDeal.EffectPipeline = {
 
     engine.handRevealFlow = null;
     pipeline.paused = false;
+    engine._notify();
 
-    void this._runUntilPause(engine);
+    await this._runUntilPause(engine);
     return true;
   },
 

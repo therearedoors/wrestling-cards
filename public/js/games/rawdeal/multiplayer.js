@@ -161,6 +161,10 @@
     };
 
     board.onDismissHandReveal = () => {
+      if (lastBoardState) {
+        lastBoardState = stateWithoutBlockingModals(lastBoardState);
+        board.render(lastBoardState);
+      }
       emitAction({ type: 'dismissHandReveal' });
     };
 
@@ -214,6 +218,15 @@
     lastDamageLogLen = state.damageLog.length;
   }
 
+  function stateWithoutBlockingModals(baseState) {
+    if (!baseState) return baseState;
+    return {
+      ...baseState,
+      handReveal: null,
+      selectionPrompt: null,
+    };
+  }
+
   async function applyState(state) {
     if (!board) setupBoard();
     showGame();
@@ -222,7 +235,7 @@
     const hasAnims = events.length > 0 && lastBoardState;
 
     if (hasAnims) {
-      board.render(lastBoardState);
+      board.render(stateWithoutBlockingModals(lastBoardState));
       for (const ev of events) {
         await playAnimationEvent(ev);
       }

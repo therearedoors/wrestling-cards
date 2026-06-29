@@ -159,15 +159,15 @@ window.RawDeal.GameEngine = class GameEngine {
     );
   }
 
-  dismissHandReveal(playerIndex) {
+  async dismissHandReveal(playerIndex) {
     return window.RawDeal.EffectPipeline.resume(this, playerIndex, { skipped: false });
   }
 
-  skipHandReveal(playerIndex) {
+  async skipHandReveal(playerIndex) {
     return window.RawDeal.EffectPipeline.resume(this, playerIndex, { skipped: true });
   }
 
-  confirmHandRevealSelection(playerIndex, instanceIds) {
+  async confirmHandRevealSelection(playerIndex, instanceIds) {
     return window.RawDeal.EffectPipeline.resume(this, playerIndex, { selectedIds: instanceIds });
   }
 
@@ -1127,7 +1127,9 @@ window.RawDeal.GameEngine = class GameEngine {
       if (paused || this.cardEffectFlow || this.handRevealFlow) {
         return true;
       }
-      this.pendingManeuverResolution = null;
+      if (this.pendingManeuverResolution) {
+        return await this._continuePendingManeuverDamage();
+      }
       return true;
     }
 

@@ -58,7 +58,7 @@ window.RawDeal.HandRevealModal = class HandRevealModal {
       this.doneBtn.disabled = false;
     }
     if (this.skipBtn) {
-      this.skipBtn.classList.toggle('hidden', !allowSkip || isSelect);
+      this.skipBtn.classList.toggle('hidden', isSelect || prompt.mode === 'view' || !allowSkip);
     }
     if (this.confirmBtn) {
       this.confirmBtn.classList.toggle('hidden', !isSelect);
