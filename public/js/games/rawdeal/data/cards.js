@@ -921,6 +921,8 @@ window.RawDeal.CARDS = {
     text: "Reversal: Grapple: Special Can only reverse a Grapple that does 7D or less. End your opponent’s turn. # = D of maneuver card being reversed. Read as 0 when in your Ring area.",
     flavor: "",
     reverses: ["grapple"],
+    maxDamage: 7,
+    reversalEffects: [{"op": "dealDamage", "fromReversedManeuver": true}],
     set: "premiere",
   },
   'knee-to-the-gut': {
@@ -934,6 +936,8 @@ window.RawDeal.CARDS = {
     text: "Reversal: Strike: Special Can only reverse a Strike that does 7D or less. End your opponent’s turn. # = D of maneuver card being reversed. Read as 0 when in your Ring area.",
     flavor: "",
     reverses: ["strike"],
+    maxDamage: 7,
+    reversalEffects: [{"op": "dealDamage", "fromReversedManeuver": true}],
     set: "premiere",
   },
   'elbow-to-the-face': {
@@ -945,7 +949,8 @@ window.RawDeal.CARDS = {
     damage: 2,
     text: "Reversal: Special May reverse any maneuver that does 7D or less. End your opponent’s turn.",
     flavor: "",
-    reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher"],
+    reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher", "low-damage"],
+    maxDamage: 7,
     reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },

@@ -146,6 +146,8 @@ async function createHandReversalTest(RawDeal, options = {}) {
     reversalId = 'elbow-to-the-face',
     arsenalCount = 10,
     afterIrishWhip = false,
+    effectiveDamage = null,
+    defenderFortitude = 0,
   } = options;
 
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -167,7 +169,7 @@ async function createHandReversalTest(RawDeal, options = {}) {
     attacker.turnState.irishWhipPlayed = true;
   }
   attacker.fortitude = engine._calcFortitude(attacker);
-  defender.fortitude = 0;
+  defender.fortitude = defenderFortitude;
 
   for (let i = 0; i < arsenalCount; i++) {
     attacker.arsenal.push(cloneCard(RawDeal, 'chop', `atk-arsenal-${i}`));
@@ -183,7 +185,7 @@ async function createHandReversalTest(RawDeal, options = {}) {
     player: attacker,
     opponent: defender,
     played: maneuver,
-    damage: maneuver.damage || 0,
+    damage: effectiveDamage ?? maneuver.damage ?? 0,
   };
 
   return { engine, attacker, defender, maneuver, reversal };
@@ -1124,12 +1126,12 @@ async function testWhoopCanReversalTaxFromHand() {
   const defender = engine.players[1];
 
   const whoop = cloneCard(RawDeal, 'open-up-a-can', 'whoop-0');
-  const punch = cloneCard(RawDeal, 'punch', 'punch-0');
-  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'elbow-0');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'dlt-whoop');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'escape-whoop');
 
-  attacker.hand = [whoop, punch];
+  attacker.hand = [whoop, grapple];
   attacker.fortitude = 20;
-  defender.hand = [elbow];
+  defender.hand = [escapeMove];
   defender.fortitude = 0;
 
   engine.stateMachine.phase = RawDeal.PHASES.MAIN;
@@ -1144,19 +1146,19 @@ async function testWhoopCanReversalTaxFromHand() {
     'Open Up a Can sets +20F reversal tax on next maneuver'
   );
 
-  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
   assert(
     engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
-    'Boosted punch opens reversal window'
+    'Boosted grapple opens reversal window'
   );
   assert(
-    !engine.canPlayReversalFromHand(1, elbow.instanceId),
+    !engine.canPlayReversalFromHand(1, escapeMove.instanceId),
     'Opponent cannot reverse from hand without 20F'
   );
 
   defender.fortitude = 20;
   assert(
-    engine.canPlayReversalFromHand(1, elbow.instanceId),
+    engine.canPlayReversalFromHand(1, escapeMove.instanceId),
     'Opponent can reverse from hand with 20F'
   );
 }
@@ -1755,6 +1757,193 @@ async function testCleanBreakReversesJfp() {
   );
 }
 
+async function testElbowBlocksManeuverOver7D() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'bulldog',
+    effectiveDamage: 8,
+  });
+
+  assert(
+    !engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Elbow cannot reverse a maneuver dealing more than 7D'
+  );
+}
+
+async function testElbowAllowsManeuverAt7D() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'kick',
+    effectiveDamage: 7,
+  });
+
+  assert(
+    engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Elbow can reverse a maneuver dealing 7D or less'
+  );
+}
+
+async function testKneeBlockedWhenEffectiveDamageOver7() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'punch',
+    reversalId: 'knee-to-the-gut',
+    effectiveDamage: 8,
+    afterIrishWhip: true,
+    defenderFortitude: 5,
+  });
+
+  assert(
+    !engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Knee cannot reverse Strike when Irish Whip bonus pushes damage above 7D'
+  );
+}
+
+async function testKneeAllowedAt7DWithIrishWhip() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'chop',
+    reversalId: 'knee-to-the-gut',
+    effectiveDamage: 7,
+    afterIrishWhip: true,
+    defenderFortitude: 5,
+  });
+
+  assert(
+    engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Knee can reverse Strike at exactly 7D with Irish Whip bonus'
+  );
+}
+
+async function testKneeDealsManeuverDamageFromHand() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'kick',
+    reversalId: 'knee-to-the-gut',
+    effectiveDamage: 5,
+    defenderFortitude: 5,
+    arsenalCount: 10,
+  });
+  const arsenalBefore = attacker.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 5,
+    'Knee deals irreversible damage equal to reversed maneuver D'
+  );
+}
+
+async function testRollingDealsManeuverDamageFromHand() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'double-leg-takedown',
+    reversalId: 'rolling-takedown',
+    effectiveDamage: 3,
+    defenderFortitude: 5,
+    arsenalCount: 10,
+  });
+  const arsenalBefore = attacker.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 3,
+    'Rolling Takedown deals irreversible damage equal to reversed maneuver D'
+  );
+}
+
+async function testArsenalReversalBlockedOver7D() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const kick = cloneCard(RawDeal, 'kick', 'cap-kick');
+  const knee = cloneCard(RawDeal, 'knee-to-the-gut', 'cap-knee');
+
+  attacker.turnState = engine._emptyTurnState();
+  attacker.turnState.irishWhipPlayed = true;
+  attacker.turnState.nextStrikeBonus = 5;
+  defender.fortitude = 20;
+
+  assert(
+    !engine._reversalStops(knee, kick, defender, {
+      attacker,
+      effectiveDamage: 10,
+    }),
+    'Arsenal Knee cannot reverse 10D effective Strike'
+  );
+  assert(
+    engine._reversalStops(knee, kick, defender, {
+      attacker,
+      effectiveDamage: 7,
+    }),
+    'Arsenal Knee can reverse 7D effective Strike'
+  );
+}
+
+async function createPostIwStrikeDamageTest(RawDeal, { reversalId, reversalInstanceId }) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'iw-8d-punch');
+  const reversal = cloneCard(RawDeal, reversalId, reversalInstanceId);
+
+  attacker.turnState = engine._emptyTurnState();
+  attacker.turnState.irishWhipPlayed = true;
+  attacker.turnState.nextStrikeBonus = 5;
+  attacker.fortitude = 20;
+  defender.fortitude = 20;
+
+  for (let i = 0; i < 10; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `iw-fill-${reversalId}-${i}`));
+  }
+  defender.arsenal.push(reversal);
+
+  const damage = engine._calcManeuverDamage(attacker, defender, punch);
+  assert(damage === 8, 'Punch deals 8D after Irish Whip self-reverse setup');
+  assert(
+    attacker.turnState.nextStrikeBonus === 0,
+    'Strike bonus consumed before arsenal damage resolution'
+  );
+  assert(
+    engine._peekManeuverDamage(attacker, defender, punch) === 3,
+    'Peek shows base Punch damage after bonus consumed'
+  );
+
+  return { engine, attacker, defender, punch, reversal, damage };
+}
+
+async function testArsenalElbowCannotReverse8DPunchAfterIwSelfReverse() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, punch, damage } = await createPostIwStrikeDamageTest(
+    RawDeal,
+    { reversalId: 'elbow-to-the-face', reversalInstanceId: 'iw-elbow-8d' }
+  );
+
+  const result = await engine._resolveDamage(attacker, defender, punch, damage);
+
+  assert(result.result === 'hit', 'Arsenal Elbow cannot reverse 8D Punch after IW self-reverse');
+  assert(result.cardsOverturned === 8, '8D Punch overturns 8 Arsenal cards without reversal');
+}
+
+async function testArsenalKneeCannotReverse8DPunchAfterIwSelfReverse() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, punch, damage } = await createPostIwStrikeDamageTest(
+    RawDeal,
+    { reversalId: 'knee-to-the-gut', reversalInstanceId: 'iw-knee-8d' }
+  );
+
+  const result = await engine._resolveDamage(attacker, defender, punch, damage);
+
+  assert(result.result === 'hit', 'Arsenal Knee cannot reverse 8D Punch after IW self-reverse');
+  assert(result.cardsOverturned === 8, '8D Punch overturns 8 Arsenal cards without reversal');
+}
+
 async function testIrishWhipSelfReverseEligible() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -1899,6 +2088,15 @@ async function main() {
   await testJfpSelfReverseOpensChoice();
   await testJfpSelfReverseTaxAppliesToNextGrapple();
   await testCleanBreakReversesJfp();
+  await testElbowBlocksManeuverOver7D();
+  await testElbowAllowsManeuverAt7D();
+  await testKneeBlockedWhenEffectiveDamageOver7();
+  await testKneeAllowedAt7DWithIrishWhip();
+  await testKneeDealsManeuverDamageFromHand();
+  await testRollingDealsManeuverDamageFromHand();
+  await testArsenalReversalBlockedOver7D();
+  await testArsenalElbowCannotReverse8DPunchAfterIwSelfReverse();
+  await testArsenalKneeCannotReverse8DPunchAfterIwSelfReverse();
   await testIrishWhipSelfReverseEligible();
   await testIrishWhipSelfReverseGrantsStrikeBonus();
   await testIrishWhipCannotReversePostIwManeuver();

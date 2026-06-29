@@ -26,6 +26,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.reversalWindow = null;
     this.handRevealFlow = null;
     this.effectPipelineFlow = null;
+    this.reversedManeuverDamage = null;
     this.animationEvents = [];
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
     this.stateMachine.activePlayer = 0;
@@ -1280,6 +1281,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this._clearNextManeuverReversalTax(attacker);
 
     this._applyStunValueDraw(attacker, played);
+    this.reversedManeuverDamage = this.reversalWindow.damage;
     this.reversalWindow = null;
 
     if (reversal.reversalEffects?.length) {
@@ -1298,6 +1300,7 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async _finishHandReversalTurn() {
+    this.reversedManeuverDamage = null;
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
     this._notify();
     await this._runAutoPhases();
@@ -1523,7 +1526,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const reversed = allowArsenalReversals
         ? this._reversalStops(overturned, maneuver, opponent, {
             attacker,
-            effectiveDamage: this._peekManeuverDamage(attacker, opponent, maneuver),
+            effectiveDamage: damage,
           })
         : false;
 
