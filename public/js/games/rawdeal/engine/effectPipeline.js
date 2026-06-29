@@ -314,7 +314,9 @@ window.RawDeal.EffectPipeline = {
 
       case 'dealDamage': {
         const sourceCard = pipeline.sourceCard;
-        const damage = step.count ?? sourceCard?.damage ?? 0;
+        const damage = step.fromReversedManeuver
+          ? engine.reversedManeuverDamage ?? 0
+          : step.count ?? sourceCard?.damage ?? 0;
         const result = await engine._applyReversalFromHandDamage(
           player,
           opponent,
