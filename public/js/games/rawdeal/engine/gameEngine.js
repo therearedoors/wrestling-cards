@@ -336,6 +336,21 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'balanceFortitudeRingRemoval') {
+      const target = this.players[flow.playerIndex];
+      const other = this.players[1 - flow.playerIndex];
+      const sections = this._buildRingSelectSections(target, {
+        areas: ['maneuvers', 'reversals'],
+        maxDamage: Infinity,
+      });
+      return {
+        mode: 'opponentRingModal',
+        message: `${flow.sourceName}: remove 1 maneuver or reversal from your Ring (${target.fortitude}F → ≤ ${other.fortitude}F).`,
+        sections,
+        selectedId: flow.selectedId || null,
+      };
+    }
+
     if (flow.type === 'arsenalReorder') {
       const targetPlayer = this.players[flow.targetPlayerIndex];
       const topSlice = targetPlayer.arsenal.slice(-flow.count);
@@ -1124,16 +1139,16 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  _buildOpponentRingSelectSections(opponent, maxDamage) {
+  _buildRingSelectSections(player, { areas = ['maneuvers', 'reversals', 'actions'], maxDamage = Infinity } = {}) {
     const utils = window.RawDeal.CardUtils;
-    const ring = opponent.ring || { maneuvers: [], reversals: [], actions: [] };
+    const ring = player.ring || { maneuvers: [], reversals: [], actions: [] };
     const labels = {
       maneuvers: 'Maneuvers',
       reversals: 'Reversals',
       actions: 'Actions',
     };
 
-    return ['maneuvers', 'reversals', 'actions']
+    return areas
       .map((area) => ({
         label: labels[area],
         ringArea: area,
@@ -1148,6 +1163,94 @@ window.RawDeal.GameEngine = class GameEngine {
         }),
       }))
       .filter((section) => section.cards.length > 0);
+  }
+
+  _buildOpponentRingSelectSections(opponent, maxDamage) {
+    return this._buildRingSelectSections(opponent, { maxDamage });
+  }
+
+  _listManeuverReversalRingCards(player) {
+    const ring = player.ring || { maneuvers: [], reversals: [], actions: [] };
+    const entries = [];
+    for (const area of ['maneuvers', 'reversals']) {
+      for (const card of ring[area] || []) {
+        entries.push({ card, ringArea: area });
+      }
+    }
+    return entries;
+  }
+
+  _pickHighestDamageRingRemoval(candidates) {
+    const utils = window.RawDeal.CardUtils;
+    let best = -1;
+    for (const entry of candidates) {
+      const damage = utils.getRingDamageValue(entry.card, entry.ringArea);
+      if (damage > best) best = damage;
+    }
+    const tied = candidates.filter(
+      (entry) => utils.getRingDamageValue(entry.card, entry.ringArea) === best
+    );
+    return tied[Math.floor(Math.random() * tied.length)];
+  }
+
+  _findHigherFortitudePlayer() {
+    const p0 = this.players[0];
+    const p1 = this.players[1];
+    this._syncFortitude(p0);
+    this._syncFortitude(p1);
+    if (p0.fortitude > p1.fortitude) {
+      return { higher: p0, higherIndex: 0, other: p1 };
+    }
+    if (p1.fortitude > p0.fortitude) {
+      return { higher: p1, higherIndex: 1, other: p0 };
+    }
+    return null;
+  }
+
+  async _beginBalanceFortitudeByRingRemoval(sourceName) {
+    return await this._continueBalanceFortitudeByRingRemoval(sourceName);
+  }
+
+  async _continueBalanceFortitudeByRingRemoval(sourceName) {
+    const match = this._findHigherFortitudePlayer();
+    if (!match) {
+      this.cardEffectFlow = null;
+      return false;
+    }
+
+    const { higher, higherIndex } = match;
+    const candidates = this._listManeuverReversalRingCards(higher);
+    if (candidates.length === 0) {
+      const who = higher.isHuman ? 'You have' : 'Opponent has';
+      this.actionLog.push({
+        message: `${sourceName}: ${who} no maneuver/reversal cards to remove.`,
+      });
+      this.cardEffectFlow = null;
+      return false;
+    }
+
+    const autoPick = this.engineMode === 'goldfish' || !higher.isHuman;
+    if (autoPick) {
+      const pick = this._pickHighestDamageRingRemoval(candidates);
+      const card = this._removeCardFromRing(higher, pick.card.instanceId, pick.ringArea);
+      if (card) {
+        this.actionLog.push({
+          message: `${sourceName}: removed ${card.name} from Ring to Ringside.`,
+        });
+      }
+      this._notify();
+      return await this._continueBalanceFortitudeByRingRemoval(sourceName);
+    }
+
+    this.cardEffectFlow = {
+      type: 'balanceFortitudeRingRemoval',
+      playerIndex: higherIndex,
+      sourceName,
+      selectedId: null,
+      selectedRingArea: null,
+    };
+    this._notify();
+    return true;
   }
 
   _beginRemoveOpponentRingCardPrompt(player, opponent, playerIndex, sourceName) {
@@ -1176,24 +1279,50 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  _removeCardFromOpponentRing(opponent, instanceId, ringArea) {
-    const area = opponent.ring?.[ringArea];
+  _removeCardFromRing(player, instanceId, ringArea) {
+    const area = player.ring?.[ringArea];
     if (!area) return null;
 
     const idx = area.findIndex((c) => c.instanceId === instanceId);
     if (idx < 0) return null;
 
     const [card] = area.splice(idx, 1);
-    opponent.ringside.push(card);
+    player.ringside.push(card);
     if (ringArea === 'maneuvers' || ringArea === 'reversals') {
-      this._syncFortitude(opponent);
+      this._syncFortitude(player);
     }
     return card;
   }
 
+  _removeCardFromOpponentRing(opponent, instanceId, ringArea) {
+    return this._removeCardFromRing(opponent, instanceId, ringArea);
+  }
+
   toggleRemoveOpponentRingSelect(playerIndex, instanceId, ringArea) {
     const flow = this.cardEffectFlow;
-    if (!flow || flow.type !== 'removeOpponentRingCard' || flow.playerIndex !== playerIndex) {
+    if (!flow || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    if (flow.type === 'balanceFortitudeRingRemoval') {
+      const target = this.players[flow.playerIndex];
+      const card = target.ring?.[ringArea]?.find((c) => c.instanceId === instanceId);
+      if (!card) return false;
+      if (ringArea !== 'maneuvers' && ringArea !== 'reversals') return false;
+
+      if (flow.selectedId === instanceId) {
+        flow.selectedId = null;
+        flow.selectedRingArea = null;
+      } else {
+        flow.selectedId = instanceId;
+        flow.selectedRingArea = ringArea;
+      }
+
+      this._notify();
+      return true;
+    }
+
+    if (flow.type !== 'removeOpponentRingCard') {
       return false;
     }
 
@@ -1219,11 +1348,33 @@ window.RawDeal.GameEngine = class GameEngine {
     const flow = this.cardEffectFlow;
     if (
       !flow ||
-      flow.type !== 'removeOpponentRingCard' ||
       flow.playerIndex !== playerIndex ||
       !flow.selectedId ||
       !flow.selectedRingArea
     ) {
+      return false;
+    }
+
+    if (flow.type === 'balanceFortitudeRingRemoval') {
+      const target = this.players[flow.playerIndex];
+      const card = this._removeCardFromRing(target, flow.selectedId, flow.selectedRingArea);
+      if (!card) return false;
+
+      const sourceName = flow.sourceName;
+      this.actionLog.push({
+        message: `${sourceName}: removed ${card.name} from Ring to Ringside.`,
+      });
+      this.cardEffectFlow = null;
+      this._notify();
+
+      const paused = await this._continueBalanceFortitudeByRingRemoval(sourceName);
+      if (!paused) {
+        await this._finishCardEffectResolution();
+      }
+      return true;
+    }
+
+    if (flow.type !== 'removeOpponentRingCard') {
       return false;
     }
 

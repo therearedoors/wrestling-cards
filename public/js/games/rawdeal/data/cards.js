@@ -1208,6 +1208,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Discard 3 cards of your choice from your hand. All players compare their current Fortitude Rating. The player(s) with a higher Fortitude Rating must remove maneuver and/or reversal cards from their Ring area, putting them into his Ringside pile, until that player’s Fortitude Rating is less than or equal to the others.",
     flavor: "",
+    actionEffects: [{"op": "discardFromHand", "count": 3}, {"op": "balanceFortitudeByRingRemoval"}],
     set: "premiere",
   },
   'ego-boost': {

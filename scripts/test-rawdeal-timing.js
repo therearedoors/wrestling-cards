@@ -2657,6 +2657,198 @@ async function testSpitAtOpponentPlayableWithEmptyOpponentHand() {
   );
 }
 
+async function createComebackTest(RawDeal, { engineMode = 'goldfish', extraHandCount = 3 } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const comeback = cloneCard(RawDeal, 'comeback', 'comeback-test');
+
+  player.hand = [comeback];
+  for (let i = 0; i < extraHandCount; i++) {
+    player.hand.push(cloneCard(RawDeal, 'chop', `comeback-discard-${i}`));
+  }
+  player.ring = { maneuvers: [], reversals: [], actions: [] };
+  opponent.ring = { maneuvers: [], reversals: [], actions: [] };
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent, comeback };
+}
+
+async function discardComebackHandCards(engine, player) {
+  const toDiscard = player.hand.filter((c) => c.id !== 'comeback').slice(0, 3);
+  for (const card of toDiscard) {
+    await engine.selectForCardEffect(0, card.instanceId);
+  }
+  return toDiscard;
+}
+
+async function testComebackNotPlayableWithoutFourCards() {
+  const RawDeal = loadRawDeal();
+  const { engine, comeback } = await createComebackTest(RawDeal, { extraHandCount: 2 });
+
+  assert(
+    !engine.canPlayCard(0, comeback.instanceId, 'action'),
+    'Comeback not playable without 4 cards in hand'
+  );
+}
+
+async function testComebackDiscardsThree() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, comeback } = await createComebackTest(RawDeal);
+  const ringsideBefore = player.ringside.length;
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Comeback prompts discard 3 from hand'
+  );
+
+  const discarded = await discardComebackHandCards(engine, player);
+  assert(discarded.length === 3, 'Comeback discards 3 cards');
+  assert(
+    discarded.every((c) => player.ringside.some((r) => r.instanceId === c.instanceId)),
+    'Comeback discarded cards go to Ringside'
+  );
+  assert(
+    player.ringside.length === ringsideBefore + 3,
+    'Comeback adds 3 cards to Ringside'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === comeback.instanceId),
+    'Comeback is in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Comeback effect completes when Fortitude is equal');
+}
+
+async function testComebackEqualFortitudeNoRemoval() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, comeback } = await createComebackTest(RawDeal);
+
+  const playerPunch = cloneCard(RawDeal, 'punch', 'cb-player-punch');
+  const opponentPunch = cloneCard(RawDeal, 'punch', 'cb-opp-punch');
+  player.ring.maneuvers.push(playerPunch);
+  opponent.ring.maneuvers.push(opponentPunch);
+  engine._syncFortitude(player);
+  engine._syncFortitude(opponent);
+
+  const playerRingBefore = [...player.ring.maneuvers];
+  const opponentRingBefore = [...opponent.ring.maneuvers];
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  await discardComebackHandCards(engine, player);
+
+  assert(player.fortitude === 3 && opponent.fortitude === 3, 'Comeback equal Fortitude unchanged');
+  assert(
+    player.ring.maneuvers.length === playerRingBefore.length,
+    'Comeback does not remove cards when Fortitude is equal (player)'
+  );
+  assert(
+    opponent.ring.maneuvers.length === opponentRingBefore.length,
+    'Comeback does not remove cards when Fortitude is equal (opponent)'
+  );
+}
+
+async function testComebackGoldfishOpponentHigherRemovesHighestDamage() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, comeback } = await createComebackTest(RawDeal);
+
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'cb-opp-clothesline');
+  const punch = cloneCard(RawDeal, 'punch', 'cb-opp-punch');
+  opponent.ring.maneuvers.push(punch, clothesline);
+  engine._syncFortitude(opponent);
+  engine._syncFortitude(player);
+
+  assert(opponent.fortitude === 10 && player.fortitude === 0, 'Opponent starts with higher Fortitude');
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  await discardComebackHandCards(engine, player);
+
+  assert(
+    opponent.ringside.some((c) => c.instanceId === clothesline.instanceId),
+    'Comeback removes highest-D maneuver first (Clothesline 7D)'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === punch.instanceId),
+    'Comeback removes remaining maneuvers until Fortitude is balanced (Punch 3D)'
+  );
+  assert(opponent.ring.maneuvers.length === 0, 'Opponent Ring maneuvers cleared');
+  assert(opponent.fortitude === 0, 'Opponent Fortitude balanced to player Fortitude');
+}
+
+async function testComebackIgnoresRingActions() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, comeback } = await createComebackTest(RawDeal);
+
+  const punch = cloneCard(RawDeal, 'punch', 'cb-opp-punch-only');
+  const recovery = cloneCard(RawDeal, 'recovery', 'cb-opp-recovery');
+  opponent.ring.maneuvers.push(punch);
+  opponent.ring.actions.push(recovery);
+  engine._syncFortitude(opponent);
+  engine._syncFortitude(player);
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  await discardComebackHandCards(engine, player);
+
+  assert(
+    opponent.ring.actions.some((c) => c.instanceId === recovery.instanceId),
+    'Comeback does not remove action cards from Ring'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === punch.instanceId),
+    'Comeback still removes maneuver cards from Ring'
+  );
+  assert(opponent.fortitude === 0, 'Comeback balances Fortitude using maneuvers only');
+}
+
+async function testComebackMultiplayerManualRemoval() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, comeback } = await createComebackTest(RawDeal, {
+    engineMode: 'multiplayer',
+  });
+
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'cb-player-clothesline');
+  const punch = cloneCard(RawDeal, 'punch', 'cb-player-punch');
+  player.ring.maneuvers.push(punch, clothesline);
+  engine._syncFortitude(player);
+  engine._syncFortitude(opponent);
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await discardComebackHandCards(engine, player);
+
+  assert(
+    engine.cardEffectFlow?.type === 'balanceFortitudeRingRemoval',
+    'Comeback opens Ring removal prompt for higher-Fortitude player'
+  );
+
+  assert(
+    engine.toggleRemoveOpponentRingSelect(0, clothesline.instanceId, 'maneuvers'),
+    'Can select highest-D maneuver to remove'
+  );
+  await engine.confirmRemoveOpponentRingCard(0);
+
+  assert(player.fortitude === 3, 'Fortitude drops after first removal');
+  assert(
+    engine.cardEffectFlow?.type === 'balanceFortitudeRingRemoval',
+    'Comeback prompts another removal while still ahead'
+  );
+
+  assert(
+    engine.toggleRemoveOpponentRingSelect(0, punch.instanceId, 'maneuvers'),
+    'Can select remaining maneuver'
+  );
+  await engine.confirmRemoveOpponentRingCard(0);
+
+  assert(player.fortitude === 0, 'Fortitude balanced after manual removals');
+  assert(!engine.cardEffectFlow, 'Comeback effect completes after balancing');
+}
+
 async function testGetCrowdSupportDrawAndNextManeuverBoost() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -2851,6 +3043,12 @@ async function main() {
   await testSpitAtOpponentPlayableWithEmptyOpponentHand();
   await testGetCrowdSupportDrawAndNextManeuverBoost();
   await testGetCrowdSupportReversalTaxFromHandAndArsenal();
+  await testComebackNotPlayableWithoutFourCards();
+  await testComebackDiscardsThree();
+  await testComebackEqualFortitudeNoRemoval();
+  await testComebackGoldfishOpponentHigherRemovesHighestDamage();
+  await testComebackIgnoresRingActions();
+  await testComebackMultiplayerManualRemoval();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');

@@ -343,6 +343,9 @@ window.RawDeal.EffectPipeline = {
           sourceName
         );
 
+      case 'balanceFortitudeByRingRemoval':
+        return await engine._beginBalanceFortitudeByRingRemoval(sourceName);
+
       case 'opponentDraw': {
         engine._drawForOpponent(player, sourceName, step.count || 1);
         return false;
