@@ -47,6 +47,49 @@ window.RawDeal.CardUtils = {
     return true;
   },
 
+  /** Damage value of a card while in a Ring area (reversals read as 0). */
+  getRingDamageValue(card, ringArea) {
+    if (ringArea === 'reversals') return 0;
+    return card.damage || 0;
+  },
+
+  listOpponentRingCards(opponent) {
+    const ring = opponent.ring || { maneuvers: [], reversals: [], actions: [] };
+    const entries = [];
+    for (const area of ['maneuvers', 'reversals', 'actions']) {
+      for (const card of ring[area] || []) {
+        entries.push({ card, ringArea: area });
+      }
+    }
+    return entries;
+  },
+
+  meetsActionPlayRequirement(player, opponent, card) {
+    const effects = card.actionEffects || [];
+    const discardIndex = effects.findIndex((step) => step.op === 'discardFromHand');
+    if (discardIndex >= 0) {
+      const need = effects[discardIndex].count || 1;
+      const drawBeforeDiscard = effects.slice(0, discardIndex).some(
+        (step) => step.op === 'draw' || step.op === 'drawUpTo'
+      );
+      if (!drawBeforeDiscard && player.hand.length < need + 1) {
+        return false;
+      }
+    }
+
+    if (!card.requiresLowerFortitudeThanOpponent) return true;
+    if (!opponent) return false;
+    return player.fortitude < opponent.fortitude;
+  },
+
+  hasRemovableOpponentRingTarget(player, opponent) {
+    const maxDamage = player.fortitude;
+    return this.listOpponentRingCards(opponent).some(
+      ({ card: ringCard, ringArea }) =>
+        this.getRingDamageValue(ringCard, ringArea) <= maxDamage
+    );
+  },
+
 
   _hasDiscardSelfToDraw(card) {
     return card.actionEffects?.some((step) => step.op === 'discardSelfToDraw');

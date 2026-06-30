@@ -35,6 +35,10 @@
   const arsenalReorderModal = arsenalReorderModalRoot
     ? new window.RawDeal.ArsenalReorderModal(arsenalReorderModalRoot)
     : null;
+  const opponentRingModalRoot = document.getElementById('rd-opponent-ring-modal');
+  const opponentRingSelectModal = opponentRingModalRoot
+    ? new window.RawDeal.OpponentRingSelectModal(opponentRingModalRoot)
+    : null;
 
   async function loadDecks() {
     await window.RawDeal.DeckStore.load();
@@ -55,7 +59,8 @@
       handRevealModal,
       pileViewModal,
       superstarAbilityModal,
-      arsenalReorderModal
+      arsenalReorderModal,
+      opponentRingSelectModal
     );
 
     engine = new window.RawDeal.GameEngine({
@@ -108,8 +113,8 @@
       await engine.passSuperstarAbilityPrompt(0);
     };
 
-    board.onConfirmSuperstarAbility = async (instanceId) => {
-      await engine.confirmSuperstarAbilityPrompt(0, instanceId);
+    board.onConfirmSuperstarAbility = async (selection) => {
+      await engine.confirmSuperstarAbilityPrompt(0, selection);
     };
 
     board.onToggleSuperstarAbilitySelect = (instanceId) => {
@@ -125,6 +130,24 @@
     board.onChoiceSelect = async (optionId) => {
       await engine.selectChoice(0, optionId);
     };
+
+    board.onAdjustDrawCount = (delta) => {
+      engine.adjustDrawCount(0, delta);
+    };
+
+    board.onConfirmDrawCount = async () => {
+      await engine.confirmDrawCount(0);
+    };
+
+    board.onAdjustDiscardCount = (delta) => {
+      engine.adjustDiscardCount(0, delta);
+    };
+
+    board.onConfirmDiscardCount = async () => {
+      await engine.confirmDiscardCount(0);
+    };
+
+
 
     board.onShuffleArsenalReorder = async () => {
       await engine.shuffleArsenalFromPrompt(0);
@@ -152,6 +175,14 @@
 
     board.onToggleHandRevealSelect = (instanceId) => {
       engine.toggleHandRevealSelection(0, instanceId);
+    };
+
+    board.onToggleOpponentRingSelect = (instanceId, ringArea) => {
+      engine.toggleRemoveOpponentRingSelect(0, instanceId, ringArea);
+    };
+
+    board.onConfirmOpponentRingSelect = async () => {
+      await engine.confirmRemoveOpponentRingCard(0);
     };
 
     board.onRestart = () => {

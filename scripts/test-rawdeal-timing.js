@@ -70,6 +70,34 @@ async function testKickArsenalBeforeDamage() {
   );
 }
 
+async function testHeadButtCanDiscardHybridCard() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  const headButt = cloneCard(RawDeal, 'head-butt', 'hb-test');
+  const hybridChop = cloneCard(RawDeal, 'chop', 'hb-chop');
+  const filler = cloneCard(RawDeal, 'punch', 'hb-filler');
+
+  player.hand = [headButt, hybridChop, filler];
+  for (let i = 0; i < 5; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `hb-opp-${i}`));
+  }
+
+  await engine.playCard(0, headButt.instanceId, 'maneuver');
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Head Butt prompts discard before damage'
+  );
+
+  const ok = await engine.selectForCardEffect(0, hybridChop.instanceId);
+  assert(ok, 'Head Butt can discard a Hybrid card from hand');
+  assert(
+    player.ringside.some((c) => c.instanceId === hybridChop.instanceId),
+    'Hybrid discard goes to Ringside'
+  );
+}
+
 async function testSpinningHeelKickDiscardBeforeDamage() {
   const RawDeal = loadRawDeal();
   const { engine, player } = await createTestEngine(RawDeal);
@@ -2032,8 +2060,904 @@ async function testIrishWhipCannotReversePostIwManeuver() {
   );
 }
 
+async function createShakeItOffTest(RawDeal) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const shake = cloneCard(RawDeal, 'shake-it-off', 'sio-test');
+
+  player.hand = [shake];
+  player.ring = { maneuvers: [], reversals: [], actions: [] };
+  opponent.ring = { maneuvers: [], reversals: [], actions: [] };
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent, shake };
+}
+
+async function testShakeItOffPlayableWhenLowerFortitude() {
+  const RawDeal = loadRawDeal();
+  const { engine, shake } = await createShakeItOffTest(RawDeal);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+
+  const punch = cloneCard(RawDeal, 'punch', 'sio-opp-punch');
+  opponent.ring.maneuvers.push(punch);
+  engine._syncFortitude(opponent);
+
+  player.fortitude = 3;
+  opponent.fortitude = 6;
+
+  assert(
+    engine.canPlayCard(0, shake.instanceId, 'action'),
+    'Shake It Off playable when your Fortitude is lower and a valid Ring target exists'
+  );
+}
+
+async function testShakeItOffNotPlayableWhenFortitudeNotLower() {
+  const RawDeal = loadRawDeal();
+  const { engine, shake } = await createShakeItOffTest(RawDeal);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+
+  const punch = cloneCard(RawDeal, 'punch', 'sio-opp-punch-block');
+  opponent.ring.maneuvers.push(punch);
+  engine._syncFortitude(opponent);
+
+  player.fortitude = 6;
+  opponent.fortitude = 6;
+
+  assert(
+    !engine.canPlayCard(0, shake.instanceId, 'action'),
+    'Shake It Off not playable when Fortitude is not less than opponent'
+  );
+}
+
+async function testShakeItOffPlayableWhenBehindWithoutRemovableTarget() {
+  const RawDeal = loadRawDeal();
+  const { engine, shake } = await createShakeItOffTest(RawDeal);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'sio-opp-clothesline');
+  opponent.ring.maneuvers.push(clothesline);
+  engine._syncFortitude(opponent);
+
+  player.fortitude = 3;
+  opponent.fortitude = 7;
+
+  assert(
+    engine.canPlayCard(0, shake.instanceId, 'action'),
+    'Shake It Off playable when behind even if no opponent Ring card is within your Fortitude cap'
+  );
+  assert(
+    !RawDeal.CardUtils.hasRemovableOpponentRingTarget(player, opponent),
+    'No removable opponent Ring target at 3F vs 7D Clothesline'
+  );
+}
+
+async function testShakeItOffRemovesOpponentRingCard() {
+  const RawDeal = loadRawDeal();
+  const { engine, shake } = await createShakeItOffTest(RawDeal);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+
+  const punch = cloneCard(RawDeal, 'punch', 'sio-remove-punch');
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'sio-remove-clothesline');
+  opponent.ring.maneuvers.push(punch, clothesline);
+  engine._syncFortitude(opponent);
+
+  player.fortitude = 5;
+  opponent.fortitude = 12;
+
+  await engine.playCard(0, shake.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'removeOpponentRingCard',
+    'Shake It Off opens opponent Ring selection prompt'
+  );
+
+  assert(
+    engine.toggleRemoveOpponentRingSelect(0, punch.instanceId, 'maneuvers'),
+    'Can select opponent Ring card within Fortitude cap'
+  );
+  assert(
+    !engine.toggleRemoveOpponentRingSelect(0, clothesline.instanceId, 'maneuvers'),
+    'Cannot select opponent Ring card above Fortitude cap'
+  );
+
+  await engine.confirmRemoveOpponentRingCard(0);
+
+  assert(
+    !opponent.ring.maneuvers.some((c) => c.instanceId === punch.instanceId),
+    'Removed maneuver leaves opponent Ring'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === punch.instanceId),
+    'Removed maneuver goes to opponent Ringside'
+  );
+  assert(opponent.fortitude === 7, 'Opponent Fortitude drops after removing maneuver');
+  assert(
+    player.ring.actions.some((c) => c.instanceId === shake.instanceId),
+    'Shake It Off is placed in your Ring actions area'
+  );
+}
+
+async function createOfferHandshakeTest(RawDeal, { arsenalCount = 10 } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const handshake = cloneCard(RawDeal, 'offer-handshake', 'oh-test');
+
+  player.hand = [handshake];
+  player.arsenal = [];
+  for (let i = 0; i < arsenalCount; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `oh-arsenal-${i}`));
+  }
+  player.fortitude = 5;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, handshake };
+}
+
+async function testOfferHandshakeDrawTwoThenDiscard() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, handshake } = await createOfferHandshakeTest(RawDeal, {
+    arsenalCount: 10,
+  });
+  const filler = cloneCard(RawDeal, 'punch', 'oh-discard');
+  player.hand.push(filler);
+
+  const arsenalBefore = player.arsenal.length;
+  const handBefore = player.hand.length;
+
+  await engine.playCard(0, handshake.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Offer Handshake opens draw count choice'
+  );
+
+  engine.adjustDrawCount(0, 2);
+  await engine.confirmDrawCount(0);
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Offer Handshake prompts discard after drawing'
+  );
+  assert(player.arsenal.length === arsenalBefore - 2, 'Offer Handshake drew 2 from Arsenal');
+
+  await engine.selectForCardEffect(0, filler.instanceId);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === filler.instanceId),
+    'Offer Handshake discards chosen card to Ringside'
+  );
+  assert(
+    player.hand.length === handBefore - 1 + 2 - 1,
+    'Offer Handshake net hand change: -played card, +2 draw, -1 discard'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === handshake.instanceId),
+    'Offer Handshake is in Ring actions'
+  );
+}
+
+async function testOfferHandshakeDrawCappedByArsenal() {
+  const RawDeal = loadRawDeal();
+  const { engine, handshake } = await createOfferHandshakeTest(RawDeal, { arsenalCount: 1 });
+
+  await engine.playCard(0, handshake.instanceId, 'action');
+
+  const prompt = engine._publicSelectionPrompt(0);
+  assert(prompt?.mode === 'drawCount', 'Offer Handshake shows draw count prompt');
+  assert(prompt.max === 1, 'Draw count capped at Arsenal size when fewer than 3');
+
+  engine.adjustDrawCount(0, 5);
+  assert(engine.cardEffectFlow.selectedCount === 1, 'Draw count cannot exceed Arsenal size');
+}
+
+async function testOfferHandshakeDrawZeroStillDiscards() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, handshake } = await createOfferHandshakeTest(RawDeal, {
+    arsenalCount: 5,
+  });
+  const filler = cloneCard(RawDeal, 'kick', 'oh-zero-discard');
+  player.hand.push(filler);
+
+  await engine.playCard(0, handshake.instanceId, 'action');
+  await engine.confirmDrawCount(0);
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Offer Handshake still prompts discard after drawing 0'
+  );
+
+  await engine.selectForCardEffect(0, filler.instanceId);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === filler.instanceId),
+    'Offer Handshake discards after drawing 0'
+  );
+}
+
+async function createRollOutTest(RawDeal, { handCards = [], ringsideCards = [] } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const rollOut = cloneCard(RawDeal, 'roll-out-of-the-ring', 'ro-test');
+
+  player.hand = [rollOut, ...handCards];
+  player.ringside = [...ringsideCards];
+  player.fortitude = 5;
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'ro-arsenal')];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, rollOut };
+}
+
+async function testRollOutFullSwap() {
+  const RawDeal = loadRawDeal();
+  const discard1 = cloneCard(RawDeal, 'punch', 'ro-discard-1');
+  const discard2 = cloneCard(RawDeal, 'kick', 'ro-discard-2');
+  const extra = cloneCard(RawDeal, 'chop', 'ro-extra');
+  const return1 = cloneCard(RawDeal, 'elbow', 'ro-return-1');
+  const return2 = cloneCard(RawDeal, 'shoulder-block', 'ro-return-2');
+
+  const { engine, player, rollOut } = await createRollOutTest(RawDeal, {
+    handCards: [discard1, discard2, extra],
+    ringsideCards: [return1, return2],
+  });
+
+  const handBefore = player.hand.length;
+  const ringsideBefore = player.ringside.length;
+
+  await engine.playCard(0, rollOut.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardCountChoice',
+    'Roll Out opens discard count choice'
+  );
+
+  engine.adjustDiscardCount(0, 2);
+  await engine.confirmDiscardCount(0);
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Roll Out prompts hand discard after choosing 2'
+  );
+
+  await engine.selectForCardEffect(0, discard1.instanceId);
+  await engine.selectForCardEffect(0, discard2.instanceId);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === discard1.instanceId),
+    'Roll Out discards first card to Ringside'
+  );
+  assert(
+    player.ringside.some((c) => c.instanceId === discard2.instanceId),
+    'Roll Out discards second card to Ringside'
+  );
+
+  assert(
+    engine.cardEffectFlow?.type === 'returnFromRingside',
+    'Roll Out prompts Ringside return after discarding'
+  );
+  const returnPrompt = engine._publicSelectionPrompt(0);
+  assert(returnPrompt?.mode === 'ringsideModal', 'Roll Out opens Ringside return modal');
+  assert(returnPrompt.cards.length === 4, 'Roll Out modal lists all Ringside cards');
+
+  engine.toggleSuperstarAbilitySelection(0, return1.instanceId);
+  engine.toggleSuperstarAbilitySelection(0, return2.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, [return1.instanceId, return2.instanceId]);
+
+  assert(
+    player.hand.some((c) => c.instanceId === return1.instanceId),
+    'Roll Out returns first Ringside card to hand'
+  );
+  assert(
+    player.hand.some((c) => c.instanceId === return2.instanceId),
+    'Roll Out returns second Ringside card to hand'
+  );
+  assert(
+    !player.ringside.some((c) => c.instanceId === return1.instanceId),
+    'Returned card leaves Ringside'
+  );
+  assert(
+    player.hand.length === handBefore - 1 - 2 + 2,
+    'Roll Out net hand: -played, -2 discard, +2 return'
+  );
+  assert(
+    player.ringside.length === ringsideBefore + 2 - 2,
+    'Roll Out net Ringside: +2 discard, -2 return'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === rollOut.instanceId),
+    'Roll Out is in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Roll Out effect completes');
+}
+
+async function testRollOutDiscardZero() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, rollOut } = await createRollOutTest(RawDeal, {
+    handCards: [cloneCard(RawDeal, 'punch', 'ro-zero-extra')],
+    ringsideCards: [cloneCard(RawDeal, 'elbow', 'ro-zero-rs')],
+  });
+
+  const handBefore = player.hand.length;
+  const ringsideBefore = player.ringside.length;
+
+  await engine.playCard(0, rollOut.instanceId, 'action');
+  await engine.confirmDiscardCount(0);
+
+  assert(!engine.cardEffectFlow, 'Roll Out completes after discarding 0');
+  assert(player.hand.length === handBefore - 1, 'Roll Out discard 0: only played card leaves hand');
+  assert(player.ringside.length === ringsideBefore, 'Roll Out discard 0: Ringside unchanged');
+}
+
+async function testRollOutCapByHand() {
+  const RawDeal = loadRawDeal();
+  const { engine, rollOut } = await createRollOutTest(RawDeal, {
+    handCards: [cloneCard(RawDeal, 'punch', 'ro-cap')],
+  });
+
+  await engine.playCard(0, rollOut.instanceId, 'action');
+
+  const prompt = engine._publicSelectionPrompt(0);
+  assert(prompt?.mode === 'discardCount', 'Roll Out shows discard count prompt');
+  assert(prompt.max === 1, 'Roll Out discard count capped by hand size when fewer than 2');
+
+  engine.adjustDiscardCount(0, 5);
+  assert(engine.cardEffectFlow.selectedCount === 1, 'Roll Out discard count cannot exceed hand size');
+}
+
+async function testRollOutDiscardCappedReturnsOne() {
+  const RawDeal = loadRawDeal();
+  const discard1 = cloneCard(RawDeal, 'punch', 'ro-cap-discard');
+  const preExisting = cloneCard(RawDeal, 'elbow', 'ro-cap-rs');
+
+  const { engine, player, rollOut } = await createRollOutTest(RawDeal, {
+    handCards: [discard1],
+    ringsideCards: [preExisting],
+  });
+
+  await engine.playCard(0, rollOut.instanceId, 'action');
+  engine.adjustDiscardCount(0, 2);
+  assert(engine.cardEffectFlow.selectedCount === 1, 'Roll Out cannot discard more than hand allows');
+  await engine.confirmDiscardCount(0);
+  await engine.selectForCardEffect(0, discard1.instanceId);
+
+  const prompt = engine._publicSelectionPrompt(0);
+  assert(prompt?.mode === 'ringsideModal', 'Roll Out shows Ringside return modal');
+  assert(prompt.selectCount === 1, 'Roll Out returns equal to actual discarded count when capped');
+  assert(prompt.cards.length === 2, 'Roll Out modal shows all Ringside cards');
+
+  engine.toggleSuperstarAbilitySelection(0, preExisting.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, preExisting.instanceId);
+
+  assert(
+    player.hand.some((c) => c.instanceId === preExisting.instanceId),
+    'Roll Out can return a pre-existing Ringside card'
+  );
+  assert(
+    player.ringside.some((c) => c.instanceId === discard1.instanceId),
+    'Discarded card remains in Ringside when another card is returned'
+  );
+  assert(!engine.cardEffectFlow, 'Roll Out completes after capped swap');
+}
+
+async function createRecoveryTest(RawDeal, { ringsideCards = [], arsenalCount = 5 } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const recovery = cloneCard(RawDeal, 'recovery', 'rec-test');
+
+  player.hand = [recovery];
+  player.ringside = [...ringsideCards];
+  player.arsenal = [];
+  for (let i = 0; i < arsenalCount; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `rec-arsenal-${i}`));
+  }
+  player.fortitude = 6;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, recovery };
+}
+
+async function testRecoveryShuffleTwoThenDraw() {
+  const RawDeal = loadRawDeal();
+  const rs1 = cloneCard(RawDeal, 'punch', 'rec-rs-1');
+  const rs2 = cloneCard(RawDeal, 'kick', 'rec-rs-2');
+  const { engine, player, recovery } = await createRecoveryTest(RawDeal, {
+    ringsideCards: [rs1, rs2],
+    arsenalCount: 4,
+  });
+
+  const arsenalBefore = player.arsenal.length;
+  const handBefore = player.hand.length;
+
+  await engine.playCard(0, recovery.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'shuffleRingsideIntoArsenal',
+    'Recovery opens Ringside shuffle modal for 2 cards'
+  );
+  const shufflePrompt = engine._publicSelectionPrompt(0);
+  assert(shufflePrompt?.mode === 'ringsideModal', 'Recovery uses Ringside modal');
+  assert(shufflePrompt.selectCount === 2, 'Recovery requires 2 Ringside cards when available');
+
+  engine.toggleSuperstarAbilitySelection(0, rs1.instanceId);
+  engine.toggleSuperstarAbilitySelection(0, rs2.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, [rs1.instanceId, rs2.instanceId]);
+
+  assert(
+    player.arsenal.length === arsenalBefore + 1,
+    'Recovery shuffles 2 into Arsenal then draws 1 (net +1)'
+  );
+  const inDeckOrHand = (card) =>
+    player.arsenal.some((c) => c.instanceId === card.instanceId) ||
+    player.hand.some((c) => c.instanceId === card.instanceId);
+  assert(inDeckOrHand(rs1), 'Recovery keeps first shuffled card in Arsenal or hand');
+  assert(inDeckOrHand(rs2), 'Recovery keeps second shuffled card in Arsenal or hand');
+  assert(
+    !player.ringside.some((c) => c.instanceId === rs1.instanceId),
+    'Shuffled card leaves Ringside'
+  );
+  assert(
+    player.hand.length === handBefore - 1 + 1,
+    'Recovery draws 1 after shuffling (-played card, +1 draw)'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === recovery.instanceId),
+    'Recovery is in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Recovery effect completes');
+}
+
+async function testRecoveryShuffleOneWhenOnlyOneInRingside() {
+  const RawDeal = loadRawDeal();
+  const rs1 = cloneCard(RawDeal, 'elbow', 'rec-one-rs');
+  const { engine, player, recovery } = await createRecoveryTest(RawDeal, {
+    ringsideCards: [rs1],
+    arsenalCount: 3,
+  });
+
+  const arsenalBefore = player.arsenal.length;
+
+  await engine.playCard(0, recovery.instanceId, 'action');
+
+  const prompt = engine._publicSelectionPrompt(0);
+  assert(prompt?.mode === 'ringsideModal', 'Recovery opens Ringside modal with 1 card');
+  assert(prompt.selectCount === 1, 'Recovery shuffles only 1 when Ringside has 1 card');
+
+  engine.toggleSuperstarAbilitySelection(0, rs1.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, rs1.instanceId);
+
+  assert(!player.ringside.some((c) => c.instanceId === rs1.instanceId), 'Only Ringside card is shuffled');
+  assert(player.arsenal.length === arsenalBefore, 'Recovery shuffles 1 then draws 1 (net 0 Arsenal change)');
+  assert(player.hand.length === 1, 'Recovery draws 1 after shuffling 1 Ringside card');
+  assert(!engine.cardEffectFlow, 'Recovery completes after shuffling 1');
+}
+
+async function testRecoveryEmptyRingsideSkipsShuffle() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, recovery } = await createRecoveryTest(RawDeal, {
+    ringsideCards: [],
+    arsenalCount: 2,
+  });
+
+  const arsenalBefore = player.arsenal.length;
+
+  await engine.playCard(0, recovery.instanceId, 'action');
+
+  assert(!engine.cardEffectFlow, 'Recovery skips shuffle prompt when Ringside is empty');
+  assert(player.arsenal.length === arsenalBefore - 1, 'Recovery draws 1 when Ringside is empty');
+  assert(player.hand.length === 1, 'Recovery draw puts 1 card in hand when Ringside is empty');
+}
+
+async function createSpitAtOpponentTest(RawDeal, { opponentHandCount = 5 } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const spit = cloneCard(RawDeal, 'spit-at-opponent', 'spit-test');
+
+  player.hand = [spit, cloneCard(RawDeal, 'punch', 'spit-self-discard')];
+  player.fortitude = 6;
+  opponent.hand = [];
+  for (let i = 0; i < opponentHandCount; i++) {
+    opponent.hand.push(cloneCard(RawDeal, 'kick', `spit-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent, spit };
+}
+
+async function testSpitAtOpponentDiscardFour() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, spit } = await createSpitAtOpponentTest(RawDeal, {
+    opponentHandCount: 5,
+  });
+  const selfDiscard = player.hand.find((c) => c.instanceId === 'spit-self-discard');
+
+  await engine.playCard(0, spit.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Spit At Opponent prompts you to discard 1 first'
+  );
+
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === selfDiscard.instanceId),
+    'Spit At Opponent discards your chosen card to Ringside'
+  );
+  assert(opponent.hand.length === 1, 'Spit At Opponent makes opponent discard 4 cards');
+  assert(
+    opponent.ringside.length === 4,
+    'Opponent discarded cards go to Ringside'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === spit.instanceId),
+    'Spit At Opponent is in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Spit At Opponent effect completes');
+}
+
+async function testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, spit } = await createSpitAtOpponentTest(RawDeal, {
+    opponentHandCount: 3,
+  });
+  const selfDiscard = player.hand.find((c) => c.instanceId === 'spit-self-discard');
+  const opponentIds = opponent.hand.map((c) => c.instanceId);
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  assert(opponent.hand.length === 0, 'Spit At Opponent discards opponent whole hand when 3 or fewer');
+  assert(
+    opponentIds.every((id) => opponent.ringside.some((c) => c.instanceId === id)),
+    'All opponent hand cards go to Ringside when hand is 3 or fewer'
+  );
+  assert(player.hand.length === 0, 'You have no cards left after playing and discarding');
+}
+
+async function testSpitAtOpponentPlayableWithEmptyOpponentHand() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, spit } = await createSpitAtOpponentTest(RawDeal, {
+    opponentHandCount: 0,
+  });
+  const selfDiscard = player.hand.find((c) => c.instanceId === 'spit-self-discard');
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  assert(opponent.ringside.length === 0, 'No opponent discard when hand is empty');
+  assert(
+    player.ring.actions.some((c) => c.instanceId === spit.instanceId),
+    'Spit At Opponent still resolves when opponent hand is empty'
+  );
+}
+
+async function createComebackTest(RawDeal, { engineMode = 'goldfish', extraHandCount = 3 } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const comeback = cloneCard(RawDeal, 'comeback', 'comeback-test');
+
+  player.hand = [comeback];
+  for (let i = 0; i < extraHandCount; i++) {
+    player.hand.push(cloneCard(RawDeal, 'chop', `comeback-discard-${i}`));
+  }
+  player.ring = { maneuvers: [], reversals: [], actions: [] };
+  opponent.ring = { maneuvers: [], reversals: [], actions: [] };
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent, comeback };
+}
+
+async function discardComebackHandCards(engine, player) {
+  const toDiscard = player.hand.filter((c) => c.id !== 'comeback').slice(0, 3);
+  for (const card of toDiscard) {
+    await engine.selectForCardEffect(0, card.instanceId);
+  }
+  return toDiscard;
+}
+
+async function testComebackNotPlayableWithoutFourCards() {
+  const RawDeal = loadRawDeal();
+  const { engine, comeback } = await createComebackTest(RawDeal, { extraHandCount: 2 });
+
+  assert(
+    !engine.canPlayCard(0, comeback.instanceId, 'action'),
+    'Comeback not playable without 4 cards in hand'
+  );
+}
+
+async function testComebackDiscardsThree() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, comeback } = await createComebackTest(RawDeal);
+  const ringsideBefore = player.ringside.length;
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Comeback prompts discard 3 from hand'
+  );
+
+  const discarded = await discardComebackHandCards(engine, player);
+  assert(discarded.length === 3, 'Comeback discards 3 cards');
+  assert(
+    discarded.every((c) => player.ringside.some((r) => r.instanceId === c.instanceId)),
+    'Comeback discarded cards go to Ringside'
+  );
+  assert(
+    player.ringside.length === ringsideBefore + 3,
+    'Comeback adds 3 cards to Ringside'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === comeback.instanceId),
+    'Comeback is in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Comeback effect completes when Fortitude is equal');
+}
+
+async function testComebackEqualFortitudeNoRemoval() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, comeback } = await createComebackTest(RawDeal);
+
+  const playerPunch = cloneCard(RawDeal, 'punch', 'cb-player-punch');
+  const opponentPunch = cloneCard(RawDeal, 'punch', 'cb-opp-punch');
+  player.ring.maneuvers.push(playerPunch);
+  opponent.ring.maneuvers.push(opponentPunch);
+  engine._syncFortitude(player);
+  engine._syncFortitude(opponent);
+
+  const playerRingBefore = [...player.ring.maneuvers];
+  const opponentRingBefore = [...opponent.ring.maneuvers];
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  await discardComebackHandCards(engine, player);
+
+  assert(player.fortitude === 3 && opponent.fortitude === 3, 'Comeback equal Fortitude unchanged');
+  assert(
+    player.ring.maneuvers.length === playerRingBefore.length,
+    'Comeback does not remove cards when Fortitude is equal (player)'
+  );
+  assert(
+    opponent.ring.maneuvers.length === opponentRingBefore.length,
+    'Comeback does not remove cards when Fortitude is equal (opponent)'
+  );
+}
+
+async function testComebackGoldfishOpponentHigherRemovesHighestDamage() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, comeback } = await createComebackTest(RawDeal);
+
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'cb-opp-clothesline');
+  const punch = cloneCard(RawDeal, 'punch', 'cb-opp-punch');
+  opponent.ring.maneuvers.push(punch, clothesline);
+  engine._syncFortitude(opponent);
+  engine._syncFortitude(player);
+
+  assert(opponent.fortitude === 10 && player.fortitude === 0, 'Opponent starts with higher Fortitude');
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  await discardComebackHandCards(engine, player);
+
+  assert(
+    opponent.ringside.some((c) => c.instanceId === clothesline.instanceId),
+    'Comeback removes highest-D maneuver first (Clothesline 7D)'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === punch.instanceId),
+    'Comeback removes remaining maneuvers until Fortitude is balanced (Punch 3D)'
+  );
+  assert(opponent.ring.maneuvers.length === 0, 'Opponent Ring maneuvers cleared');
+  assert(opponent.fortitude === 0, 'Opponent Fortitude balanced to player Fortitude');
+}
+
+async function testComebackIgnoresRingActions() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, comeback } = await createComebackTest(RawDeal);
+
+  const punch = cloneCard(RawDeal, 'punch', 'cb-opp-punch-only');
+  const recovery = cloneCard(RawDeal, 'recovery', 'cb-opp-recovery');
+  opponent.ring.maneuvers.push(punch);
+  opponent.ring.actions.push(recovery);
+  engine._syncFortitude(opponent);
+  engine._syncFortitude(player);
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  await discardComebackHandCards(engine, player);
+
+  assert(
+    opponent.ring.actions.some((c) => c.instanceId === recovery.instanceId),
+    'Comeback does not remove action cards from Ring'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === punch.instanceId),
+    'Comeback still removes maneuver cards from Ring'
+  );
+  assert(opponent.fortitude === 0, 'Comeback balances Fortitude using maneuvers only');
+}
+
+async function testComebackMultiplayerManualRemoval() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, comeback } = await createComebackTest(RawDeal, {
+    engineMode: 'multiplayer',
+  });
+
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'cb-player-clothesline');
+  const punch = cloneCard(RawDeal, 'punch', 'cb-player-punch');
+  player.ring.maneuvers.push(punch, clothesline);
+  engine._syncFortitude(player);
+  engine._syncFortitude(opponent);
+
+  await engine.playCard(0, comeback.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await discardComebackHandCards(engine, player);
+
+  assert(
+    engine.cardEffectFlow?.type === 'balanceFortitudeRingRemoval',
+    'Comeback opens Ring removal prompt for higher-Fortitude player'
+  );
+
+  assert(
+    engine.toggleRemoveOpponentRingSelect(0, clothesline.instanceId, 'maneuvers'),
+    'Can select highest-D maneuver to remove'
+  );
+  await engine.confirmRemoveOpponentRingCard(0);
+
+  assert(player.fortitude === 3, 'Fortitude drops after first removal');
+  assert(
+    engine.cardEffectFlow?.type === 'balanceFortitudeRingRemoval',
+    'Comeback prompts another removal while still ahead'
+  );
+
+  assert(
+    engine.toggleRemoveOpponentRingSelect(0, punch.instanceId, 'maneuvers'),
+    'Can select remaining maneuver'
+  );
+  await engine.confirmRemoveOpponentRingCard(0);
+
+  assert(player.fortitude === 0, 'Fortitude balanced after manual removals');
+  assert(!engine.cardEffectFlow, 'Comeback effect completes after balancing');
+}
+
+async function testGetCrowdSupportDrawAndNextManeuverBoost() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const crowdSupport = cloneCard(RawDeal, 'get-crowd-support', 'gcs-test');
+  const punch = cloneCard(RawDeal, 'punch', 'gcs-punch');
+
+  player.hand = [crowdSupport, punch];
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'gcs-arsenal')];
+  player.fortitude = 12;
+
+  const handBefore = player.hand.length;
+  const arsenalBefore = player.arsenal.length;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, crowdSupport.instanceId, 'action');
+
+  assert(
+    player.hand.length === handBefore - 1 + 1,
+    'Get Crowd Support draws 1 card after being played'
+  );
+  assert(
+    player.arsenal.length === arsenalBefore - 1,
+    'Get Crowd Support draw comes from Arsenal'
+  );
+  assert(engine.nextManeuverBonus[0] === 4, 'Get Crowd Support sets +4D on next maneuver');
+  assert(
+    player.turnState?.nextManeuverReversalTax === 12,
+    'Get Crowd Support sets +12F reversal tax on next maneuver'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === crowdSupport.instanceId),
+    'Get Crowd Support is in Ring actions'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.damageLog.some((e) => e.damage === 7 && e.card === 'Punch'),
+    'Get Crowd Support +4D applies to next maneuver (Punch 3D + 4)'
+  );
+  assert(engine.nextManeuverBonus[0] === 0, 'Get Crowd Support +4D is consumed after use');
+}
+
+async function testGetCrowdSupportReversalTaxFromHandAndArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const crowdSupport = cloneCard(RawDeal, 'get-crowd-support', 'gcs-tax');
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'gcs-grapple');
+  const escapeHand = cloneCard(RawDeal, 'escape-move', 'gcs-escape-hand');
+  const escapeArsenal = cloneCard(RawDeal, 'escape-move', 'gcs-escape-arsenal');
+
+  attacker.hand = [crowdSupport, grapple];
+  attacker.fortitude = 20;
+  defender.hand = [escapeHand];
+  defender.fortitude = 0;
+  defender.arsenal = [escapeArsenal];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, crowdSupport.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Get Crowd Support boosted grapple opens reversal window'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, escapeHand.instanceId),
+    'Get Crowd Support blocks hand reversal below +12F tax'
+  );
+
+  defender.fortitude = 12;
+  assert(
+    engine.canPlayReversalFromHand(1, escapeHand.instanceId),
+    'Get Crowd Support allows hand reversal at +12F tax'
+  );
+
+  defender.fortitude = 0;
+  assert(
+    !engine._reversalStops(escapeArsenal, grapple, defender, { attacker }),
+    'Get Crowd Support blocks Arsenal reversal below +12F tax'
+  );
+
+  defender.fortitude = 12;
+  assert(
+    engine._reversalStops(escapeArsenal, grapple, defender, { attacker }),
+    'Get Crowd Support allows Arsenal reversal at +12F tax'
+  );
+}
+
 async function main() {
   await testKickArsenalBeforeDamage();
+  await testHeadButtCanDiscardHybridCard();
   await testSpinningHeelKickDiscardBeforeDamage();
   await testHeadlockTakedownOpponentDrawBeforeDamage();
   await testBulldogChainBeforeDamage();
@@ -2100,6 +3024,31 @@ async function main() {
   await testIrishWhipSelfReverseEligible();
   await testIrishWhipSelfReverseGrantsStrikeBonus();
   await testIrishWhipCannotReversePostIwManeuver();
+  await testShakeItOffPlayableWhenLowerFortitude();
+  await testShakeItOffNotPlayableWhenFortitudeNotLower();
+  await testShakeItOffPlayableWhenBehindWithoutRemovableTarget();
+  await testShakeItOffRemovesOpponentRingCard();
+  await testOfferHandshakeDrawTwoThenDiscard();
+  await testOfferHandshakeDrawCappedByArsenal();
+  await testOfferHandshakeDrawZeroStillDiscards();
+  await testRollOutFullSwap();
+  await testRollOutDiscardZero();
+  await testRollOutCapByHand();
+  await testRollOutDiscardCappedReturnsOne();
+  await testRecoveryShuffleTwoThenDraw();
+  await testRecoveryShuffleOneWhenOnlyOneInRingside();
+  await testRecoveryEmptyRingsideSkipsShuffle();
+  await testSpitAtOpponentDiscardFour();
+  await testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess();
+  await testSpitAtOpponentPlayableWithEmptyOpponentHand();
+  await testGetCrowdSupportDrawAndNextManeuverBoost();
+  await testGetCrowdSupportReversalTaxFromHandAndArsenal();
+  await testComebackNotPlayableWithoutFourCards();
+  await testComebackDiscardsThree();
+  await testComebackEqualFortitudeNoRemoval();
+  await testComebackGoldfishOpponentHigherRemovesHighestDamage();
+  await testComebackIgnoresRingActions();
+  await testComebackMultiplayerManualRemoval();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');
