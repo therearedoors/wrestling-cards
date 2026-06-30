@@ -108,6 +108,9 @@ window.RawDeal.CardUtils = {
         cost = Math.max(0, cost - discount.fortitude);
       }
     }
+    if (player?.turnState?.nextCardFortitudeDiscount) {
+      cost = Math.max(0, cost - player.turnState.nextCardFortitudeDiscount);
+    }
     return cost;
   },
 

@@ -64,7 +64,7 @@ class RoomGame {
         ok = engine.beginSuperstarAbility(seat);
         break;
       case 'abilitySelect': {
-        const abilityOk = engine.selectForAbility(seat, action.instanceId);
+        const abilityOk = await engine.selectForAbility(seat, action.instanceId);
         ok = abilityOk || (await engine.selectForCardEffect(seat, action.instanceId));
         break;
       }

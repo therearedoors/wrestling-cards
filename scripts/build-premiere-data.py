@@ -577,11 +577,12 @@ def infer_maneuver_effects(types_list, rules):
     elif 'when successfully played, opponent must draw 1 card' in blob:
         effects.append({'op': 'opponentDraw', 'count': 1})
 
-    m = re.search(r'when successfully played, opponent must discard (\d+) cards?', blob)
-    if m:
-        effects.append({'op': 'opponentDiscardFromHand', 'count': int(m.group(1))})
-    elif 'when successfully played, opponent discards 1 card' in blob:
-        effects.append({'op': 'opponentDiscardFromHand', 'count': 1})
+    if 'when successfully played' in blob:
+        m = re.search(r'opponent must discard (\d+) cards?', blob)
+        if m:
+            effects.append({'op': 'opponentDiscardFromHand', 'count': int(m.group(1))})
+        elif 'opponent discards 1 card' in blob:
+            effects.append({'op': 'opponentDiscardFromHand', 'count': 1})
 
     for subtype in ('strike', 'grapple', 'submission'):
         m = re.search(
@@ -774,6 +775,9 @@ def infer_action_effects(types_list, rules, name=''):
             {'op': 'drawUpTo', 'max': 3},
             {'op': 'discardFromHand', 'count': 1},
         ]
+
+    if 'ego boost' in card_name or 'next card played is -5f' in blob:
+        return [{'op': 'nextCardFortitudeDiscount', 'value': 5}]
 
     if 'draw up to 5' in blob:
         return [{'op': 'draw', 'count': 5}]
