@@ -26,6 +26,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.reversalWindow = null;
     this.handRevealFlow = null;
     this.effectPipelineFlow = null;
+    this.pendingOpponentDiscard = null;
     this.reversedManeuverDamage = null;
     this.animationEvents = [];
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
@@ -51,6 +52,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextManeuverReversalTax: 0,
       nextCardManeuverBonus: 0,
       nextCardSubtypeBonus: null,
+      nextCardFortitudeDiscount: 0,
       lastPlayedCardId: null,
       opponentReversalsBlocked: false,
       skipOpponentNextTurn: false,
@@ -65,6 +67,7 @@ window.RawDeal.GameEngine = class GameEngine {
     player.turnState.nextGrappleReversalTax = 0;
     player.turnState.nextManeuverReversalTax = 0;
     player.turnState.nextCardManeuverBonus = 0;
+    player.turnState.nextCardFortitudeDiscount = 0;
     player.turnState.opponentReversalsBlocked = false;
     this.nextManeuverBonus[this._playerIndex(player)] = 0;
   }
@@ -782,6 +785,9 @@ window.RawDeal.GameEngine = class GameEngine {
     this._expireNextCardSubtypeBonusUnlessMatch(player, played, mode);
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.lastPlayedCardId = played.id;
+    if (player.turnState.nextCardFortitudeDiscount) {
+      player.turnState.nextCardFortitudeDiscount = 0;
+    }
 
     if (mode === 'action') {
       if (this._openActionReversalWindowOrPlay(player, opponent, played)) {
@@ -1131,12 +1137,242 @@ window.RawDeal.GameEngine = class GameEngine {
     this.cardEffectFlow = null;
     this._notify();
 
+    const pending = this.pendingOpponentDiscard;
+    if (pending) {
+      this.pendingOpponentDiscard = null;
+      const victim = this.players[pending.victimIndex];
+      const paused = await this._executeOpponentControlledDiscard(
+        victim,
+        pending.victimIndex,
+        pending.sourceName,
+        pending.count,
+        pending.meta
+      );
+      if (paused) return true;
+      return true;
+    }
+
     if (this.effectPipelineFlow?.paused) {
       await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
       return true;
     }
 
     return true;
+  }
+
+  _hasEgoBoostInHand(player) {
+    return player.hand.some((c) => c.id === 'ego-boost');
+  }
+
+  _discardEgoBoostFromHand(player) {
+    const idx = player.hand.findIndex((c) => c.id === 'ego-boost');
+    if (idx < 0) return null;
+    const [card] = player.hand.splice(idx, 1);
+    player.ringside.push(card);
+    return card;
+  }
+
+  _shouldOfferEgoBoostChoice(victim) {
+    if (!this._hasEgoBoostInHand(victim)) return false;
+    return this.engineMode === 'multiplayer' && victim.isHuman;
+  }
+
+  async _beginOpponentControlledDiscard(victim, victimIndex, sourceName, count, meta = {}) {
+    const batchCards = meta.batchCards || null;
+    let discardCount = count;
+    if (batchCards) {
+      discardCount = Math.min(count, batchCards.length);
+    } else {
+      discardCount = Math.min(count, victim.hand.length);
+    }
+
+    if (discardCount <= 0) {
+      if (!batchCards?.length) {
+        this.actionLog.push({
+          message: `${sourceName}: opponent had no cards in hand to discard.`,
+        });
+      }
+      return await this._finishOpponentControlledDiscard(meta);
+    }
+
+    if (this._shouldOfferEgoBoostChoice(victim)) {
+      this.cardEffectFlow = {
+        type: 'choice',
+        choiceId: 'egoBoostOrDiscard',
+        playerIndex: victimIndex,
+        sourceName,
+        count: discardCount,
+        meta,
+        message: `${sourceName} forces you to discard from your hand. Use Ego Boost?`,
+        options: [
+          { id: 'egoBoost', label: 'Use Ego Boost (draw up to 2)' },
+          { id: 'discardNormally', label: 'Discard normally' },
+        ],
+      };
+      this._notify();
+      return true;
+    }
+
+    return await this._executeOpponentControlledDiscard(
+      victim,
+      victimIndex,
+      sourceName,
+      discardCount,
+      meta
+    );
+  }
+
+  async _applyEgoBoostReaction(victim, victimIndex, sourceName, count, meta) {
+    const ego = this._discardEgoBoostFromHand(victim);
+    if (!ego) return false;
+
+    this.actionLog.push({
+      message: `Ego Boost: discarded in place of 1 forced discard (${sourceName}).`,
+    });
+
+    this.pendingOpponentDiscard = {
+      victimIndex,
+      sourceName,
+      count: Math.max(0, count - 1),
+      meta,
+    };
+
+    this.cardEffectFlow = null;
+    this._notify();
+    return this._beginDrawUpToPrompt(victim, victimIndex, 'Ego Boost', 2);
+  }
+
+  async _executeOpponentControlledDiscard(victim, victimIndex, sourceName, count, meta = {}) {
+    if (count <= 0) {
+      return await this._finishOpponentControlledDiscard(meta);
+    }
+
+    const batchCards = meta.batchCards;
+    if (batchCards?.length) {
+      const autoPick = this.engineMode === 'goldfish' || !victim.isHuman;
+      let toRemove = [];
+
+      if (batchCards.length <= count) {
+        toRemove = [...batchCards];
+      } else if (autoPick) {
+        const pool = [...batchCards];
+        for (let i = 0; i < count; i++) {
+          const idx = Math.floor(Math.random() * pool.length);
+          toRemove.push(pool.splice(idx, 1)[0]);
+        }
+      } else {
+        return this._beginOpponentDiscardFromHandPrompt(
+          victim,
+          victimIndex,
+          sourceName,
+          count,
+          meta,
+          batchCards.map((c) => c.instanceId)
+        );
+      }
+
+      for (const card of toRemove) {
+        const idx = victim.hand.findIndex((c) => c.instanceId === card.instanceId);
+        if (idx >= 0) {
+          const [removed] = victim.hand.splice(idx, 1);
+          victim.ringside.push(removed);
+        }
+      }
+      if (toRemove.length > 0) {
+        const names = toRemove.map((c) => c.name).join(', ');
+        this.actionLog.push({
+          message: `${sourceName}: opponent discarded ${names} to Ringside.`,
+        });
+      }
+      return await this._finishOpponentControlledDiscard(meta);
+    }
+
+    const autoPick = this.engineMode === 'goldfish' || !victim.isHuman;
+    if (autoPick) {
+      const { count: discarded, cards } = this._forceOpponentDiscardFromHand(victim, count);
+      if (discarded > 0) {
+        const names = cards.map((c) => c.name).join(', ');
+        this.actionLog.push({
+          message: `${sourceName}: opponent discarded ${names} to Ringside.`,
+        });
+      } else {
+        this.actionLog.push({
+          message: `${sourceName}: opponent had no cards in hand to discard.`,
+        });
+      }
+      return await this._finishOpponentControlledDiscard(meta);
+    }
+
+    return this._beginOpponentDiscardFromHandPrompt(victim, victimIndex, sourceName, count, meta);
+  }
+
+  async _finishOpponentControlledDiscard(meta = {}) {
+    if (meta.afterComplete === 'cleanBreak') {
+      const reversalPlayer = this.players[meta.reversalPlayerIndex];
+      const drawn = this._drawCard(reversalPlayer);
+      if (drawn) {
+        this.actionLog.push({
+          message: `${meta.sourceName}: drew 1 card.`,
+        });
+      }
+      this._notify();
+      await this._runAutoPhases();
+      return false;
+    }
+
+    if (meta.superstarAbilityOwnerIndex !== undefined) {
+      const owner = this.players[meta.superstarAbilityOwnerIndex];
+      if (owner) owner.superstarAbilityUsed = true;
+      this._notify();
+      return false;
+    }
+
+    if (meta.resumePipeline && this.effectPipelineFlow?.paused) {
+      await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
+      return false;
+    }
+
+    return false;
+  }
+
+  async _beginDiscardFromOpponentHandPipelineStep(pipeline, opponent, sourceName, step) {
+    const snapshot = pipeline.snapshotInstanceIds;
+    if (!snapshot?.size) {
+      this.actionLog.push({
+        message: `${sourceName}: no cards to discard from opponent's hand.`,
+      });
+      return false;
+    }
+
+    let toDiscard = [];
+    if (step.mode === 'chosen') {
+      const ids = pipeline.selectedInstanceIds || [];
+      toDiscard = opponent.hand.filter(
+        (c) => ids.includes(c.instanceId) && snapshot.has(c.instanceId)
+      );
+    } else {
+      const filter = step.filter || {};
+      toDiscard = opponent.hand.filter(
+        (c) =>
+          snapshot.has(c.instanceId) &&
+          window.RawDeal.EffectPipeline._cardMatchesFilter(c, filter)
+      );
+    }
+
+    if (toDiscard.length === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: no matching cards in opponent's hand to discard.`,
+      });
+      return false;
+    }
+
+    return await this._beginOpponentControlledDiscard(
+      opponent,
+      pipeline.opponentIndex,
+      sourceName,
+      toDiscard.length,
+      { batchCards: toDiscard, resumePipeline: true }
+    );
   }
 
   _buildRingSelectSections(player, { areas = ['maneuvers', 'reversals', 'actions'], maxDamage = Infinity } = {}) {
@@ -1518,7 +1754,7 @@ window.RawDeal.GameEngine = class GameEngine {
     }
   }
 
-  _beginOpponentDiscardFromHandEffect(player, opponent, sourceName, count) {
+  async _beginOpponentDiscardFromHandEffect(player, opponent, sourceName, count, meta = {}) {
     if (opponent.hand.length === 0) {
       this.actionLog.push({
         message: `${sourceName}: opponent had no cards in hand to discard.`,
@@ -1526,32 +1762,14 @@ window.RawDeal.GameEngine = class GameEngine {
       return false;
     }
 
+    const opponentIndex = this._playerIndex(opponent);
     const effectiveCount = Math.min(count, opponent.hand.length);
-    const autoPick = this.engineMode === 'goldfish' || !opponent.isHuman;
-
-    if (autoPick) {
-      const { count: discarded, cards } = this._forceOpponentDiscardFromHand(
-        opponent,
-        effectiveCount
-      );
-      if (discarded > 0) {
-        const names = cards.map((c) => c.name).join(', ');
-        this.actionLog.push({
-          message: `${sourceName}: opponent discarded ${names} to Ringside.`,
-        });
-      } else {
-        this.actionLog.push({
-          message: `${sourceName}: opponent had no cards in hand to discard.`,
-        });
-      }
-      return false;
-    }
-
-    return this._beginOpponentDiscardFromHandPrompt(
+    return await this._beginOpponentControlledDiscard(
       opponent,
-      this._playerIndex(opponent),
+      opponentIndex,
       sourceName,
-      effectiveCount
+      effectiveCount,
+      { ...meta, mode: 'prompt' }
     );
   }
 
@@ -1592,7 +1810,14 @@ window.RawDeal.GameEngine = class GameEngine {
     return { count: discardedCards.length, cards: discardedCards };
   }
 
-  _beginOpponentDiscardFromHandPrompt(opponent, opponentIndex, sourceName, count) {
+  _beginOpponentDiscardFromHandPrompt(
+    opponent,
+    opponentIndex,
+    sourceName,
+    count,
+    meta = {},
+    allowedInstanceIds = null
+  ) {
     if (opponent.hand.length === 0) {
       this.actionLog.push({
         message: `${sourceName}: opponent had no cards in hand to discard.`,
@@ -1606,6 +1831,9 @@ window.RawDeal.GameEngine = class GameEngine {
       sourceName,
       count,
       selectedIds: [],
+      meta,
+      allowedInstanceIds,
+      superstarAbilityOwnerIndex: meta.superstarAbilityOwnerIndex,
     };
     this._notify();
     return true;
@@ -1770,26 +1998,26 @@ window.RawDeal.GameEngine = class GameEngine {
       this._notify();
 
       if (cleanBreakVsJfp) {
-        const { count, cards } = this._forceOpponentDiscardFromHand(attacker, 4);
-        const names = cards.map((c) => c.name).join(', ');
-        this.actionLog.push({
-          message: count
-            ? `${reversal.name}: opponent discarded ${names} to Ringside.`
-            : `${reversal.name}: opponent had no cards in hand to discard.`,
-        });
-        this._notify();
+        const attackerIndex = this._playerIndex(attacker);
+        const paused = await this._beginOpponentControlledDiscard(
+          attacker,
+          attackerIndex,
+          reversal.name,
+          4,
+          {
+            afterComplete: 'cleanBreak',
+            reversalPlayerIndex: reversalPlayerIndex,
+            sourceName: reversal.name,
+          }
+        );
+        if (paused) {
+          return true;
+        }
       }
 
       await this._runAutoPhases();
 
-      if (cleanBreakVsJfp) {
-        const drawn = this._drawCard(player);
-        if (drawn) {
-          this.actionLog.push({
-            message: `${reversal.name}: drew 1 card.`,
-          });
-        }
-      } else if (grantIrishWhipSetup) {
+      if (grantIrishWhipSetup) {
         this._applyIrishWhipSetup(player, reversal);
       } else if (grantJockeyingChoice) {
         this._beginJockeyingChoice(player, reversalPlayerIndex, reversal.name);
@@ -1919,6 +2147,9 @@ window.RawDeal.GameEngine = class GameEngine {
     if (flow.type === 'discardFromHand' || flow.type === 'opponentDiscardFromHand') {
       if (flow.selectedIds.includes(instanceId)) return false;
       if (!player.hand.some((c) => c.instanceId === instanceId)) return false;
+      if (flow.allowedInstanceIds && !flow.allowedInstanceIds.includes(instanceId)) {
+        return false;
+      }
 
       flow.selectedIds.push(instanceId);
       const needed = flow.count || 1;
@@ -1941,17 +2172,17 @@ window.RawDeal.GameEngine = class GameEngine {
         this.actionLog.push({
           message: `${flow.sourceName}: opponent discarded ${names} to Ringside.`,
         });
+        const meta = flow.meta || {};
         if (flow.superstarAbilityOwnerIndex !== undefined) {
-          const owner = this.players[flow.superstarAbilityOwnerIndex];
-          if (owner) owner.superstarAbilityUsed = true;
-          this.cardEffectFlow = null;
-          this._notify();
-          return true;
+          meta.superstarAbilityOwnerIndex = flow.superstarAbilityOwnerIndex;
         }
         this.cardEffectFlow = null;
         this._notify();
+        await this._finishOpponentControlledDiscard(meta);
         if (this.effectPipelineFlow?.paused || this.pendingManeuverResolution) {
-          await this._finishCardEffectResolution();
+          if (!meta.resumePipeline) {
+            await this._finishCardEffectResolution();
+          }
         }
         return true;
       }
@@ -2008,6 +2239,30 @@ window.RawDeal.GameEngine = class GameEngine {
       return true;
     }
 
+    if (flow.choiceId === 'egoBoostOrDiscard') {
+      if (optionId === 'egoBoost') {
+        return await this._applyEgoBoostReaction(
+          player,
+          playerIndex,
+          flow.sourceName,
+          flow.count,
+          flow.meta
+        );
+      }
+      if (optionId === 'discardNormally') {
+        this.cardEffectFlow = null;
+        const paused = await this._executeOpponentControlledDiscard(
+          player,
+          playerIndex,
+          flow.sourceName,
+          flow.count,
+          flow.meta
+        );
+        return !!paused;
+      }
+      return false;
+    }
+
     if (flow.choiceId === 'drawOrOpponentDiscard') {
       const n = flow.count || 2;
       if (optionId === 'draw') {
@@ -2019,13 +2274,16 @@ window.RawDeal.GameEngine = class GameEngine {
         });
         this._notify();
       } else if (optionId === 'opponentDiscard') {
-        const { count, cards } = this._forceOpponentDiscard(opponent, n);
-        const names = cards.map((c) => c.name).join(', ');
-        this.actionLog.push({
-          message: count
-            ? `${flow.sourceName}: opponent discarded ${names} to Ringside.`
-            : `${flow.sourceName}: opponent had no cards to discard.`,
-        });
+        this.cardEffectFlow = null;
+        const opponentIndex = 1 - playerIndex;
+        const paused = await this._beginOpponentControlledDiscard(
+          opponent,
+          opponentIndex,
+          flow.sourceName,
+          n,
+          { resumePipeline: true }
+        );
+        if (paused) return true;
       } else {
         return false;
       }
@@ -2385,28 +2643,9 @@ window.RawDeal.GameEngine = class GameEngine {
     return false;
   }
 
-  _finishJerichoOpponentDiscard(jerichoPlayer, jerichoPlayerIndex, discardedCardName) {
+  async _finishJerichoOpponentDiscard(jerichoPlayer, jerichoPlayerIndex, discardedCardName) {
     const opponent = this.players[1 - jerichoPlayerIndex];
     const opponentIndex = 1 - jerichoPlayerIndex;
-    const autoPick = this.engineMode === 'goldfish' || !opponent.isHuman;
-
-    if (autoPick) {
-      const { count, cards } = this._forceOpponentDiscardFromHand(opponent, 1);
-      if (count > 0) {
-        const names = cards.map((c) => c.name).join(', ');
-        this.actionLog.push({
-          message: `Chris Jericho discarded ${discardedCardName}; opponent discarded ${names} to Ringside.`,
-        });
-      } else {
-        this.actionLog.push({
-          message: `Chris Jericho discarded ${discardedCardName}; opponent had no cards in hand to discard.`,
-        });
-      }
-      jerichoPlayer.superstarAbilityUsed = true;
-      this.abilityFlow = null;
-      this._notify();
-      return true;
-    }
 
     if (opponent.hand.length === 0) {
       this.actionLog.push({
@@ -2419,14 +2658,16 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     this.abilityFlow = null;
-    this.cardEffectFlow = {
-      type: 'opponentDiscardFromHand',
-      playerIndex: opponentIndex,
-      sourceName: 'Chris Jericho',
-      count: 1,
-      selectedIds: [],
-      superstarAbilityOwnerIndex: jerichoPlayerIndex,
-    };
+    this.actionLog.push({
+      message: `Chris Jericho discarded ${discardedCardName}; opponent must discard 1 card.`,
+    });
+    const paused = await this._beginOpponentControlledDiscard(
+      opponent,
+      opponentIndex,
+      'Chris Jericho',
+      1,
+      { superstarAbilityOwnerIndex: jerichoPlayerIndex }
+    );
     this._notify();
     return true;
   }
@@ -2460,7 +2701,7 @@ window.RawDeal.GameEngine = class GameEngine {
     return false;
   }
 
-  selectForAbility(playerIndex, instanceId) {
+  async selectForAbility(playerIndex, instanceId) {
     if (!this.abilityFlow || this.abilityFlow.playerIndex !== playerIndex) return false;
 
     const player = this.players[playerIndex];
@@ -2515,7 +2756,7 @@ window.RawDeal.GameEngine = class GameEngine {
       if (idx < 0) return false;
       const [card] = player.hand.splice(idx, 1);
       player.ringside.push(card);
-      return this._finishJerichoOpponentDiscard(player, playerIndex, card.name);
+      return await this._finishJerichoOpponentDiscard(player, playerIndex, card.name);
     }
 
     return false;

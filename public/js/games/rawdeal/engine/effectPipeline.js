@@ -187,8 +187,12 @@ window.RawDeal.EffectPipeline = {
         return this._pauseForReveal(engine, pipeline, player, opponent, step);
 
       case 'discardFromOpponentHand':
-        this._discardFromOpponentHand(engine, pipeline, opponent, sourceName, step);
-        return false;
+        return await engine._beginDiscardFromOpponentHandPipelineStep(
+          pipeline,
+          opponent,
+          sourceName,
+          step
+        );
 
       case 'nextManeuverBonus': {
         const value = step.value || 0;
@@ -217,6 +221,16 @@ window.RawDeal.EffectPipeline = {
         const label = subtype.charAt(0).toUpperCase() + subtype.slice(1);
         engine.actionLog.push({
           message: `${sourceName}: if your next card played this turn is a ${label} maneuver, it is +${value}D.`,
+        });
+        return false;
+      }
+
+      case 'nextCardFortitudeDiscount': {
+        const value = step.value || 0;
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.nextCardFortitudeDiscount = value;
+        engine.actionLog.push({
+          message: `${sourceName}: your next card played is -${value}F.`,
         });
         return false;
       }
@@ -312,7 +326,13 @@ window.RawDeal.EffectPipeline = {
       }
 
       case 'opponentDiscardFromHand':
-        return engine._beginOpponentDiscardFromHandEffect(player, opponent, sourceName, step.count || 1);
+        return await engine._beginOpponentDiscardFromHandEffect(
+          player,
+          opponent,
+          sourceName,
+          step.count || 1,
+          { resumePipeline: true }
+        );
 
       case 'shuffleHandIntoArsenal':
         return engine._beginShuffleHandIntoArsenalPrompt(

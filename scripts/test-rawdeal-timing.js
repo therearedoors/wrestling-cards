@@ -1771,6 +1771,13 @@ async function testCleanBreakReversesJfp() {
 
   await engine.playReversalFromHand(1, cleanBreak.instanceId);
 
+  if (engine.cardEffectFlow?.type === 'opponentDiscardFromHand') {
+    const toDiscard = [...attacker.hand];
+    for (const card of toDiscard) {
+      await engine.selectForCardEffect(0, card.instanceId);
+    }
+  }
+
   assert(attacker.hand.length === 0, 'Clean Break forces attacker to discard 4 hand cards');
   assert(defender.hand.length >= 1, 'Clean Break reversal player draws at least 1 card');
   assert(!engine.cardEffectFlow, 'Clean Break does not open jockeying choice');
@@ -2849,6 +2856,250 @@ async function testComebackMultiplayerManualRemoval() {
   assert(!engine.cardEffectFlow, 'Comeback effect completes after balancing');
 }
 
+async function testEgoBoostNextCardMinusFiveF() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-discount');
+  const punch = cloneCard(RawDeal, 'punch', 'eb-punch');
+
+  player.hand = [egoBoost, punch];
+  player.fortitude = 0;
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, egoBoost.instanceId, 'action');
+  assert(
+    player.turnState?.nextCardFortitudeDiscount === 5,
+    'Ego Boost sets -5F on next card played'
+  );
+  assert(
+    engine.canPlayCard(0, punch.instanceId, 'maneuver'),
+    'Punch playable at 0F with -5F discount (3F cost)'
+  );
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  assert(
+    player.turnState?.nextCardFortitudeDiscount === 0,
+    'Ego Boost -5F discount consumed after next card'
+  );
+}
+
+async function testEgoBoostNextCardAppliesToAction() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-action');
+  const flash = cloneCard(RawDeal, 'flash-in-the-pan', 'eb-flash');
+
+  player.hand = [egoBoost, flash];
+  player.fortitude = 1;
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, egoBoost.instanceId, 'action');
+  assert(
+    engine.canPlayCard(0, flash.instanceId, 'action'),
+    'Flash in the Pan playable at 1F with -5F discount (6F cost)'
+  );
+
+  await engine.playCard(0, flash.instanceId, 'action');
+  assert(
+    player.turnState?.nextCardFortitudeDiscount === 0,
+    'Ego Boost -5F consumed after next action'
+  );
+}
+
+async function testEgoBoostReactionReplacesOneOfFour() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const spit = cloneCard(RawDeal, 'spit-at-opponent', 'eb-spit');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-react');
+  const selfDiscard = cloneCard(RawDeal, 'chop', 'eb-self-discard');
+
+  attacker.hand = [spit, selfDiscard];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost];
+  for (let i = 0; i < 5; i++) {
+    defender.hand.push(cloneCard(RawDeal, 'kick', `eb-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Spit At Opponent offers Ego Boost reaction to defender'
+  );
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Ego Boost reaction opens draw up to 2'
+  );
+
+  engine.adjustDrawCount(1, 0);
+  await engine.confirmDrawCount(1);
+
+  assert(
+    defender.ringside.some((c) => c.id === 'ego-boost'),
+    'Ego Boost discarded to Ringside via reaction'
+  );
+
+  if (engine.cardEffectFlow?.type === 'opponentDiscardFromHand') {
+    const toDiscard = defender.hand.slice(0, 3);
+    for (const card of toDiscard) {
+      await engine.selectForCardEffect(1, card.instanceId);
+    }
+  }
+
+  assert(defender.hand.length === 2, 'Defender discards 3 more after Ego Boost (6 - 4 total)');
+}
+
+async function testEgoBoostReactionDrawUpToTwo() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const heelKick = cloneCard(RawDeal, 'spinning-heel-kick', 'eb-shk');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-draw2');
+
+  attacker.hand = [heelKick];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost, cloneCard(RawDeal, 'chop', 'eb-filler')];
+  defender.arsenal = [
+    cloneCard(RawDeal, 'punch', 'eb-arsenal-1'),
+    cloneCard(RawDeal, 'kick', 'eb-arsenal-2'),
+  ];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, heelKick.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Spinning Heel Kick offers Ego Boost before opponent discard'
+  );
+
+  await engine.selectChoice(1, 'egoBoost');
+  engine.adjustDrawCount(1, 2);
+  const handBefore = defender.hand.length;
+  const arsenalBefore = defender.arsenal.length;
+  await engine.confirmDrawCount(1);
+
+  assert(
+    defender.hand.length === handBefore + 2,
+    'Ego Boost reaction draws 2 after discarding Ego Boost'
+  );
+  assert(defender.arsenal.length === arsenalBefore - 2, 'Drew 2 from Arsenal');
+}
+
+async function testEgoBoostReactionFilterDiscard() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const flash = cloneCard(RawDeal, 'flash-in-the-pan', 'eb-flash-filter');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-filter');
+  const heel1 = cloneCard(RawDeal, 'chair-shot', 'eb-heel-1');
+  const heel2 = cloneCard(RawDeal, 'chair-shot', 'eb-heel-2');
+  heel1.alignment = 'heel';
+  heel2.alignment = 'heel';
+
+  attacker.hand = [flash];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost, heel1, heel2];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, flash.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  if (engine.handRevealFlow) {
+    await engine.dismissHandReveal(0);
+  }
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Flash in the Pan offers Ego Boost before HEEL discard'
+  );
+
+  await engine.selectChoice(1, 'egoBoost');
+  engine.adjustDrawCount(1, 0);
+  await engine.confirmDrawCount(1);
+
+  if (engine.cardEffectFlow?.type === 'opponentDiscardFromHand') {
+    const heel = defender.hand.find((c) => c.alignment === 'heel');
+    if (heel) await engine.selectForCardEffect(1, heel.instanceId);
+  }
+
+  assert(
+    defender.ringside.some((c) => c.id === 'ego-boost'),
+    'Ego Boost used before filter discard'
+  );
+  assert(
+    defender.hand.length === 1,
+    'Only 1 HEEL card remains after Ego Boost replaces one filter discard'
+  );
+}
+
+async function testEgoBoostNotInRingForReaction() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const heelKick = cloneCard(RawDeal, 'spinning-heel-kick', 'eb-no-ring');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-in-ring');
+
+  attacker.hand = [heelKick];
+  attacker.fortitude = 6;
+  defender.hand = [cloneCard(RawDeal, 'chop', 'eb-only')];
+  defender.ring.actions.push(egoBoost);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, heelKick.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'No Ego Boost reaction when Ego Boost is only in Ring'
+  );
+  assert(
+    engine.cardEffectFlow?.choiceId !== 'egoBoostOrDiscard',
+    'Ego Boost choice not offered without Ego Boost in hand'
+  );
+}
+
 async function testGetCrowdSupportDrawAndNextManeuverBoost() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -3049,6 +3300,12 @@ async function main() {
   await testComebackGoldfishOpponentHigherRemovesHighestDamage();
   await testComebackIgnoresRingActions();
   await testComebackMultiplayerManualRemoval();
+  await testEgoBoostNextCardMinusFiveF();
+  await testEgoBoostNextCardAppliesToAction();
+  await testEgoBoostReactionReplacesOneOfFour();
+  await testEgoBoostReactionDrawUpToTwo();
+  await testEgoBoostReactionFilterDiscard();
+  await testEgoBoostNotInRingForReaction();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');
