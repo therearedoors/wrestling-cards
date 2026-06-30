@@ -175,6 +175,14 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'drawUpTo':
+        return engine._beginDrawUpToPrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          step.max || 3
+        );
+
       case 'revealOpponentHand':
         return this._pauseForReveal(engine, pipeline, player, opponent, step);
 
@@ -258,6 +266,40 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'discardUpTo':
+        return engine._beginDiscardUpToPrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          step.max || 2
+        );
+
+      case 'shuffleRingsideUpTo':
+        return engine._beginShuffleRingsideUpToPrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          step.max || 2
+        );
+
+      case 'returnFromRingside': {
+        const count = pipeline.discardedCount || 0;
+        if (count === 0) return false;
+        if (player.ringside.length === 0) {
+          engine.actionLog.push({
+            message: `${sourceName}: no cards in Ringside to return.`,
+          });
+          return false;
+        }
+        const toReturn = Math.min(count, player.ringside.length);
+        return engine._beginReturnFromRingsidePrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          toReturn
+        );
+      }
+
       case 'discardFromHand':
         return engine._beginDiscardFromHandPrompt(player, pipeline.playerIndex, sourceName, step.count || 1);
 
@@ -292,6 +334,17 @@ window.RawDeal.EffectPipeline = {
           { targetPlayerIndex }
         );
       }
+
+      case 'removeOpponentRingCard':
+        return engine._beginRemoveOpponentRingCardPrompt(
+          player,
+          opponent,
+          pipeline.playerIndex,
+          sourceName
+        );
+
+      case 'balanceFortitudeByRingRemoval':
+        return await engine._beginBalanceFortitudeByRingRemoval(sourceName);
 
       case 'opponentDraw': {
         engine._drawForOpponent(player, sourceName, step.count || 1);

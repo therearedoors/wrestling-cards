@@ -1,7 +1,7 @@
 window.RawDeal = window.RawDeal || {};
 
 /**
- * Modal for optional pre-draw superstar abilities (e.g. The Rock — Ringside to Arsenal).
+ * Modal for Ringside card selection (superstar abilities, Roll Out of the Ring, etc.).
  */
 window.RawDeal.SuperstarAbilityModal = class SuperstarAbilityModal {
   constructor(rootEl) {
@@ -21,11 +21,40 @@ window.RawDeal.SuperstarAbilityModal = class SuperstarAbilityModal {
     });
 
     this.confirmBtn?.addEventListener('click', () => {
-      if (!this._prompt?.selectedId) return;
-      const selectedId = this._prompt.selectedId;
+      if (!this._prompt || !this._canConfirm(this._prompt)) return;
+      const selection = this._selectionForConfirm(this._prompt);
       this.hide();
-      if (this.onConfirm) this.onConfirm(selectedId);
+      if (this.onConfirm) this.onConfirm(selection);
     });
+  }
+
+  _selectCount(prompt) {
+    return prompt.selectCount ?? 1;
+  }
+
+  _selectedIds(prompt) {
+    return prompt.selectedIds || [];
+  }
+
+  _isSelected(prompt, instanceId) {
+    if (this._selectCount(prompt) > 1) {
+      return this._selectedIds(prompt).includes(instanceId);
+    }
+    return prompt.selectedId === instanceId;
+  }
+
+  _canConfirm(prompt) {
+    if (this._selectCount(prompt) > 1) {
+      return this._selectedIds(prompt).length === this._selectCount(prompt);
+    }
+    return !!prompt.selectedId;
+  }
+
+  _selectionForConfirm(prompt) {
+    if (this._selectCount(prompt) > 1) {
+      return [...this._selectedIds(prompt)];
+    }
+    return prompt.selectedId;
   }
 
   show(prompt) {
@@ -38,11 +67,17 @@ window.RawDeal.SuperstarAbilityModal = class SuperstarAbilityModal {
     this.root.classList.remove('hidden');
 
     if (this.messageEl) {
-      this.messageEl.textContent = prompt.message || 'Superstar ability';
+      this.messageEl.textContent = prompt.message || 'Choose from Ringside';
+    }
+
+    if (this.passBtn) {
+      const showPass = prompt.allowPass !== false;
+      this.passBtn.classList.toggle('hidden', !showPass);
+      this.passBtn.disabled = !showPass;
     }
 
     if (this.confirmBtn) {
-      this.confirmBtn.disabled = !prompt.selectedId;
+      this.confirmBtn.disabled = !this._canConfirm(prompt);
     }
 
     if (this.cardsEl) {
@@ -51,7 +86,7 @@ window.RawDeal.SuperstarAbilityModal = class SuperstarAbilityModal {
       row.className = 'rd-hand';
 
       for (const card of prompt.cards || []) {
-        const selected = prompt.selectedId === card.instanceId;
+        const selected = this._isSelected(prompt, card.instanceId);
         const el = window.RawDeal.CardRenderer.createCardEl(card, {
           small: true,
           clickable: true,

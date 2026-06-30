@@ -220,10 +220,11 @@ def parse_cards(text: str):
         type_lines = []
         rule_starters = (
             'When ', 'As ', 'May ', 'Can ', 'The card', 'To play', 'Reversals',
-            'If played', 'Unique', 'You must', 'All ', 'Draw', 'Shuffle', 'Look',
+            'If played', 'Unique', 'You must', 'You ', 'All ', 'Draw', 'Shuffle', 'Look',
             'Starting', 'Superstar', 'Once', 'At the', 'None,', 'He is', 'Play ',
-            'Cannot', 'Reverse ', 'Count ', 'While ', 'Run-in', 'Search ', 'Discard',
-            'Choose', 'Put ', 'Take ', 'Your ', 'Opponent', 'Reveal', 'Show ',
+            'Playable', 'Cannot', 'Reverse ', 'Count ', 'While ', 'Run-in', 'Search ',
+            'Discard', 'Choose', 'Put ', 'Take ', 'Your ', 'Opponent', 'Reveal', 'Show ',
+            'Remove ',
         )
         while idx < len(lines):
             line = lines[idx]
@@ -340,6 +341,9 @@ def parse_cards(text: str):
         requires = infer_requires_played(rules)
         if requires:
             entry.update(requires)
+        lower_f = infer_requires_lower_fortitude_than_opponent(rules)
+        if lower_f:
+            entry.update(lower_f)
 
         cards[card_id] = entry
 
@@ -411,6 +415,13 @@ def infer_requires_played(rules):
         or 'must play the card titled irish whip before' in blob
     ):
         return {'requiresPlayed': 'irish-whip'}
+    return None
+
+
+def infer_requires_lower_fortitude_than_opponent(rules):
+    blob = rules.lower()
+    if 'playable only if your fortitude rating is less than your opponent' in blob:
+        return {'requiresLowerFortitudeThanOpponent': True}
     return None
 
 
@@ -698,6 +709,25 @@ def infer_action_effects(types_list, rules, name=''):
         effects.append({'op': 'draw', 'count': 1})
         return effects
 
+    if 'get crowd support' in card_name or (
+        'draw 1 card' in blob
+        and 'next maneuver this turn' in blob
+        and '+4d' in blob
+        and '+12f' in blob
+    ):
+        return [
+            {'op': 'draw', 'count': 1},
+            {'op': 'nextManeuverBonus', 'value': 4},
+            {'op': 'nextManeuverReversalTax', 'value': 12},
+        ]
+
+    if (
+        'remove any 1 card in opponent' in blob
+        and 'ring area' in blob
+        and 'ringside pile' in blob
+    ):
+        return [{'op': 'removeOpponentRingCard'}]
+
     if 'take a card in your hand' in blob and 'shuffle it into your arsenal' in blob:
         effects = [{'op': 'shuffleHandIntoArsenal'}]
         if 'draw 2' in blob:
@@ -705,6 +735,45 @@ def infer_action_effects(types_list, rules, name=''):
         elif 'draw 1' in blob:
             effects[0]['draw'] = 1
         return effects
+
+    if 'discard up to 2' in blob and 'ringside' in blob and 'return' in blob:
+        return [
+            {'op': 'discardUpTo', 'max': 2},
+            {'op': 'returnFromRingside'},
+        ]
+
+    if (
+        'shuffle any 2' in blob
+        and 'ringside' in blob
+        and 'arsenal' in blob
+        and 'draw 1' in blob
+    ):
+        return [
+            {'op': 'shuffleRingsideUpTo', 'max': 2},
+            {'op': 'draw', 'count': 1},
+        ]
+
+    if 'you discard 1 card' in blob and 'opponent discards 4' in blob:
+        return [
+            {'op': 'discardFromHand', 'count': 1},
+            {'op': 'opponentDiscardFromHand', 'count': 4},
+        ]
+
+    if 'comeback' in card_name or (
+        'discard 3' in blob
+        and 'higher fortitude' in blob
+        and 'ring area' in blob
+    ):
+        return [
+            {'op': 'discardFromHand', 'count': 3},
+            {'op': 'balanceFortitudeByRingRemoval'},
+        ]
+
+    if 'draw up to 3' in blob and 'discard 1' in blob:
+        return [
+            {'op': 'drawUpTo', 'max': 3},
+            {'op': 'discardFromHand', 'count': 1},
+        ]
 
     if 'draw up to 5' in blob:
         return [{'op': 'draw', 'count': 5}]
@@ -732,7 +801,8 @@ def emit_cards(cards):
         parts = [f"  '{card['id']}': {{"]
         for key in ['id', 'num', 'name', 'types', 'subtype', 'alignment', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
-                    'unique', 'hybrid', 'reverses', 'requiresPlayed', 'discountAfterCard',
+                    'unique', 'hybrid', 'reverses', 'maxDamage', 'requiresPlayed',
+                    'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
                     'actionEffects', 'maneuverEffects', 'reversalEffects', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]

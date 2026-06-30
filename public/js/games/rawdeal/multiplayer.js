@@ -49,6 +49,10 @@
   const arsenalReorderModal = arsenalReorderModalRoot
     ? new window.RawDeal.ArsenalReorderModal(arsenalReorderModalRoot)
     : null;
+  const opponentRingModalRoot = document.getElementById('rd-opponent-ring-modal');
+  const opponentRingSelectModal = opponentRingModalRoot
+    ? new window.RawDeal.OpponentRingSelectModal(opponentRingModalRoot)
+    : null;
 
   function emitAction(action) {
     socket.emit('rd-action', roomId, action);
@@ -105,7 +109,8 @@
       handRevealModal,
       pileViewModal,
       superstarAbilityModal,
-      arsenalReorderModal
+      arsenalReorderModal,
+      opponentRingSelectModal
     );
 
     board.onPlayCard = (instanceId, playAs) => {
@@ -124,8 +129,12 @@
       emitAction({ type: 'passSuperstarAbility' });
     };
 
-    board.onConfirmSuperstarAbility = (instanceId) => {
-      emitAction({ type: 'confirmSuperstarAbility', instanceId });
+    board.onConfirmSuperstarAbility = (selection) => {
+      emitAction({
+        type: 'confirmSuperstarAbility',
+        instanceId: Array.isArray(selection) ? undefined : selection,
+        instanceIds: Array.isArray(selection) ? selection : undefined,
+      });
     };
 
     board.onToggleSuperstarAbilitySelect = (instanceId) => {
@@ -139,6 +148,24 @@
     board.onChoiceSelect = (optionId) => {
       emitAction({ type: 'choiceSelect', optionId });
     };
+
+    board.onAdjustDrawCount = (delta) => {
+      emitAction({ type: 'adjustDrawCount', delta });
+    };
+
+    board.onConfirmDrawCount = () => {
+      emitAction({ type: 'confirmDrawCount' });
+    };
+
+    board.onAdjustDiscardCount = (delta) => {
+      emitAction({ type: 'adjustDiscardCount', delta });
+    };
+
+    board.onConfirmDiscardCount = () => {
+      emitAction({ type: 'confirmDiscardCount' });
+    };
+
+
 
     board.onShuffleArsenalReorder = () => {
       emitAction({ type: 'shuffleArsenalReorder' });
@@ -178,6 +205,14 @@
 
     board.onToggleHandRevealSelect = (instanceId) => {
       emitAction({ type: 'toggleHandRevealSelection', instanceId });
+    };
+
+    board.onToggleOpponentRingSelect = (instanceId, ringArea) => {
+      emitAction({ type: 'toggleRemoveOpponentRingSelect', instanceId, ringArea });
+    };
+
+    board.onConfirmOpponentRingSelect = () => {
+      emitAction({ type: 'confirmRemoveOpponentRingCard' });
     };
   }
 

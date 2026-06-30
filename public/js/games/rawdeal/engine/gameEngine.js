@@ -66,6 +66,7 @@ window.RawDeal.GameEngine = class GameEngine {
     player.turnState.nextManeuverReversalTax = 0;
     player.turnState.nextCardManeuverBonus = 0;
     player.turnState.opponentReversalsBlocked = false;
+    this.nextManeuverBonus[this._playerIndex(player)] = 0;
   }
 
   _expireNextCardManeuverBonusIfNotManeuver(player, mode) {
@@ -220,6 +221,66 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'drawCountChoice') {
+      const player = this.players[flow.playerIndex];
+      const available = this._drawCountAvailableMax(player, flow.max);
+      return {
+        mode: 'drawCount',
+        message: `${flow.sourceName}: draw how many cards? (0–${available})`,
+        min: 0,
+        max: available,
+        selected: flow.selectedCount ?? 0,
+      };
+    }
+
+    if (flow.type === 'discardCountChoice') {
+      const player = this.players[flow.playerIndex];
+      const available = this._discardUpToAvailableMax(player, flow.max);
+      return {
+        mode: 'discardCount',
+        message: `${flow.sourceName}: discard how many cards to Ringside? (0–${available})`,
+        min: 0,
+        max: available,
+        selected: flow.selectedCount ?? 0,
+      };
+    }
+
+    if (flow.type === 'shuffleRingsideIntoArsenal') {
+      const n = flow.count || 1;
+      const picked = flow.selectedIds.length;
+      const player = this.players[flow.playerIndex];
+      const message =
+        n === 1
+          ? `${flow.sourceName}: choose 1 card from your Ringside to shuffle into your Arsenal.`
+          : `${flow.sourceName}: choose ${n} cards from your Ringside to shuffle into your Arsenal (${picked}/${n}).`;
+      return {
+        mode: 'ringsideModal',
+        message,
+        cards: player.ringside.map((c) => ({ ...c })),
+        selectCount: n,
+        selectedIds: [...flow.selectedIds],
+        allowPass: false,
+      };
+    }
+
+    if (flow.type === 'returnFromRingside') {
+      const n = flow.count || 1;
+      const picked = flow.selectedIds.length;
+      const message =
+        n === 1
+          ? `${flow.sourceName}: choose 1 card from your Ringside to return to your hand.`
+          : `${flow.sourceName}: choose ${n} cards from your Ringside to return to your hand (${picked}/${n}).`;
+      const player = this.players[flow.playerIndex];
+      return {
+        mode: 'ringsideModal',
+        message,
+        cards: player.ringside.map((c) => ({ ...c })),
+        selectCount: n,
+        selectedIds: [...flow.selectedIds],
+        allowPass: false,
+      };
+    }
+
     if (flow.type === 'discardFromHand') {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
@@ -261,6 +322,32 @@ window.RawDeal.GameEngine = class GameEngine {
         count: 1,
         message: `${flow.sourceName}: choose 1 card from your hand to shuffle into your Arsenal.${drawHint}`,
         selectedIds: [...flow.selectedIds],
+      };
+    }
+
+    if (flow.type === 'removeOpponentRingCard') {
+      const opponent = this.players[1 - flow.playerIndex];
+      const sections = this._buildOpponentRingSelectSections(opponent, flow.maxDamage);
+      return {
+        mode: 'opponentRingModal',
+        message: `${flow.sourceName}: choose 1 card in opponent's Ring (D ≤ ${flow.maxDamage}) to put in Ringside.`,
+        sections,
+        selectedId: flow.selectedId || null,
+      };
+    }
+
+    if (flow.type === 'balanceFortitudeRingRemoval') {
+      const target = this.players[flow.playerIndex];
+      const other = this.players[1 - flow.playerIndex];
+      const sections = this._buildRingSelectSections(target, {
+        areas: ['maneuvers', 'reversals'],
+        maxDamage: Infinity,
+      });
+      return {
+        mode: 'opponentRingModal',
+        message: `${flow.sourceName}: remove 1 maneuver or reversal from your Ring (${target.fortitude}F → ≤ ${other.fortitude}F).`,
+        sections,
+        selectedId: flow.selectedId || null,
       };
     }
 
@@ -342,10 +429,12 @@ window.RawDeal.GameEngine = class GameEngine {
         };
       } else if (flow.step === 'pickRingside') {
         prompt = {
-          mode: 'ringside',
-          count: 1,
-          message: 'Choose 1 card from your Ringside to put into your hand.',
-          selectedIds: [],
+          mode: 'ringsideModal',
+          message: 'Undertaker: choose 1 card from your Ringside to put into your hand.',
+          cards: player.ringside.map((c) => ({ ...c })),
+          selectCount: 1,
+          selectedId: flow.selectedId || null,
+          allowPass: false,
         };
       } else if (flow.step === 'jerichoDiscardSelf') {
         prompt = {
@@ -668,6 +757,11 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!utils.canPlayFromHandAs(card, mode)) return false;
     if (!utils.meetsPlayRequirement(player, card, mode)) return false;
 
+    const opponent = this.players[1 - playerIndex];
+    if (mode === 'action' && !utils.meetsActionPlayRequirement(player, opponent, card)) {
+      return false;
+    }
+
     const cost = this._effectiveFortitudeCost(player, card, mode);
     return player.fortitude >= cost;
   }
@@ -873,6 +967,432 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
+  _drawCountAvailableMax(player, max) {
+    return Math.min(max || 0, player.arsenal.length);
+  }
+
+  _discardUpToAvailableMax(player, max) {
+    return Math.min(max || 0, player.hand.length);
+  }
+
+  _shuffleRingsideUpToAvailableMax(player, max) {
+    return Math.min(max || 0, player.ringside.length);
+  }
+
+  _beginShuffleRingsideUpToPrompt(player, playerIndex, sourceName, max = 2) {
+    const count = this._shuffleRingsideUpToAvailableMax(player, max);
+    if (count === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: shuffled 0 cards from Ringside into Arsenal.`,
+      });
+      return false;
+    }
+
+    return this._beginShuffleRingsideSelectPrompt(player, playerIndex, sourceName, count);
+  }
+
+  _beginShuffleRingsideSelectPrompt(player, playerIndex, sourceName, count) {
+    this.cardEffectFlow = {
+      type: 'shuffleRingsideIntoArsenal',
+      playerIndex,
+      sourceName,
+      count,
+      selectedIds: [],
+    };
+    this._notify();
+    return true;
+  }
+
+  _beginDiscardUpToPrompt(player, playerIndex, sourceName, max = 2) {
+    const available = this._discardUpToAvailableMax(player, max);
+    if (available === 0) {
+      if (this.effectPipelineFlow) {
+        this.effectPipelineFlow.discardedCount = 0;
+      }
+      this.actionLog.push({
+        message: `${sourceName}: discarded 0 cards to Ringside.`,
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'discardCountChoice',
+      playerIndex,
+      sourceName,
+      max,
+      selectedCount: 0,
+    };
+    this._notify();
+    return true;
+  }
+
+  adjustDiscardCount(playerIndex, delta) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.type !== 'discardCountChoice' || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const available = this._discardUpToAvailableMax(player, flow.max);
+    const next = (flow.selectedCount ?? 0) + delta;
+    flow.selectedCount = Math.max(0, Math.min(available, next));
+    this._notify();
+    return true;
+  }
+
+  async confirmDiscardCount(playerIndex) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.type !== 'discardCountChoice' || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const count = flow.selectedCount ?? 0;
+    const sourceName = flow.sourceName;
+
+    if (count === 0) {
+      if (this.effectPipelineFlow) {
+        this.effectPipelineFlow.discardedCount = 0;
+      }
+      this.actionLog.push({
+        message: `${sourceName}: discarded 0 cards to Ringside.`,
+      });
+      this.cardEffectFlow = null;
+      this._notify();
+      if (this.effectPipelineFlow?.paused) {
+        await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
+      }
+      return true;
+    }
+
+    this.cardEffectFlow = null;
+    this._notify();
+    return this._beginDiscardFromHandPrompt(player, playerIndex, sourceName, count);
+  }
+
+  _beginReturnFromRingsidePrompt(player, playerIndex, sourceName, count) {
+    this.cardEffectFlow = {
+      type: 'returnFromRingside',
+      playerIndex,
+      sourceName,
+      count,
+      selectedIds: [],
+    };
+    this._notify();
+    return true;
+  }
+
+  _beginDrawUpToPrompt(player, playerIndex, sourceName, max = 3) {
+    this.cardEffectFlow = {
+      type: 'drawCountChoice',
+      playerIndex,
+      sourceName,
+      max,
+      selectedCount: 0,
+    };
+    this._notify();
+    return true;
+  }
+
+  adjustDrawCount(playerIndex, delta) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.type !== 'drawCountChoice' || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const available = this._drawCountAvailableMax(player, flow.max);
+    const next = (flow.selectedCount ?? 0) + delta;
+    flow.selectedCount = Math.max(0, Math.min(available, next));
+    this._notify();
+    return true;
+  }
+
+  async confirmDrawCount(playerIndex) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.type !== 'drawCountChoice' || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    const player = this.players[playerIndex];
+    const count = flow.selectedCount ?? 0;
+    let drawn = 0;
+    for (let i = 0; i < count; i++) {
+      if (this._drawCard(player)) drawn += 1;
+    }
+
+    this.actionLog.push({
+      message:
+        drawn === 0
+          ? `${flow.sourceName}: drew 0 cards.`
+          : `${flow.sourceName}: drew ${drawn} card${drawn === 1 ? '' : 's'}.`,
+    });
+
+    this.cardEffectFlow = null;
+    this._notify();
+
+    if (this.effectPipelineFlow?.paused) {
+      await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
+      return true;
+    }
+
+    return true;
+  }
+
+  _buildRingSelectSections(player, { areas = ['maneuvers', 'reversals', 'actions'], maxDamage = Infinity } = {}) {
+    const utils = window.RawDeal.CardUtils;
+    const ring = player.ring || { maneuvers: [], reversals: [], actions: [] };
+    const labels = {
+      maneuvers: 'Maneuvers',
+      reversals: 'Reversals',
+      actions: 'Actions',
+    };
+
+    return areas
+      .map((area) => ({
+        label: labels[area],
+        ringArea: area,
+        cards: (ring[area] || []).map((card) => {
+          const ringDamage = utils.getRingDamageValue(card, area);
+          return {
+            ...card,
+            ringArea: area,
+            ringDamage,
+            selectable: ringDamage <= maxDamage,
+          };
+        }),
+      }))
+      .filter((section) => section.cards.length > 0);
+  }
+
+  _buildOpponentRingSelectSections(opponent, maxDamage) {
+    return this._buildRingSelectSections(opponent, { maxDamage });
+  }
+
+  _listManeuverReversalRingCards(player) {
+    const ring = player.ring || { maneuvers: [], reversals: [], actions: [] };
+    const entries = [];
+    for (const area of ['maneuvers', 'reversals']) {
+      for (const card of ring[area] || []) {
+        entries.push({ card, ringArea: area });
+      }
+    }
+    return entries;
+  }
+
+  _pickHighestDamageRingRemoval(candidates) {
+    const utils = window.RawDeal.CardUtils;
+    let best = -1;
+    for (const entry of candidates) {
+      const damage = utils.getRingDamageValue(entry.card, entry.ringArea);
+      if (damage > best) best = damage;
+    }
+    const tied = candidates.filter(
+      (entry) => utils.getRingDamageValue(entry.card, entry.ringArea) === best
+    );
+    return tied[Math.floor(Math.random() * tied.length)];
+  }
+
+  _findHigherFortitudePlayer() {
+    const p0 = this.players[0];
+    const p1 = this.players[1];
+    this._syncFortitude(p0);
+    this._syncFortitude(p1);
+    if (p0.fortitude > p1.fortitude) {
+      return { higher: p0, higherIndex: 0, other: p1 };
+    }
+    if (p1.fortitude > p0.fortitude) {
+      return { higher: p1, higherIndex: 1, other: p0 };
+    }
+    return null;
+  }
+
+  async _beginBalanceFortitudeByRingRemoval(sourceName) {
+    return await this._continueBalanceFortitudeByRingRemoval(sourceName);
+  }
+
+  async _continueBalanceFortitudeByRingRemoval(sourceName) {
+    const match = this._findHigherFortitudePlayer();
+    if (!match) {
+      this.cardEffectFlow = null;
+      return false;
+    }
+
+    const { higher, higherIndex } = match;
+    const candidates = this._listManeuverReversalRingCards(higher);
+    if (candidates.length === 0) {
+      const who = higher.isHuman ? 'You have' : 'Opponent has';
+      this.actionLog.push({
+        message: `${sourceName}: ${who} no maneuver/reversal cards to remove.`,
+      });
+      this.cardEffectFlow = null;
+      return false;
+    }
+
+    const autoPick = this.engineMode === 'goldfish' || !higher.isHuman;
+    if (autoPick) {
+      const pick = this._pickHighestDamageRingRemoval(candidates);
+      const card = this._removeCardFromRing(higher, pick.card.instanceId, pick.ringArea);
+      if (card) {
+        this.actionLog.push({
+          message: `${sourceName}: removed ${card.name} from Ring to Ringside.`,
+        });
+      }
+      this._notify();
+      return await this._continueBalanceFortitudeByRingRemoval(sourceName);
+    }
+
+    this.cardEffectFlow = {
+      type: 'balanceFortitudeRingRemoval',
+      playerIndex: higherIndex,
+      sourceName,
+      selectedId: null,
+      selectedRingArea: null,
+    };
+    this._notify();
+    return true;
+  }
+
+  _beginRemoveOpponentRingCardPrompt(player, opponent, playerIndex, sourceName) {
+    const maxDamage = player.fortitude;
+    const sections = this._buildOpponentRingSelectSections(opponent, maxDamage);
+    const hasSelectable = sections.some((section) =>
+      section.cards.some((card) => card.selectable)
+    );
+
+    if (!hasSelectable) {
+      this.actionLog.push({
+        message: `${sourceName}: no valid cards in opponent's Ring to remove.`,
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'removeOpponentRingCard',
+      playerIndex,
+      sourceName,
+      maxDamage,
+      selectedId: null,
+      selectedRingArea: null,
+    };
+    this._notify();
+    return true;
+  }
+
+  _removeCardFromRing(player, instanceId, ringArea) {
+    const area = player.ring?.[ringArea];
+    if (!area) return null;
+
+    const idx = area.findIndex((c) => c.instanceId === instanceId);
+    if (idx < 0) return null;
+
+    const [card] = area.splice(idx, 1);
+    player.ringside.push(card);
+    if (ringArea === 'maneuvers' || ringArea === 'reversals') {
+      this._syncFortitude(player);
+    }
+    return card;
+  }
+
+  _removeCardFromOpponentRing(opponent, instanceId, ringArea) {
+    return this._removeCardFromRing(opponent, instanceId, ringArea);
+  }
+
+  toggleRemoveOpponentRingSelect(playerIndex, instanceId, ringArea) {
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.playerIndex !== playerIndex) {
+      return false;
+    }
+
+    if (flow.type === 'balanceFortitudeRingRemoval') {
+      const target = this.players[flow.playerIndex];
+      const card = target.ring?.[ringArea]?.find((c) => c.instanceId === instanceId);
+      if (!card) return false;
+      if (ringArea !== 'maneuvers' && ringArea !== 'reversals') return false;
+
+      if (flow.selectedId === instanceId) {
+        flow.selectedId = null;
+        flow.selectedRingArea = null;
+      } else {
+        flow.selectedId = instanceId;
+        flow.selectedRingArea = ringArea;
+      }
+
+      this._notify();
+      return true;
+    }
+
+    if (flow.type !== 'removeOpponentRingCard') {
+      return false;
+    }
+
+    const opponent = this.players[1 - playerIndex];
+    const utils = window.RawDeal.CardUtils;
+    const card = opponent.ring?.[ringArea]?.find((c) => c.instanceId === instanceId);
+    if (!card) return false;
+    if (utils.getRingDamageValue(card, ringArea) > flow.maxDamage) return false;
+
+    if (flow.selectedId === instanceId) {
+      flow.selectedId = null;
+      flow.selectedRingArea = null;
+    } else {
+      flow.selectedId = instanceId;
+      flow.selectedRingArea = ringArea;
+    }
+
+    this._notify();
+    return true;
+  }
+
+  async confirmRemoveOpponentRingCard(playerIndex) {
+    const flow = this.cardEffectFlow;
+    if (
+      !flow ||
+      flow.playerIndex !== playerIndex ||
+      !flow.selectedId ||
+      !flow.selectedRingArea
+    ) {
+      return false;
+    }
+
+    if (flow.type === 'balanceFortitudeRingRemoval') {
+      const target = this.players[flow.playerIndex];
+      const card = this._removeCardFromRing(target, flow.selectedId, flow.selectedRingArea);
+      if (!card) return false;
+
+      const sourceName = flow.sourceName;
+      this.actionLog.push({
+        message: `${sourceName}: removed ${card.name} from Ring to Ringside.`,
+      });
+      this.cardEffectFlow = null;
+      this._notify();
+
+      const paused = await this._continueBalanceFortitudeByRingRemoval(sourceName);
+      if (!paused) {
+        await this._finishCardEffectResolution();
+      }
+      return true;
+    }
+
+    if (flow.type !== 'removeOpponentRingCard') {
+      return false;
+    }
+
+    const opponent = this.players[1 - playerIndex];
+    const card = this._removeCardFromOpponentRing(
+      opponent,
+      flow.selectedId,
+      flow.selectedRingArea
+    );
+    if (!card) return false;
+
+    this.actionLog.push({
+      message: `${flow.sourceName}: removed ${card.name} from opponent's Ring to Ringside.`,
+    });
+    await this._finishCardEffectResolution();
+    return true;
+  }
+
   _beginArsenalTopReorderPrompt(
     targetPlayer,
     actingPlayerIndex,
@@ -999,10 +1519,21 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _beginOpponentDiscardFromHandEffect(player, opponent, sourceName, count) {
+    if (opponent.hand.length === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: opponent had no cards in hand to discard.`,
+      });
+      return false;
+    }
+
+    const effectiveCount = Math.min(count, opponent.hand.length);
     const autoPick = this.engineMode === 'goldfish' || !opponent.isHuman;
 
     if (autoPick) {
-      const { count: discarded, cards } = this._forceOpponentDiscardFromHand(opponent, count);
+      const { count: discarded, cards } = this._forceOpponentDiscardFromHand(
+        opponent,
+        effectiveCount
+      );
       if (discarded > 0) {
         const names = cards.map((c) => c.name).join(', ');
         this.actionLog.push({
@@ -1020,7 +1551,7 @@ window.RawDeal.GameEngine = class GameEngine {
       opponent,
       this._playerIndex(opponent),
       sourceName,
-      count
+      effectiveCount
     );
   }
 
@@ -1413,17 +1944,33 @@ window.RawDeal.GameEngine = class GameEngine {
         if (flow.superstarAbilityOwnerIndex !== undefined) {
           const owner = this.players[flow.superstarAbilityOwnerIndex];
           if (owner) owner.superstarAbilityUsed = true;
+          this.cardEffectFlow = null;
+          this._notify();
+          return true;
         }
         this.cardEffectFlow = null;
         this._notify();
+        if (this.effectPipelineFlow?.paused || this.pendingManeuverResolution) {
+          await this._finishCardEffectResolution();
+        }
         return true;
       }
 
       this.actionLog.push({
         message: `${flow.sourceName}: discarded ${names} to Ringside.`,
       });
+      if (this.effectPipelineFlow) {
+        this.effectPipelineFlow.discardedCount = toDiscard.length;
+      }
       await this._finishCardEffectResolution();
       return true;
+    }
+
+    if (
+      flow.type === 'returnFromRingside' ||
+      flow.type === 'shuffleRingsideIntoArsenal'
+    ) {
+      return this.toggleSuperstarAbilitySelection(playerIndex, instanceId);
     }
 
     return false;
@@ -1676,16 +2223,39 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   toggleSuperstarAbilitySelection(playerIndex, instanceId) {
-    if (!this.abilityFlow || this.abilityFlow.playerIndex !== playerIndex) return false;
-    if (this.abilityFlow.step !== 'rockRingside') return false;
-
     const player = this.players[playerIndex];
-    if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
+    if (!player) return false;
 
-    this.abilityFlow.selectedId =
-      this.abilityFlow.selectedId === instanceId ? null : instanceId;
-    this._notify();
-    return true;
+    const ability = this.abilityFlow;
+    if (ability?.playerIndex === playerIndex) {
+      if (ability.step === 'rockRingside' || ability.step === 'pickRingside') {
+        if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
+
+        ability.selectedId =
+          ability.selectedId === instanceId ? null : instanceId;
+        this._notify();
+        return true;
+      }
+    }
+
+    const cardFlow = this.cardEffectFlow;
+    if (
+      cardFlow?.playerIndex === playerIndex &&
+      (cardFlow.type === 'returnFromRingside' ||
+        cardFlow.type === 'shuffleRingsideIntoArsenal')
+    ) {
+      if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
+      if (cardFlow.selectedIds.includes(instanceId)) return false;
+
+      const needed = cardFlow.count || 1;
+      if (cardFlow.selectedIds.length >= needed) return false;
+
+      cardFlow.selectedIds.push(instanceId);
+      this._notify();
+      return true;
+    }
+
+    return false;
   }
 
   async passSuperstarAbilityPrompt(playerIndex) {
@@ -1700,21 +2270,104 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  async confirmSuperstarAbilityPrompt(playerIndex, instanceId) {
-    if (!this.abilityFlow || this.abilityFlow.playerIndex !== playerIndex) return false;
-    if (this.abilityFlow.step !== 'rockRingside') return false;
-
+  async confirmSuperstarAbilityPrompt(playerIndex, selection) {
     const player = this.players[playerIndex];
-    const idx = player.ringside.findIndex((c) => c.instanceId === instanceId);
-    if (idx < 0) return false;
+    if (!player) return false;
 
-    const [card] = player.ringside.splice(idx, 1);
-    player.arsenal.unshift(card);
-    this.actionLog.push({
-      message: `The Rock put ${card.name} from Ringside on the bottom of your Arsenal.`,
-    });
-    await this._finishPreDrawSuperstarAbility(player);
-    return true;
+    const ability = this.abilityFlow;
+    if (ability?.playerIndex === playerIndex && ability.step === 'rockRingside') {
+      const instanceId = Array.isArray(selection) ? selection[0] : selection;
+      const idx = player.ringside.findIndex((c) => c.instanceId === instanceId);
+      if (idx < 0) return false;
+
+      const [card] = player.ringside.splice(idx, 1);
+      player.arsenal.unshift(card);
+      this.actionLog.push({
+        message: `The Rock put ${card.name} from Ringside on the bottom of your Arsenal.`,
+      });
+      await this._finishPreDrawSuperstarAbility(player);
+      return true;
+    }
+
+    if (ability?.playerIndex === playerIndex && ability.step === 'pickRingside') {
+      const instanceId = Array.isArray(selection) ? selection[0] : selection;
+      const idx = player.ringside.findIndex((c) => c.instanceId === instanceId);
+      if (idx < 0) return false;
+
+      const [card] = player.ringside.splice(idx, 1);
+      player.hand.push(card);
+      player.superstarAbilityUsed = true;
+      const discarded = (ability.discardedNames || []).join(' and ');
+      this.actionLog.push({
+        message: `Undertaker discarded ${discarded} and retrieved ${card.name} from Ringside.`,
+      });
+      this.abilityFlow = null;
+      this._notify();
+      return true;
+    }
+
+    const cardFlow = this.cardEffectFlow;
+    if (
+      cardFlow?.playerIndex === playerIndex &&
+      cardFlow.type === 'returnFromRingside'
+    ) {
+      const ids = Array.isArray(selection) ? selection : cardFlow.selectedIds;
+      const needed = cardFlow.count || 1;
+      if (ids.length !== needed) return false;
+
+      const valid = new Set(player.ringside.map((c) => c.instanceId));
+      if (!ids.every((id) => valid.has(id))) return false;
+
+      const toReturn = ids
+        .map((id) => player.ringside.find((c) => c.instanceId === id))
+        .filter(Boolean);
+      for (const id of ids) {
+        const idx = player.ringside.findIndex((c) => c.instanceId === id);
+        if (idx >= 0) {
+          const [card] = player.ringside.splice(idx, 1);
+          player.hand.push(card);
+        }
+      }
+
+      const names = toReturn.map((c) => c.name).join(', ');
+      this.actionLog.push({
+        message: `${cardFlow.sourceName}: returned ${names} from Ringside to hand.`,
+      });
+      await this._finishCardEffectResolution();
+      return true;
+    }
+
+    if (
+      cardFlow?.playerIndex === playerIndex &&
+      cardFlow.type === 'shuffleRingsideIntoArsenal'
+    ) {
+      const ids = Array.isArray(selection) ? selection : cardFlow.selectedIds;
+      const needed = cardFlow.count || 1;
+      if (ids.length !== needed) return false;
+
+      const valid = new Set(player.ringside.map((c) => c.instanceId));
+      if (!ids.every((id) => valid.has(id))) return false;
+
+      const toShuffle = ids
+        .map((id) => player.ringside.find((c) => c.instanceId === id))
+        .filter(Boolean);
+      for (const id of ids) {
+        const idx = player.ringside.findIndex((c) => c.instanceId === id);
+        if (idx >= 0) {
+          const [card] = player.ringside.splice(idx, 1);
+          this._shuffleCardIntoArsenal(player, card);
+        }
+      }
+
+      const names = toShuffle.map((c) => c.name).join(', ');
+      this.actionLog.push({
+        message: `${cardFlow.sourceName}: shuffled ${names} from Ringside into Arsenal.`,
+      });
+      await this._finishCardEffectResolution();
+      return true;
+    }
+
+    return false;
   }
 
   canUseSuperstarAbility(playerIndex) {
@@ -1847,24 +2500,14 @@ window.RawDeal.GameEngine = class GameEngine {
 
       flow.step = 'pickRingside';
       flow.discardSelected = [];
+      flow.selectedId = null;
       flow.discardedNames = toDiscard.map((c) => c.name);
       this._notify();
       return true;
     }
 
     if (flow.step === 'pickRingside') {
-      const idx = player.ringside.findIndex((c) => c.instanceId === instanceId);
-      if (idx < 0) return false;
-      const [card] = player.ringside.splice(idx, 1);
-      player.hand.push(card);
-      player.superstarAbilityUsed = true;
-      const discarded = (flow.discardedNames || []).join(' and ');
-      this.actionLog.push({
-        message: `Undertaker discarded ${discarded} and retrieved ${card.name} from Ringside.`,
-      });
-      this.abilityFlow = null;
-      this._notify();
-      return true;
+      return this.toggleSuperstarAbilitySelection(playerIndex, instanceId);
     }
 
     if (flow.step === 'jerichoDiscardSelf') {

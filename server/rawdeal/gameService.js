@@ -71,6 +71,19 @@ class RoomGame {
       case 'choiceSelect':
         ok = await engine.selectChoice(seat, action.optionId);
         break;
+      case 'adjustDrawCount':
+        ok = engine.adjustDrawCount(seat, action.delta ?? 0);
+        break;
+      case 'confirmDrawCount':
+        ok = await engine.confirmDrawCount(seat);
+        break;
+      case 'adjustDiscardCount':
+        ok = engine.adjustDiscardCount(seat, action.delta ?? 0);
+        break;
+      case 'confirmDiscardCount':
+        ok = await engine.confirmDiscardCount(seat);
+        break;
+
       case 'dismissHandReveal':
         ok = await engine.dismissHandReveal(seat);
         break;
@@ -87,7 +100,10 @@ class RoomGame {
         ok = await engine.passSuperstarAbilityPrompt(seat);
         break;
       case 'confirmSuperstarAbility':
-        ok = await engine.confirmSuperstarAbilityPrompt(seat, action.instanceId);
+        ok = await engine.confirmSuperstarAbilityPrompt(
+          seat,
+          action.instanceIds || action.instanceId
+        );
         break;
       case 'toggleSuperstarAbilitySelection':
         ok = engine.toggleSuperstarAbilitySelection(seat, action.instanceId);
@@ -100,6 +116,16 @@ class RoomGame {
         break;
       case 'updateArsenalReorder':
         ok = engine.updateArsenalReorderOrder(seat, action.orderedIds || []);
+        break;
+      case 'toggleRemoveOpponentRingSelect':
+        ok = engine.toggleRemoveOpponentRingSelect(
+          seat,
+          action.instanceId,
+          action.ringArea
+        );
+        break;
+      case 'confirmRemoveOpponentRingCard':
+        ok = await engine.confirmRemoveOpponentRingCard(seat);
         break;
       case 'devCommand': {
         const { loadRawDeal } = require('./bootstrap');
