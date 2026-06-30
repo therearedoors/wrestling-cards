@@ -65,6 +65,18 @@ window.RawDeal.CardUtils = {
   },
 
   meetsActionPlayRequirement(player, opponent, card) {
+    const effects = card.actionEffects || [];
+    const discardIndex = effects.findIndex((step) => step.op === 'discardFromHand');
+    if (discardIndex >= 0) {
+      const need = effects[discardIndex].count || 1;
+      const drawBeforeDiscard = effects.slice(0, discardIndex).some(
+        (step) => step.op === 'draw' || step.op === 'drawUpTo'
+      );
+      if (!drawBeforeDiscard && player.hand.length < need + 1) {
+        return false;
+      }
+    }
+
     if (!card.requiresLowerFortitudeThanOpponent) return true;
     if (!opponent) return false;
     return player.fortitude < opponent.fortitude;

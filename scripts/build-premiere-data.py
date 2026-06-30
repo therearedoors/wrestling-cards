@@ -759,6 +759,16 @@ def infer_action_effects(types_list, rules, name=''):
             {'op': 'opponentDiscardFromHand', 'count': 4},
         ]
 
+    if 'comeback' in card_name or (
+        'discard 3' in blob
+        and 'higher fortitude' in blob
+        and 'ring area' in blob
+    ):
+        return [
+            {'op': 'discardFromHand', 'count': 3},
+            {'op': 'balanceFortitudeByRingRemoval'},
+        ]
+
     if 'draw up to 3' in blob and 'discard 1' in blob:
         return [
             {'op': 'drawUpTo', 'max': 3},
