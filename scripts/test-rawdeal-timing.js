@@ -2953,24 +2953,26 @@ async function testEgoBoostReactionReplacesOneOfFour() {
 
   await engine.selectChoice(1, 'egoBoost');
   assert(
+    defender.ringside.some((c) => c.id === 'ego-boost'),
+    'Ego Boost discarded to Ringside via reaction'
+  );
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Spit At Opponent discard prompt before Ego Boost draw'
+  );
+
+  const toDiscard = defender.hand.slice(0, 3);
+  for (const card of toDiscard) {
+    await engine.selectForCardEffect(1, card.instanceId);
+  }
+
+  assert(
     engine.cardEffectFlow?.type === 'drawCountChoice',
-    'Ego Boost reaction opens draw up to 2'
+    'Ego Boost draw opens after forced discards resolve'
   );
 
   engine.adjustDrawCount(1, 0);
   await engine.confirmDrawCount(1);
-
-  assert(
-    defender.ringside.some((c) => c.id === 'ego-boost'),
-    'Ego Boost discarded to Ringside via reaction'
-  );
-
-  if (engine.cardEffectFlow?.type === 'opponentDiscardFromHand') {
-    const toDiscard = defender.hand.slice(0, 3);
-    for (const card of toDiscard) {
-      await engine.selectForCardEffect(1, card.instanceId);
-    }
-  }
 
   assert(defender.hand.length === 2, 'Defender discards 3 more after Ego Boost (6 - 4 total)');
 }
@@ -3054,22 +3056,177 @@ async function testEgoBoostReactionFilterDiscard() {
   );
 
   await engine.selectChoice(1, 'egoBoost');
-  engine.adjustDrawCount(1, 0);
-  await engine.confirmDrawCount(1);
-
-  if (engine.cardEffectFlow?.type === 'opponentDiscardFromHand') {
-    const heel = defender.hand.find((c) => c.alignment === 'heel');
-    if (heel) await engine.selectForCardEffect(1, heel.instanceId);
-  }
-
   assert(
     defender.ringside.some((c) => c.id === 'ego-boost'),
     'Ego Boost used before filter discard'
   );
   assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'HEEL discard prompt before Ego Boost draw'
+  );
+
+  const heel = defender.hand.find((c) => c.alignment === 'heel');
+  if (heel) await engine.selectForCardEffect(1, heel.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Ego Boost draw opens after filter discard resolves'
+  );
+
+  engine.adjustDrawCount(1, 0);
+  await engine.confirmDrawCount(1);
+
+  assert(
     defender.hand.length === 1,
     'Only 1 HEEL card remains after Ego Boost replaces one filter discard'
   );
+}
+
+async function testEgoBoostTwoCopiesChainOnSpit() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const spit = cloneCard(RawDeal, 'spit-at-opponent', 'eb-spit-2x');
+  const egoBoost1 = cloneCard(RawDeal, 'ego-boost', 'eb-react-1');
+  const egoBoost2 = cloneCard(RawDeal, 'ego-boost', 'eb-react-2');
+  const selfDiscard = cloneCard(RawDeal, 'chop', 'eb-self-discard-2x');
+
+  attacker.hand = [spit, selfDiscard];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost1, egoBoost2];
+  for (let i = 0; i < 4; i++) {
+    defender.hand.push(cloneCard(RawDeal, 'kick', `eb-opp-2x-${i}`));
+  }
+  defender.arsenal = [
+    cloneCard(RawDeal, 'punch', 'eb-ars-2x-1'),
+    cloneCard(RawDeal, 'punch', 'eb-ars-2x-2'),
+    cloneCard(RawDeal, 'punch', 'eb-ars-2x-3'),
+    cloneCard(RawDeal, 'punch', 'eb-ars-2x-4'),
+  ];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Second Ego Boost offered after first is used'
+  );
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Normal discard prompt after both Ego Boosts consumed'
+  );
+
+  const toDiscard = defender.hand.slice(0, 2);
+  for (const card of toDiscard) {
+    await engine.selectForCardEffect(1, card.instanceId);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'First Ego Boost draw after all forced discards'
+  );
+
+  const handBeforeDraws = defender.hand.length;
+  const arsenalBeforeDraws = defender.arsenal.length;
+  engine.adjustDrawCount(1, 2);
+  await engine.confirmDrawCount(1);
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Second Ego Boost draw chains after first'
+  );
+
+  engine.adjustDrawCount(1, 2);
+  await engine.confirmDrawCount(1);
+
+  assert(
+    defender.hand.length === handBeforeDraws + 4,
+    'Two Ego Boosts draw up to 4 cards total after discards'
+  );
+  assert(
+    defender.arsenal.length === arsenalBeforeDraws - 4,
+    'Drew 4 from Arsenal across two Ego Boost reactions'
+  );
+  assert(
+    defender.ringside.filter((c) => c.id === 'ego-boost').length === 2,
+    'Both Ego Boosts discarded to Ringside'
+  );
+}
+
+async function testEgoBoostDiscardNormallySkipsSecondOffer() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const spit = cloneCard(RawDeal, 'spit-at-opponent', 'eb-spit-skip');
+  const egoBoost1 = cloneCard(RawDeal, 'ego-boost', 'eb-skip-1');
+  const egoBoost2 = cloneCard(RawDeal, 'ego-boost', 'eb-skip-2');
+  const selfDiscard = cloneCard(RawDeal, 'chop', 'eb-self-discard-skip');
+
+  attacker.hand = [spit, selfDiscard];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost1, egoBoost2];
+  for (let i = 0; i < 5; i++) {
+    defender.hand.push(cloneCard(RawDeal, 'kick', `eb-opp-skip-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Second Ego Boost offer after using first'
+  );
+
+  await engine.selectChoice(1, 'discardNormally');
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Discard normally completes remaining forced discards'
+  );
+  assert(
+    engine.cardEffectFlow?.count === 3,
+    'Discard normally covers 3 remaining forced discards'
+  );
+
+  const toDiscard = defender.hand.filter((c) => c.id !== 'ego-boost').slice(0, 3);
+  for (const card of toDiscard) {
+    await engine.selectForCardEffect(1, card.instanceId);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Only one Ego Boost draw after discard normally'
+  );
+
+  engine.adjustDrawCount(1, 0);
+  await engine.confirmDrawCount(1);
+
+  assert(
+    defender.ringside.filter((c) => c.id === 'ego-boost').length === 1,
+    'Only first Ego Boost was consumed'
+  );
+  assert(defender.hand.some((c) => c.id === 'ego-boost'), 'Second Ego Boost remains in hand');
+  assert(!engine.cardEffectFlow, 'Ego Boost reaction flow completes after discard normally');
 }
 
 async function testEgoBoostNotInRingForReaction() {
@@ -3310,6 +3467,8 @@ async function main() {
   await testEgoBoostReactionReplacesOneOfFour();
   await testEgoBoostReactionDrawUpToTwo();
   await testEgoBoostReactionFilterDiscard();
+  await testEgoBoostTwoCopiesChainOnSpit();
+  await testEgoBoostDiscardNormallySkipsSecondOffer();
   await testEgoBoostNotInRingForReaction();
 
   if (process.exitCode) {
