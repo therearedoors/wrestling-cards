@@ -26,7 +26,8 @@ window.RawDeal.GameEngine = class GameEngine {
     this.reversalWindow = null;
     this.handRevealFlow = null;
     this.effectPipelineFlow = null;
-    this.pendingOpponentDiscard = null;
+    this.pendingEgoBoostDraws = [];
+    this.opponentDiscardResumeMeta = null;
     this.reversedManeuverDamage = null;
     this.animationEvents = [];
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
@@ -1137,18 +1138,17 @@ window.RawDeal.GameEngine = class GameEngine {
     this.cardEffectFlow = null;
     this._notify();
 
-    const pending = this.pendingOpponentDiscard;
-    if (pending) {
-      this.pendingOpponentDiscard = null;
-      const victim = this.players[pending.victimIndex];
-      const paused = await this._executeOpponentControlledDiscard(
-        victim,
-        pending.victimIndex,
-        pending.sourceName,
-        pending.count,
-        pending.meta
-      );
-      if (paused) return true;
+    if (this.pendingEgoBoostDraws.length > 0) {
+      const next = this.pendingEgoBoostDraws.shift();
+      const victim = this.players[next.victimIndex];
+      this._beginDrawUpToPrompt(victim, next.victimIndex, 'Ego Boost', 2);
+      return true;
+    }
+
+    const resumeMeta = this.opponentDiscardResumeMeta;
+    if (resumeMeta) {
+      this.opponentDiscardResumeMeta = null;
+      await this._finishOpponentControlledDiscard(resumeMeta);
       return true;
     }
 
@@ -1177,6 +1177,35 @@ window.RawDeal.GameEngine = class GameEngine {
     return this.engineMode === 'multiplayer' && victim.isHuman;
   }
 
+  _offerEgoBoostChoice(victimIndex, sourceName, count, meta) {
+    this.cardEffectFlow = {
+      type: 'choice',
+      choiceId: 'egoBoostOrDiscard',
+      playerIndex: victimIndex,
+      sourceName,
+      count,
+      meta,
+      message: `${sourceName} forces you to discard from your hand. Use Ego Boost? (${count} card${count === 1 ? '' : 's'} left to discard)`,
+      options: [
+        { id: 'egoBoost', label: 'Use Ego Boost (draw up to 2)' },
+        { id: 'discardNormally', label: 'Discard normally' },
+      ],
+    };
+    this._notify();
+    return true;
+  }
+
+  async _beginPendingEgoBoostDraws(meta) {
+    if (!this.pendingEgoBoostDraws.length) {
+      return await this._finishOpponentControlledDiscard(meta);
+    }
+
+    const next = this.pendingEgoBoostDraws.shift();
+    const victim = this.players[next.victimIndex];
+    this._beginDrawUpToPrompt(victim, next.victimIndex, 'Ego Boost', 2);
+    return true;
+  }
+
   async _beginOpponentControlledDiscard(victim, victimIndex, sourceName, count, meta = {}) {
     const batchCards = meta.batchCards || null;
     let discardCount = count;
@@ -1196,21 +1225,7 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     if (this._shouldOfferEgoBoostChoice(victim)) {
-      this.cardEffectFlow = {
-        type: 'choice',
-        choiceId: 'egoBoostOrDiscard',
-        playerIndex: victimIndex,
-        sourceName,
-        count: discardCount,
-        meta,
-        message: `${sourceName} forces you to discard from your hand. Use Ego Boost?`,
-        options: [
-          { id: 'egoBoost', label: 'Use Ego Boost (draw up to 2)' },
-          { id: 'discardNormally', label: 'Discard normally' },
-        ],
-      };
-      this._notify();
-      return true;
+      return this._offerEgoBoostChoice(victimIndex, sourceName, discardCount, meta);
     }
 
     return await this._executeOpponentControlledDiscard(
@@ -1230,21 +1245,33 @@ window.RawDeal.GameEngine = class GameEngine {
       message: `Ego Boost: discarded in place of 1 forced discard (${sourceName}).`,
     });
 
-    this.pendingOpponentDiscard = {
-      victimIndex,
-      sourceName,
-      count: Math.max(0, count - 1),
-      meta,
-    };
+    if (this.pendingEgoBoostDraws.length === 0) {
+      this.opponentDiscardResumeMeta = meta;
+    }
+    this.pendingEgoBoostDraws.push({ victimIndex });
 
+    const remaining = Math.max(0, count - 1);
     this.cardEffectFlow = null;
     this._notify();
-    return this._beginDrawUpToPrompt(victim, victimIndex, 'Ego Boost', 2);
+
+    if (remaining > 0 && this._shouldOfferEgoBoostChoice(victim)) {
+      return this._offerEgoBoostChoice(victimIndex, sourceName, remaining, meta);
+    }
+    if (remaining > 0) {
+      return await this._executeOpponentControlledDiscard(
+        victim,
+        victimIndex,
+        sourceName,
+        remaining,
+        meta
+      );
+    }
+    return await this._beginPendingEgoBoostDraws(meta);
   }
 
   async _executeOpponentControlledDiscard(victim, victimIndex, sourceName, count, meta = {}) {
     if (count <= 0) {
-      return await this._finishOpponentControlledDiscard(meta);
+      return await this._beginPendingEgoBoostDraws(meta);
     }
 
     const batchCards = meta.batchCards;
@@ -1284,7 +1311,7 @@ window.RawDeal.GameEngine = class GameEngine {
           message: `${sourceName}: opponent discarded ${names} to Ringside.`,
         });
       }
-      return await this._finishOpponentControlledDiscard(meta);
+      return await this._beginPendingEgoBoostDraws(meta);
     }
 
     const autoPick = this.engineMode === 'goldfish' || !victim.isHuman;
@@ -1300,7 +1327,7 @@ window.RawDeal.GameEngine = class GameEngine {
           message: `${sourceName}: opponent had no cards in hand to discard.`,
         });
       }
-      return await this._finishOpponentControlledDiscard(meta);
+      return await this._beginPendingEgoBoostDraws(meta);
     }
 
     return this._beginOpponentDiscardFromHandPrompt(victim, victimIndex, sourceName, count, meta);
@@ -2178,7 +2205,8 @@ window.RawDeal.GameEngine = class GameEngine {
         }
         this.cardEffectFlow = null;
         this._notify();
-        await this._finishOpponentControlledDiscard(meta);
+        const paused = await this._beginPendingEgoBoostDraws(meta);
+        if (paused) return true;
         if (this.effectPipelineFlow?.paused || this.pendingManeuverResolution) {
           if (!meta.resumePipeline) {
             await this._finishCardEffectResolution();
