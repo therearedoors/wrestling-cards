@@ -2863,12 +2863,17 @@ async function testEgoBoostNextCardMinusFiveF() {
 
   const player = engine.players[0];
   const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-discount');
-  const punch = cloneCard(RawDeal, 'punch', 'eb-punch');
+  const snapMare = cloneCard(RawDeal, 'snap-mare', 'eb-snap-mare');
 
-  player.hand = [egoBoost, punch];
+  player.hand = [egoBoost, snapMare];
   player.fortitude = 0;
   engine.stateMachine.phase = RawDeal.PHASES.MAIN;
   engine.stateMachine.activePlayer = 0;
+
+  assert(
+    !engine.canPlayCard(0, snapMare.instanceId, 'maneuver'),
+    'Snap Mare not playable at 0F without Ego Boost discount (3F cost)'
+  );
 
   await engine.playCard(0, egoBoost.instanceId, 'action');
   assert(
@@ -2876,11 +2881,11 @@ async function testEgoBoostNextCardMinusFiveF() {
     'Ego Boost sets -5F on next card played'
   );
   assert(
-    engine.canPlayCard(0, punch.instanceId, 'maneuver'),
-    'Punch playable at 0F with -5F discount (3F cost)'
+    engine.canPlayCard(0, snapMare.instanceId, 'maneuver'),
+    'Snap Mare playable at 0F with -5F discount (3F cost)'
   );
 
-  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playCard(0, snapMare.instanceId, 'maneuver');
   assert(
     player.turnState?.nextCardFortitudeDiscount === 0,
     'Ego Boost -5F discount consumed after next card'
