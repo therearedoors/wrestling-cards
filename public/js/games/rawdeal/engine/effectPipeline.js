@@ -264,6 +264,15 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'discardHandAtEndOfTurn': {
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.discardHandAtEndOfTurn = true;
+        engine.actionLog.push({
+          message: `${sourceName}: at end of turn, discard your hand.`,
+        });
+        return false;
+      }
+
       case 'setupIrishWhip': {
         engine._applyIrishWhipSetup(player, { name: sourceName }, step.strikeBonus || 5);
         return false;
