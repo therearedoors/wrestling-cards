@@ -779,6 +779,14 @@ def infer_action_effects(types_list, rules, name=''):
     if 'ego boost' in card_name or 'next card played is -5f' in blob:
         return [{'op': 'nextCardFortitudeDiscount', 'value': 5}]
 
+    if 'deluding yourself' in card_name or (
+        'draw 4' in blob and 'end of turn' in blob and 'discard your hand' in blob
+    ):
+        return [
+            {'op': 'draw', 'count': 4},
+            {'op': 'discardHandAtEndOfTurn'},
+        ]
+
     if 'draw up to 5' in blob:
         return [{'op': 'draw', 'count': 5}]
     if 'draw 2' in blob or 'draw up to 2' in blob:

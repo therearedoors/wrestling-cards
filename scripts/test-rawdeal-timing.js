@@ -3262,6 +3262,140 @@ async function testEgoBoostNotInRingForReaction() {
   );
 }
 
+async function testDeludingYourselfDrawsFour() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const deluding = cloneCard(RawDeal, 'deluding-yourself', 'dy-test');
+
+  player.hand = [deluding];
+  player.arsenal = [
+    cloneCard(RawDeal, 'punch', 'dy-ars-1'),
+    cloneCard(RawDeal, 'kick', 'dy-ars-2'),
+    cloneCard(RawDeal, 'chop', 'dy-ars-3'),
+    cloneCard(RawDeal, 'elbow', 'dy-ars-4'),
+    cloneCard(RawDeal, 'punch', 'dy-ars-5'),
+  ];
+  player.fortitude = 10;
+
+  const arsenalBefore = player.arsenal.length;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, deluding.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(player.hand.length === 4, 'Deluding Yourself draws 4 cards');
+  assert(player.arsenal.length === arsenalBefore - 4, 'Deluding Yourself draws from Arsenal');
+  assert(
+    player.turnState?.discardHandAtEndOfTurn === true,
+    'Deluding Yourself schedules hand discard at end of turn'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === deluding.instanceId),
+    'Deluding Yourself is in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Deluding Yourself effect completes on play');
+}
+
+async function testDeludingYourselfDiscardsHandAtEndOfTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const deluding = cloneCard(RawDeal, 'deluding-yourself', 'dy-eot');
+  const extra = cloneCard(RawDeal, 'punch', 'dy-extra');
+
+  player.hand = [deluding, extra];
+  player.arsenal = [
+    cloneCard(RawDeal, 'kick', 'dy-eot-1'),
+    cloneCard(RawDeal, 'kick', 'dy-eot-2'),
+    cloneCard(RawDeal, 'kick', 'dy-eot-3'),
+    cloneCard(RawDeal, 'kick', 'dy-eot-4'),
+  ];
+  player.fortitude = 10;
+
+  const handIdsBeforeEnd = new Set();
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, deluding.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  for (const card of player.hand) {
+    handIdsBeforeEnd.add(card.instanceId);
+  }
+  assert(player.hand.length === 5, 'Hand has 4 draws plus leftover card before end of turn');
+
+  await engine.endTurn(0);
+
+  assert(player.hand.length === 0, 'Deluding Yourself empties hand at end of turn');
+  assert(
+    [...handIdsBeforeEnd].every((id) => player.ringside.some((c) => c.instanceId === id)),
+    'Deluding Yourself discards entire hand to Ringside at end of turn'
+  );
+  assert(
+    !player.turnState?.discardHandAtEndOfTurn,
+    'End-of-turn hand discard flag is consumed'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Turn passes to opponent after end-of-turn discard'
+  );
+}
+
+async function testDeludingYourselfDoesNotDiscardNextTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const deluding = cloneCard(RawDeal, 'deluding-yourself', 'dy-next');
+
+  player.hand = [deluding];
+  player.arsenal = [
+    cloneCard(RawDeal, 'kick', 'dy-next-1'),
+    cloneCard(RawDeal, 'kick', 'dy-next-2'),
+    cloneCard(RawDeal, 'kick', 'dy-next-3'),
+    cloneCard(RawDeal, 'kick', 'dy-next-4'),
+  ];
+  player.fortitude = 10;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, deluding.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.endTurn(0);
+
+  const opponent = engine.players[1];
+  opponent.hand = [cloneCard(RawDeal, 'chop', 'dy-opp-keep')];
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+  await engine.endTurn(1);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+  player.hand = [cloneCard(RawDeal, 'punch', 'dy-new-hand')];
+  await engine.endTurn(0);
+
+  assert(
+    player.hand.some((c) => c.instanceId === 'dy-new-hand'),
+    'Deluding Yourself does not discard hand on a later turn'
+  );
+}
+
 async function testGetCrowdSupportDrawAndNextManeuverBoost() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -3454,6 +3588,9 @@ async function main() {
   await testSpitAtOpponentDiscardFour();
   await testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess();
   await testSpitAtOpponentPlayableWithEmptyOpponentHand();
+  await testDeludingYourselfDrawsFour();
+  await testDeludingYourselfDiscardsHandAtEndOfTurn();
+  await testDeludingYourselfDoesNotDiscardNextTurn();
   await testGetCrowdSupportDrawAndNextManeuverBoost();
   await testGetCrowdSupportReversalTaxFromHandAndArsenal();
   await testComebackNotPlayableWithoutFourCards();

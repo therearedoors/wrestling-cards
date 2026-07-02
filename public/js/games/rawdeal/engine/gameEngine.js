@@ -57,6 +57,7 @@ window.RawDeal.GameEngine = class GameEngine {
       lastPlayedCardId: null,
       opponentReversalsBlocked: false,
       skipOpponentNextTurn: false,
+      discardHandAtEndOfTurn: false,
     };
   }
 
@@ -713,6 +714,7 @@ window.RawDeal.GameEngine = class GameEngine {
         if (skipOpponent) {
           active.turnState.skipOpponentNextTurn = false;
         }
+        this._resolveEndOfTurnHandDiscard(active);
         this._clearTurnSetupEffects(active);
         const opponent = this.players[1 - this.stateMachine.activePlayer];
         const gameOver = this._checkCountOut(opponent);
@@ -734,6 +736,24 @@ window.RawDeal.GameEngine = class GameEngine {
       return true;
     }
     return false;
+  }
+
+  _resolveEndOfTurnHandDiscard(player) {
+    if (!player.turnState?.discardHandAtEndOfTurn) return;
+
+    player.turnState.discardHandAtEndOfTurn = false;
+    if (player.hand.length === 0) return;
+
+    const discarded = [...player.hand];
+    player.hand = [];
+    for (const card of discarded) {
+      player.ringside.push(card);
+    }
+
+    const count = discarded.length;
+    this.actionLog.push({
+      message: `End of turn: discarded your hand (${count} card${count === 1 ? '' : 's'}) to Ringside.`,
+    });
   }
 
   _effectiveFortitudeCost(player, card, playAs = 'maneuver') {

@@ -1233,6 +1233,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 4 cards. At end of turn, discard your hand.",
     flavor: "",
+    actionEffects: [{"op": "draw", "count": 4}, {"op": "discardHandAtEndOfTurn"}],
     set: "premiere",
   },
   'stagger': {
