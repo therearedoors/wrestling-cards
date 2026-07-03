@@ -3376,8 +3376,12 @@ async function testStaggerPlayableAfterSuccessfulManeuver() {
   await engine.playCard(0, stagger.instanceId, 'action');
 
   assert(
+    player.turnState?.nextManeuverUnreversiblePending === true,
+    'Stagger sets unreversible pending on next card played'
+  );
+  assert(
     player.turnState?.nextManeuverUnreversibleMaxDamage === 7,
-    'Stagger sets unreversible cap on next card played'
+    'Stagger sets 7D cap on next card played'
   );
   assert(
     player.ring.actions.some((c) => c.instanceId === stagger.instanceId),
@@ -3564,6 +3568,163 @@ async function testStaggerEffectConsumedByAction() {
   assert(
     engine.canPlayReversalFromHand(1, elbow.instanceId),
     'Elbow can reverse Punch after Stagger was wasted on an action'
+  );
+}
+
+async function playDiversion(engine, RawDeal, instanceId = 'div-play') {
+  const diversion = cloneCard(RawDeal, 'diversion', instanceId);
+  const player = engine.players[0];
+  player.hand.push(diversion);
+  player.fortitude = Math.max(player.fortitude, 17);
+  await engine.playCard(0, diversion.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return diversion;
+}
+
+async function testDiversionSetsUnreversibleOnNextManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  player.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playDiversion(engine, RawDeal, 'div-sets');
+
+  assert(
+    player.turnState?.nextManeuverUnreversiblePending === true,
+    'Diversion sets unreversible pending for next maneuver'
+  );
+  assert(
+    player.turnState?.nextManeuverUnreversibleMaxDamage == null,
+    'Diversion has no damage cap'
+  );
+  assert(
+    player.turnState?.nextManeuverUnreversibleManeuverOnly === true,
+    'Diversion waits for next maneuver only'
+  );
+  assert(
+    player.ring.actions.some((c) => c.id === 'diversion'),
+    'Diversion is in Ring actions'
+  );
+}
+
+async function testDiversionProtectsManeuverFromHand() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const bulldog = cloneCard(RawDeal, 'bulldog', 'div-bulldog');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'div-escape');
+
+  attacker.fortitude = 20;
+  defender.hand = [escapeMove];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `div-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playDiversion(engine, RawDeal, 'div-hand');
+  attacker.hand.push(bulldog);
+  await engine.playCard(0, bulldog.instanceId, 'maneuver');
+
+  assert(
+    !engine.reversalWindow,
+    'Diversion skips reversal priority for protected maneuver'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, escapeMove.instanceId),
+    'Escape Move cannot reverse Bulldog protected by Diversion'
+  );
+}
+
+async function testDiversionProtectsManeuverFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'div-clothesline-ars');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'div-elbow-ars');
+
+  attacker.fortitude = 20;
+  defender.arsenal = [
+    cloneCard(RawDeal, 'chop', 'div-chop-1'),
+    cloneCard(RawDeal, 'chop', 'div-chop-2'),
+    cloneCard(RawDeal, 'chop', 'div-chop-3'),
+    cloneCard(RawDeal, 'chop', 'div-chop-4'),
+    cloneCard(RawDeal, 'chop', 'div-chop-5'),
+    cloneCard(RawDeal, 'chop', 'div-chop-6'),
+    cloneCard(RawDeal, 'chop', 'div-chop-7'),
+  ];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playDiversion(engine, RawDeal, 'div-ars');
+  attacker.hand.push(clothesline);
+  defender.arsenal.push(elbow);
+  await engine.playCard(0, clothesline.instanceId, 'maneuver');
+
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(
+    lastDamage?.result === 'hit',
+    'Arsenal Elbow does not reverse Clothesline protected by Diversion'
+  );
+  assert(lastDamage?.cardsOverturned === 7, 'Protected Clothesline overturns 7 Arsenal cards');
+}
+
+async function testDiversionPersistsThroughAction() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const chop = cloneCard(RawDeal, 'chop', 'div-chop');
+  const bulldog = cloneCard(RawDeal, 'bulldog', 'div-bulldog-after-action');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'div-escape-persist');
+
+  attacker.fortitude = 20;
+  defender.hand = [escapeMove];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'kick', `div-persist-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playDiversion(engine, RawDeal, 'div-persist');
+  attacker.hand.push(chop, bulldog);
+  await engine.playCard(0, chop.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    attacker.turnState?.nextManeuverUnreversiblePending === true,
+    'Diversion effect persists after playing an action'
+  );
+
+  await engine.playCard(0, bulldog.instanceId, 'maneuver');
+
+  assert(
+    !engine.reversalWindow,
+    'Diversion still protects next maneuver after an intervening action'
   );
 }
 
@@ -3901,6 +4062,10 @@ async function main() {
   await testStaggerDoesNotProtectHighDamageManeuver();
   await testStaggerProtectsExactly7D();
   await testStaggerEffectConsumedByAction();
+  await testDiversionSetsUnreversibleOnNextManeuver();
+  await testDiversionProtectsManeuverFromHand();
+  await testDiversionProtectsManeuverFromArsenal();
+  await testDiversionPersistsThroughAction();
   await testDeludingYourselfDrawsFour();
   await testDeludingYourselfDiscardsHandAtEndOfTurn();
   await testDeludingYourselfDoesNotDiscardNextTurn();

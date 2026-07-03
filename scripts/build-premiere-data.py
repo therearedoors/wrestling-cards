@@ -805,6 +805,12 @@ def infer_action_effects(types_list, rules, name=''):
     ):
         return [{'op': 'nextManeuverUnreversible', 'maxDamage': 7}]
 
+    if 'diversion' in card_name or (
+        'your next maneuver may not be reversed' in blob
+        and 'play after' not in blob
+    ):
+        return [{'op': 'nextManeuverUnreversible'}]
+
     if 'draw up to 5' in blob:
         return [{'op': 'draw', 'count': 5}]
     if 'draw 2' in blob or 'draw up to 2' in blob:

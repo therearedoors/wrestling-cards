@@ -59,7 +59,9 @@ window.RawDeal.GameEngine = class GameEngine {
       skipOpponentNextTurn: false,
       discardHandAtEndOfTurn: false,
       canPlayAfterSuccessfulManeuver: false,
+      nextManeuverUnreversiblePending: false,
       nextManeuverUnreversibleMaxDamage: null,
+      nextManeuverUnreversibleManeuverOnly: false,
       activeManeuverUnreversible: false,
     };
   }
@@ -74,7 +76,9 @@ window.RawDeal.GameEngine = class GameEngine {
     player.turnState.nextCardManeuverBonus = 0;
     player.turnState.nextCardFortitudeDiscount = 0;
     player.turnState.opponentReversalsBlocked = false;
+    player.turnState.nextManeuverUnreversiblePending = false;
     player.turnState.nextManeuverUnreversibleMaxDamage = null;
+    player.turnState.nextManeuverUnreversibleManeuverOnly = false;
     player.turnState.activeManeuverUnreversible = false;
     this.nextManeuverBonus[this._playerIndex(player)] = 0;
   }
@@ -93,18 +97,27 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   _handleNextCardUnreversibleOnPlay(player, opponent, played, mode) {
-    if (!player.turnState) return;
+    if (!player.turnState?.nextManeuverUnreversiblePending) return;
 
     const maxDamage = player.turnState.nextManeuverUnreversibleMaxDamage;
-    if (maxDamage == null) return;
+    const maneuverOnly = player.turnState.nextManeuverUnreversibleManeuverOnly;
 
+    if (mode !== 'maneuver') {
+      if (!maneuverOnly) {
+        player.turnState.nextManeuverUnreversiblePending = false;
+        player.turnState.nextManeuverUnreversibleMaxDamage = null;
+        player.turnState.nextManeuverUnreversibleManeuverOnly = false;
+      }
+      return;
+    }
+
+    player.turnState.nextManeuverUnreversiblePending = false;
     player.turnState.nextManeuverUnreversibleMaxDamage = null;
+    player.turnState.nextManeuverUnreversibleManeuverOnly = false;
     player.turnState.activeManeuverUnreversible = false;
 
-    if (mode !== 'maneuver') return;
-
     const damage = this._calcManeuverDamage(player, opponent, played);
-    if (damage <= maxDamage) {
+    if (maxDamage == null || damage <= maxDamage) {
       player.turnState.activeManeuverUnreversible = true;
     }
   }
