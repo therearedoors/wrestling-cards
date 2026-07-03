@@ -874,7 +874,7 @@ body:has(.rd-page) {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   padding: 24px 28px;
-  max-width: 420px;
+  max-width: min(560px, calc(100vw - 32px));
   width: calc(100% - 32px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   text-align: center;
@@ -889,13 +889,18 @@ body:has(.rd-page) {
 
 .rd-choice-modal__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
-  justify-content: center;
 }
 
 .rd-choice-modal__btn {
-  min-width: 140px;
+  min-width: 0;
+  width: 100%;
+  white-space: normal;
+  line-height: 1.4;
+  text-align: center;
+  padding: 12px 16px;
 }
 
 .rd-choice-modal__stepper {
@@ -1018,6 +1023,92 @@ body:has(.rd-page) {
 }
 
 .rd-hand-reveal-modal .rd-card--selected {
+  outline: 3px solid var(--bg-orange);
+  outline-offset: 2px;
+}
+
+.rd-arsenal-search-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 91;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rd-arsenal-search-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 18, 30, 0.72);
+  pointer-events: none;
+}
+
+.rd-arsenal-search-modal__panel {
+  position: relative;
+  background: var(--main-color-darker);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 24px 28px;
+  max-width: min(960px, calc(100vw - 32px));
+  width: calc(100% - 32px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.rd-arsenal-search-modal__message {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-bottom: 16px;
+}
+
+.rd-arsenal-search-modal__scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 0 10px;
+  margin-bottom: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(241, 196, 15, 0.45) rgba(0, 0, 0, 0.2);
+}
+
+.rd-arsenal-search-modal__scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.rd-arsenal-search-modal__scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.rd-arsenal-search-modal__scroll::-webkit-scrollbar-thumb {
+  background: rgba(241, 196, 15, 0.45);
+  border-radius: 4px;
+}
+
+.rd-arsenal-search-modal__scroll--overflow {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 16px,
+    #000 calc(100% - 16px),
+    transparent 100%
+  );
+}
+
+.rd-arsenal-search-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.rd-arsenal-search-modal__confirm {
+  min-width: 120px;
+}
+
+.rd-arsenal-search-modal .rd-card--selected {
   outline: 3px solid var(--bg-orange);
   outline-offset: 2px;
 }

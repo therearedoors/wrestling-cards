@@ -335,12 +335,16 @@ def parse_cards(text: str):
         reversal_effects = infer_reversal_effects(types_list, rules, dmg or 0)
         if reversal_effects:
             entry['reversalEffects'] = reversal_effects
-        max_damage = infer_max_damage(rules)
-        if max_damage is not None:
-            entry['maxDamage'] = max_damage
+        if 'reversal' in types_list:
+            max_damage = infer_max_damage(rules)
+            if max_damage is not None:
+                entry['maxDamage'] = max_damage
         requires = infer_requires_played(rules)
         if requires:
             entry.update(requires)
+        after_maneuver = infer_requires_after_successful_maneuver(rules)
+        if after_maneuver:
+            entry.update(after_maneuver)
         lower_f = infer_requires_lower_fortitude_than_opponent(rules)
         if lower_f:
             entry.update(lower_f)
@@ -415,6 +419,13 @@ def infer_requires_played(rules):
         or 'must play the card titled irish whip before' in blob
     ):
         return {'requiresPlayed': 'irish-whip'}
+    return None
+
+
+def infer_requires_after_successful_maneuver(rules):
+    blob = rules.lower()
+    if 'play after a successfully played maneuver' in blob:
+        return {'requiresAfterSuccessfulManeuver': True}
     return None
 
 
@@ -577,11 +588,12 @@ def infer_maneuver_effects(types_list, rules):
     elif 'when successfully played, opponent must draw 1 card' in blob:
         effects.append({'op': 'opponentDraw', 'count': 1})
 
-    m = re.search(r'when successfully played, opponent must discard (\d+) cards?', blob)
-    if m:
-        effects.append({'op': 'opponentDiscardFromHand', 'count': int(m.group(1))})
-    elif 'when successfully played, opponent discards 1 card' in blob:
-        effects.append({'op': 'opponentDiscardFromHand', 'count': 1})
+    if 'when successfully played' in blob:
+        m = re.search(r'opponent must discard (\d+) cards?', blob)
+        if m:
+            effects.append({'op': 'opponentDiscardFromHand', 'count': int(m.group(1))})
+        elif 'opponent discards 1 card' in blob:
+            effects.append({'op': 'opponentDiscardFromHand', 'count': 1})
 
     for subtype in ('strike', 'grapple', 'submission'):
         m = re.search(
@@ -665,6 +677,9 @@ def infer_action_effects(types_list, rules, name=''):
 
     if 'jockeying' in card_name and 'as an action' in blob:
         return [{'op': 'jockeyingChoice'}]
+
+    if 'marking out' in card_name:
+        return [{'op': 'markingOutChoice'}]
 
     has_look = 'look at opponent' in blob or 'look at your opponent' in blob
     if has_look:
@@ -775,6 +790,30 @@ def infer_action_effects(types_list, rules, name=''):
             {'op': 'discardFromHand', 'count': 1},
         ]
 
+    if 'ego boost' in card_name or 'next card played is -5f' in blob:
+        return [{'op': 'nextCardFortitudeDiscount', 'value': 5}]
+
+    if 'deluding yourself' in card_name or (
+        'draw 4' in blob and 'end of turn' in blob and 'discard your hand' in blob
+    ):
+        return [
+            {'op': 'draw', 'count': 4},
+            {'op': 'discardHandAtEndOfTurn'},
+        ]
+
+    if 'stagger' in card_name or (
+        'play after a successfully played maneuver' in blob
+        and '7d or less' in blob
+        and 'can not reverse' in blob
+    ):
+        return [{'op': 'nextManeuverUnreversible', 'maxDamage': 7}]
+
+    if 'diversion' in card_name or (
+        'your next maneuver may not be reversed' in blob
+        and 'play after' not in blob
+    ):
+        return [{'op': 'nextManeuverUnreversible'}]
+
     if 'draw up to 5' in blob:
         return [{'op': 'draw', 'count': 5}]
     if 'draw 2' in blob or 'draw up to 2' in blob:
@@ -802,6 +841,7 @@ def emit_cards(cards):
         for key in ['id', 'num', 'name', 'types', 'subtype', 'alignment', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
                     'unique', 'hybrid', 'reverses', 'maxDamage', 'requiresPlayed',
+                    'requiresAfterSuccessfulManeuver',
                     'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
                     'actionEffects', 'maneuverEffects', 'reversalEffects', 'set']:
             if key in card and card[key] is not None:

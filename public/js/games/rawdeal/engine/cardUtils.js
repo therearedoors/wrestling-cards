@@ -77,6 +77,10 @@ window.RawDeal.CardUtils = {
       }
     }
 
+    if (card.requiresAfterSuccessfulManeuver) {
+      return !!player.turnState?.canPlayAfterSuccessfulManeuver;
+    }
+
     if (!card.requiresLowerFortitudeThanOpponent) return true;
     if (!opponent) return false;
     return player.fortitude < opponent.fortitude;
@@ -107,6 +111,9 @@ window.RawDeal.CardUtils = {
       if (player.turnState?.lastPlayedCardId === discount.cardId) {
         cost = Math.max(0, cost - discount.fortitude);
       }
+    }
+    if (player?.turnState?.nextCardFortitudeDiscount) {
+      cost = Math.max(0, cost - player.turnState.nextCardFortitudeDiscount);
     }
     return cost;
   },

@@ -64,7 +64,7 @@ class RoomGame {
         ok = engine.beginSuperstarAbility(seat);
         break;
       case 'abilitySelect': {
-        const abilityOk = engine.selectForAbility(seat, action.instanceId);
+        const abilityOk = await engine.selectForAbility(seat, action.instanceId);
         ok = abilityOk || (await engine.selectForCardEffect(seat, action.instanceId));
         break;
       }
@@ -116,6 +116,12 @@ class RoomGame {
         break;
       case 'updateArsenalReorder':
         ok = engine.updateArsenalReorderOrder(seat, action.orderedIds || []);
+        break;
+      case 'toggleArsenalSearchSelection':
+        ok = await engine.toggleArsenalSearchSelection(seat, action.instanceId);
+        break;
+      case 'confirmArsenalSearch':
+        ok = await engine.confirmArsenalSearch(seat, action.instanceIds || []);
         break;
       case 'toggleRemoveOpponentRingSelect':
         ok = engine.toggleRemoveOpponentRingSelect(
