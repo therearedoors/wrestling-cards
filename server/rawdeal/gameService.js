@@ -117,6 +117,12 @@ class RoomGame {
       case 'updateArsenalReorder':
         ok = engine.updateArsenalReorderOrder(seat, action.orderedIds || []);
         break;
+      case 'toggleArsenalSearchSelection':
+        ok = await engine.toggleArsenalSearchSelection(seat, action.instanceId);
+        break;
+      case 'confirmArsenalSearch':
+        ok = await engine.confirmArsenalSearch(seat, action.instanceIds || []);
+        break;
       case 'toggleRemoveOpponentRingSelect':
         ok = engine.toggleRemoveOpponentRingSelect(
           seat,

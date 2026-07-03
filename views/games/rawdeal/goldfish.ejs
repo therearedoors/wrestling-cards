@@ -150,6 +150,17 @@
                     </div>
                 </div>
 
+                <div id="rd-arsenal-search-modal" class="rd-arsenal-search-modal hidden" role="dialog" aria-modal="true">
+                    <div class="rd-arsenal-search-modal__backdrop" aria-hidden="true"></div>
+                    <div class="rd-arsenal-search-modal__panel">
+                        <p class="rd-arsenal-search-modal__message" data-rd-arsenal-search-message></p>
+                        <div class="rd-arsenal-search-modal__scroll" data-rd-arsenal-search-cards></div>
+                        <div class="rd-arsenal-search-modal__actions">
+                            <button type="button" class="rd-btn rd-btn--primary rd-arsenal-search-modal__confirm hidden" data-rd-arsenal-search-confirm>Confirm</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="rd-arsenal-reorder-modal" class="rd-arsenal-reorder-modal hidden" role="dialog" aria-modal="true">
                     <div class="rd-arsenal-reorder-modal__backdrop" aria-hidden="true"></div>
                     <div class="rd-arsenal-reorder-modal__panel">
@@ -241,6 +252,7 @@
 <script src="/js/games/rawdeal/ui/opponentRingSelectModal.js"></script>
 <script src="/vendor/sortable.min.js"></script>
 <script src="/js/games/rawdeal/ui/arsenalReorderModal.js"></script>
+<script src="/js/games/rawdeal/ui/arsenalSearchModal.js"></script>
 <script src="/js/games/rawdeal/ui/pileViewModal.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
 <% if (devMode) { %>

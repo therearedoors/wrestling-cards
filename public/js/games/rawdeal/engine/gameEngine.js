@@ -422,6 +422,30 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'arsenalSearch') {
+      const targetPlayer = this.players[flow.targetPlayerIndex];
+      const cards = targetPlayer.arsenal.map((c) => ({ ...c }));
+      const picked = flow.selectedIds.length;
+      const n = flow.selectCount || 1;
+      let message;
+      if (flow.purpose === 'toHand') {
+        message = `${flow.sourceName}: choose 1 card from your Arsenal to put in your hand.`;
+      } else {
+        message =
+          n === 1
+            ? `${flow.sourceName}: choose 1 card from opponent's Arsenal to put in Ringside.`
+            : `${flow.sourceName}: choose ${n} cards from opponent's Arsenal to put in Ringside (${picked}/${n}).`;
+      }
+      return {
+        mode: 'arsenalSearch',
+        purpose: flow.purpose,
+        message,
+        cards,
+        selectCount: n,
+        selectedIds: [...flow.selectedIds],
+      };
+    }
+
     return null;
   }
 
@@ -1029,6 +1053,28 @@ window.RawDeal.GameEngine = class GameEngine {
       options: [
         { id: 'draw', label: `Draw ${count} cards` },
         { id: 'opponentDiscard', label: `Opponent discards ${count} cards` },
+      ],
+    };
+    this._notify();
+    return true;
+  }
+
+  _beginMarkingOutChoice(player, playerIndex, sourceName) {
+    this.cardEffectFlow = {
+      type: 'choice',
+      choiceId: 'markingOut',
+      playerIndex,
+      sourceName,
+      message: `${sourceName}: choose one.`,
+      options: [
+        {
+          id: 'ownArsenalToHand',
+          label: 'Look through your Arsenal — put 1 in hand, shuffle, end turn',
+        },
+        {
+          id: 'opponentArsenalToRingside',
+          label: "Look through opponent's Arsenal — put up to 3 in Ringside, shuffle",
+        },
       ],
     };
     this._notify();
@@ -1823,6 +1869,161 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
+  async _beginMarkingOutOwnArsenalPrompt(player, playerIndex, sourceName) {
+    if (player.arsenal.length === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: your Arsenal is empty — no card to put in hand.`,
+      });
+      return await this._completeMarkingOutToHand(player, playerIndex, sourceName, null);
+    }
+
+    this.cardEffectFlow = {
+      type: 'arsenalSearch',
+      playerIndex,
+      targetPlayerIndex: playerIndex,
+      purpose: 'toHand',
+      sourceName,
+      selectCount: 1,
+      selectedIds: [],
+    };
+    this.actionLog.push({
+      message: `${sourceName}: look through your Arsenal.`,
+    });
+    this._notify();
+    return true;
+  }
+
+  async _beginMarkingOutOpponentArsenalPrompt(player, playerIndex, sourceName) {
+    const opponent = this.players[1 - playerIndex];
+    const selectCount = Math.min(3, opponent.arsenal.length);
+
+    if (selectCount === 0) {
+      this.actionLog.push({
+        message: `${sourceName}: opponent's Arsenal is empty — no cards to put in Ringside.`,
+      });
+      return await this._completeMarkingOutToRingside(
+        opponent,
+        playerIndex,
+        sourceName,
+        []
+      );
+    }
+
+    this.cardEffectFlow = {
+      type: 'arsenalSearch',
+      playerIndex,
+      targetPlayerIndex: 1 - playerIndex,
+      purpose: 'toRingside',
+      sourceName,
+      selectCount,
+      selectedIds: [],
+    };
+    this.actionLog.push({
+      message: `${sourceName}: look through opponent's Arsenal.`,
+    });
+    this._notify();
+    return true;
+  }
+
+  _validateArsenalSearchIds(targetPlayer, selectedIds, selectCount) {
+    if (!Array.isArray(selectedIds) || selectedIds.length !== selectCount) return false;
+    const valid = new Set(targetPlayer.arsenal.map((c) => c.instanceId));
+    return selectedIds.every((id) => valid.has(id));
+  }
+
+  async _completeMarkingOutToHand(player, playerIndex, sourceName, card) {
+    if (card) {
+      player.hand.push(card);
+      this.actionLog.push({
+        message: `${sourceName}: put ${card.name} from your Arsenal into your hand.`,
+      });
+    }
+    this._shuffle(player.arsenal);
+    this.actionLog.push({
+      message: `${sourceName}: shuffled your Arsenal.`,
+    });
+    this.cardEffectFlow = null;
+    this._notify();
+    await this._forceEndTurnFromEffect(playerIndex);
+    return true;
+  }
+
+  async _completeMarkingOutToRingside(opponent, playerIndex, sourceName, cards) {
+    for (const card of cards) {
+      opponent.ringside.push(card);
+    }
+    if (cards.length > 0) {
+      const names = cards.map((c) => c.name).join(', ');
+      this.actionLog.push({
+        message: `${sourceName}: put ${names} from opponent's Arsenal into Ringside.`,
+      });
+    }
+    this._shuffle(opponent.arsenal);
+    this.actionLog.push({
+      message: `${sourceName}: shuffled opponent's Arsenal.`,
+    });
+    await this._finishCardEffectResolution();
+    return true;
+  }
+
+  async toggleArsenalSearchSelection(playerIndex, instanceId) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'arsenalSearch') return false;
+
+    const flow = this.cardEffectFlow;
+    const targetPlayer = this.players[flow.targetPlayerIndex];
+    if (!targetPlayer.arsenal.some((c) => c.instanceId === instanceId)) return false;
+
+    if (flow.purpose === 'toHand') {
+      return await this.confirmArsenalSearch(playerIndex, [instanceId]);
+    }
+
+    const idx = flow.selectedIds.indexOf(instanceId);
+    if (idx >= 0) {
+      flow.selectedIds.splice(idx, 1);
+    } else if (flow.selectedIds.length < flow.selectCount) {
+      flow.selectedIds.push(instanceId);
+    } else {
+      return false;
+    }
+
+    this._notify();
+    return true;
+  }
+
+  async confirmArsenalSearch(playerIndex, selectedIds) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'arsenalSearch') return false;
+
+    const flow = this.cardEffectFlow;
+    const targetPlayer = this.players[flow.targetPlayerIndex];
+    const ids = selectedIds || flow.selectedIds;
+    if (!this._validateArsenalSearchIds(targetPlayer, ids, flow.selectCount)) return false;
+
+    const idSet = new Set(ids);
+    const byId = new Map(targetPlayer.arsenal.map((c) => [c.instanceId, c]));
+    const cards = ids.map((id) => byId.get(id)).filter(Boolean);
+    targetPlayer.arsenal = targetPlayer.arsenal.filter((c) => !idSet.has(c.instanceId));
+
+    if (flow.purpose === 'toHand') {
+      const player = this.players[playerIndex];
+      return await this._completeMarkingOutToHand(
+        player,
+        playerIndex,
+        flow.sourceName,
+        cards[0] || null
+      );
+    }
+
+    const opponent = targetPlayer;
+    return await this._completeMarkingOutToRingside(
+      opponent,
+      playerIndex,
+      flow.sourceName,
+      cards
+    );
+  }
+
   _drawForOpponent(player, sourceName, count) {
     const opponent = this.players[1 - this._playerIndex(player)];
     let drawn = 0;
@@ -2305,6 +2506,10 @@ window.RawDeal.GameEngine = class GameEngine {
       return this.toggleSuperstarAbilitySelection(playerIndex, instanceId);
     }
 
+    if (flow.type === 'arsenalSearch') {
+      return this.toggleArsenalSearchSelection(playerIndex, instanceId);
+    }
+
     return false;
   }
 
@@ -2338,6 +2543,22 @@ window.RawDeal.GameEngine = class GameEngine {
       }
       this._notify();
       return true;
+    }
+
+    if (flow.choiceId === 'markingOut') {
+      const sourceName = flow.sourceName;
+      this.cardEffectFlow = null;
+      if (optionId === 'ownArsenalToHand') {
+        return await this._beginMarkingOutOwnArsenalPrompt(player, playerIndex, sourceName);
+      }
+      if (optionId === 'opponentArsenalToRingside') {
+        return await this._beginMarkingOutOpponentArsenalPrompt(
+          player,
+          playerIndex,
+          sourceName
+        );
+      }
+      return false;
     }
 
     if (flow.choiceId === 'egoBoostOrDiscard') {
@@ -2877,8 +3098,13 @@ window.RawDeal.GameEngine = class GameEngine {
     ) {
       return;
     }
+    await this._forceEndTurnFromEffect(playerIndex);
+  }
+
+  async _forceEndTurnFromEffect(playerIndex) {
     this.abilityFlow = null;
     this.handRevealFlow = null;
+    this.cardEffectFlow = null;
     this.effectPipelineFlow = null;
     this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
     await this._runAutoPhases();

@@ -678,6 +678,9 @@ def infer_action_effects(types_list, rules, name=''):
     if 'jockeying' in card_name and 'as an action' in blob:
         return [{'op': 'jockeyingChoice'}]
 
+    if 'marking out' in card_name:
+        return [{'op': 'markingOutChoice'}]
+
     has_look = 'look at opponent' in blob or 'look at your opponent' in blob
     if has_look:
         effects = []

@@ -299,6 +299,9 @@ window.RawDeal.EffectPipeline = {
       case 'jockeyingChoice':
         return engine._beginJockeyingChoice(player, pipeline.playerIndex, sourceName);
 
+      case 'markingOutChoice':
+        return engine._beginMarkingOutChoice(player, pipeline.playerIndex, sourceName);
+
       case 'turnDamageBonus': {
         engine._addTurnDamageBonus(player, {
           all: step.value || 0,
