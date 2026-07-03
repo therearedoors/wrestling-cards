@@ -3262,6 +3262,311 @@ async function testEgoBoostNotInRingForReaction() {
   );
 }
 
+async function playKickSuccessfully(engine, RawDeal, instanceId = 'stag-kick') {
+  const punch = cloneCard(RawDeal, 'punch', instanceId);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand.push(punch);
+  player.fortitude = Math.max(player.fortitude, 5);
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `${instanceId}-safe-ars-${i}`));
+  }
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return punch;
+}
+
+async function playStaggerAfterKick(engine, RawDeal, staggerInstanceId = 'stag-stagger') {
+  const stagger = cloneCard(RawDeal, 'stagger', staggerInstanceId);
+  const player = engine.players[0];
+  player.hand.push(stagger);
+  player.fortitude = Math.max(player.fortitude, 5);
+  await engine.playCard(0, stagger.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return stagger;
+}
+
+async function testStaggerNotPlayableWithoutManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-no-maneuver');
+
+  player.hand = [stagger];
+  player.fortitude = 5;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  assert(
+    !engine.canPlayCard(0, stagger.instanceId, 'action'),
+    'Stagger not playable without a successful maneuver this turn'
+  );
+}
+
+async function testStaggerNotPlayableAfterHandReversal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'stag-punch-rev');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow');
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-after-rev');
+
+  attacker.hand = [punch, stagger];
+  attacker.fortitude = 10;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `stag-rev-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, elbow.instanceId);
+
+  assert(
+    !attacker.turnState?.canPlayAfterSuccessfulManeuver,
+    'Hand-reversed maneuver does not enable Stagger'
+  );
+  assert(
+    !engine.canPlayCard(0, stagger.instanceId, 'action'),
+    'Stagger not playable after maneuver reversed from hand'
+  );
+}
+
+async function testStaggerPlayableAfterSuccessfulManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-playable');
+  const opponent = engine.players[1];
+  opponent.hand = [];
+  for (let i = 0; i < 5; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `stag-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-ok');
+
+  player.hand.push(stagger);
+  player.fortitude = 5;
+
+  assert(
+    engine.canPlayCard(0, stagger.instanceId, 'action'),
+    'Stagger playable after successful maneuver'
+  );
+
+  await engine.playCard(0, stagger.instanceId, 'action');
+
+  assert(
+    player.turnState?.nextManeuverUnreversibleMaxDamage === 7,
+    'Stagger sets unreversible cap on next card played'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === stagger.instanceId),
+    'Stagger is in Ring actions'
+  );
+}
+
+async function testStaggerProtectsLowDamageManeuverFromHand() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-protect-hand');
+  const punch = cloneCard(RawDeal, 'punch', 'stag-punch-hand');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow-hand');
+
+  attacker.fortitude = 15;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `stag-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-hand');
+  attacker.hand.push(punch);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-protect-hand');
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    !engine.reversalWindow,
+    'Stagger skips reversal priority for protected low-damage maneuver'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, elbow.instanceId),
+    'Elbow cannot reverse protected Punch after Stagger'
+  );
+}
+
+async function testStaggerProtectsLowDamageManeuverFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-protect-ars');
+  const punch = cloneCard(RawDeal, 'punch', 'stag-punch-ars');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow-ars');
+
+  attacker.fortitude = 15;
+  defender.arsenal = [
+    cloneCard(RawDeal, 'chop', 'stag-chop-1'),
+    cloneCard(RawDeal, 'chop', 'stag-chop-2'),
+    cloneCard(RawDeal, 'chop', 'stag-chop-3'),
+  ];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-ars');
+  attacker.hand.push(punch);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-protect-ars');
+  defender.arsenal.push(elbow);
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(lastDamage?.result === 'hit', 'Arsenal Elbow does not reverse Punch protected by Stagger');
+  assert(lastDamage?.cardsOverturned === 3, 'Protected Punch overturns 3 Arsenal cards');
+}
+
+async function testStaggerDoesNotProtectHighDamageManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const bulldog = cloneCard(RawDeal, 'bulldog', 'stag-bulldog');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'stag-escape-high');
+
+  attacker.fortitude = 20;
+  attacker.ring.maneuvers.push(cloneCard(RawDeal, 'kick', 'stag-preload-f'));
+  engine._syncFortitude(attacker);
+  defender.hand = [escapeMove];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `stag-high-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-high');
+  attacker.hand.push(bulldog);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-high-d');
+  await engine.playCard(0, bulldog.instanceId, 'maneuver');
+
+  assert(
+    engine.reversalWindow?.kind === 'maneuver',
+    'Stagger does not protect Bulldog 8D — reversal window opens'
+  );
+  assert(
+    engine.canPlayReversalFromHand(1, escapeMove.instanceId),
+    'Escape Move can reverse Bulldog 8D when Stagger protection does not apply'
+  );
+}
+
+async function testStaggerProtectsExactly7D() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-7d');
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'stag-clothesline');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow-7d');
+
+  attacker.fortitude = 20;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `stag-7d-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-7d');
+  attacker.hand.push(clothesline);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-7d');
+  await engine.playCard(0, clothesline.instanceId, 'maneuver');
+
+  assert(
+    !engine.reversalWindow,
+    'Stagger protects exactly 7D Clothesline from hand reversal'
+  );
+}
+
+async function testStaggerEffectConsumedByAction() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-action-consume');
+  const chop = cloneCard(RawDeal, 'chop', 'stag-chop-consume');
+  const punch = cloneCard(RawDeal, 'punch', 'stag-punch-consume');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow-consume');
+
+  attacker.fortitude = 20;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'kick', `stag-consume-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-consume');
+  attacker.hand.push(chop, punch);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-action-consume');
+  await engine.playCard(0, chop.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    engine.reversalWindow?.kind === 'maneuver',
+    'Stagger effect consumed by action — Punch opens reversal window'
+  );
+  assert(
+    engine.canPlayReversalFromHand(1, elbow.instanceId),
+    'Elbow can reverse Punch after Stagger was wasted on an action'
+  );
+}
+
 async function testDeludingYourselfDrawsFour() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -3588,6 +3893,14 @@ async function main() {
   await testSpitAtOpponentDiscardFour();
   await testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess();
   await testSpitAtOpponentPlayableWithEmptyOpponentHand();
+  await testStaggerNotPlayableWithoutManeuver();
+  await testStaggerNotPlayableAfterHandReversal();
+  await testStaggerPlayableAfterSuccessfulManeuver();
+  await testStaggerProtectsLowDamageManeuverFromHand();
+  await testStaggerProtectsLowDamageManeuverFromArsenal();
+  await testStaggerDoesNotProtectHighDamageManeuver();
+  await testStaggerProtectsExactly7D();
+  await testStaggerEffectConsumedByAction();
   await testDeludingYourselfDrawsFour();
   await testDeludingYourselfDiscardsHandAtEndOfTurn();
   await testDeludingYourselfDoesNotDiscardNextTurn();

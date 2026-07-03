@@ -58,6 +58,9 @@ window.RawDeal.GameEngine = class GameEngine {
       opponentReversalsBlocked: false,
       skipOpponentNextTurn: false,
       discardHandAtEndOfTurn: false,
+      canPlayAfterSuccessfulManeuver: false,
+      nextManeuverUnreversibleMaxDamage: null,
+      activeManeuverUnreversible: false,
     };
   }
 
@@ -71,6 +74,8 @@ window.RawDeal.GameEngine = class GameEngine {
     player.turnState.nextCardManeuverBonus = 0;
     player.turnState.nextCardFortitudeDiscount = 0;
     player.turnState.opponentReversalsBlocked = false;
+    player.turnState.nextManeuverUnreversibleMaxDamage = null;
+    player.turnState.activeManeuverUnreversible = false;
     this.nextManeuverBonus[this._playerIndex(player)] = 0;
   }
 
@@ -85,6 +90,28 @@ window.RawDeal.GameEngine = class GameEngine {
     if (mode !== 'maneuver' || card.subtype !== player.turnState.nextCardSubtypeBonus.subtype) {
       player.turnState.nextCardSubtypeBonus = null;
     }
+  }
+
+  _handleNextCardUnreversibleOnPlay(player, opponent, played, mode) {
+    if (!player.turnState) return;
+
+    const maxDamage = player.turnState.nextManeuverUnreversibleMaxDamage;
+    if (maxDamage == null) return;
+
+    player.turnState.nextManeuverUnreversibleMaxDamage = null;
+    player.turnState.activeManeuverUnreversible = false;
+
+    if (mode !== 'maneuver') return;
+
+    const damage = this._calcManeuverDamage(player, opponent, played);
+    if (damage <= maxDamage) {
+      player.turnState.activeManeuverUnreversible = true;
+    }
+  }
+
+  _markManeuverSuccessfullyPlayed(player) {
+    if (!player.turnState) player.turnState = this._emptyTurnState();
+    player.turnState.canPlayAfterSuccessfulManeuver = true;
   }
 
   _getManeuverReversalFortitudeTax(attacker, maneuver) {
@@ -804,6 +831,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const played = player.hand.splice(handIndex, 1)[0];
     this._expireNextCardManeuverBonusIfNotManeuver(player, mode);
     this._expireNextCardSubtypeBonusUnlessMatch(player, played, mode);
+    this._handleNextCardUnreversibleOnPlay(player, opponent, played, mode);
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.lastPlayedCardId = played.id;
     if (player.turnState.nextCardFortitudeDiscount) {
@@ -1916,12 +1944,21 @@ window.RawDeal.GameEngine = class GameEngine {
         this._notify();
         return true;
       }
+
+      if (player.turnState) {
+        player.turnState.activeManeuverUnreversible = false;
+      }
+      this._markManeuverSuccessfullyPlayed(player);
     }
 
     this._clearNextManeuverReversalTax(player);
     if (played.subtype === 'grapple') {
       this._clearGrappleJockeyingTax(player);
     }
+    if (player.turnState) {
+      player.turnState.activeManeuverUnreversible = false;
+    }
+    this._markManeuverSuccessfullyPlayed(player);
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
     return true;
@@ -1980,7 +2017,10 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async _openReversalWindowOrApplyDamage(player, opponent, played, damage) {
-    if (this.engineMode !== 'multiplayer') {
+    if (
+      this.engineMode !== 'multiplayer' ||
+      player.turnState?.activeManeuverUnreversible
+    ) {
       return this._continueManeuverAfterReversal(player, opponent, played, damage);
     }
 
@@ -2433,6 +2473,9 @@ window.RawDeal.GameEngine = class GameEngine {
     } = options;
 
     if (attacker?.turnState?.opponentReversalsBlocked) {
+      return false;
+    }
+    if (attacker?.turnState?.activeManeuverUnreversible) {
       return false;
     }
     const damage =
