@@ -27,11 +27,15 @@ window.RawDeal.EffectPipeline = {
   },
 
   isPaused(engine, playerIndex) {
-    return (
-      !!engine.handRevealFlow &&
-      engine.handRevealFlow.viewerIndex === playerIndex &&
-      !!engine.effectPipelineFlow?.paused
-    );
+    if (!engine.effectPipelineFlow?.paused) return false;
+
+    // Hand reveal: viewer must dismiss before the pipeline resumes
+    if (engine.handRevealFlow?.viewerIndex === playerIndex) return true;
+
+    // Interactive card effect: this player must complete the prompt
+    if (engine.cardEffectFlow?.playerIndex === playerIndex) return true;
+
+    return false;
   },
 
   publicHandReveal(engine, viewerIndex) {
@@ -187,8 +191,12 @@ window.RawDeal.EffectPipeline = {
         return this._pauseForReveal(engine, pipeline, player, opponent, step);
 
       case 'discardFromOpponentHand':
-        this._discardFromOpponentHand(engine, pipeline, opponent, sourceName, step);
-        return false;
+        return await engine._beginDiscardFromOpponentHandPipelineStep(
+          pipeline,
+          opponent,
+          sourceName,
+          step
+        );
 
       case 'nextManeuverBonus': {
         const value = step.value || 0;
@@ -217,6 +225,16 @@ window.RawDeal.EffectPipeline = {
         const label = subtype.charAt(0).toUpperCase() + subtype.slice(1);
         engine.actionLog.push({
           message: `${sourceName}: if your next card played this turn is a ${label} maneuver, it is +${value}D.`,
+        });
+        return false;
+      }
+
+      case 'nextCardFortitudeDiscount': {
+        const value = step.value || 0;
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.nextCardFortitudeDiscount = value;
+        engine.actionLog.push({
+          message: `${sourceName}: your next card played is -${value}F.`,
         });
         return false;
       }
@@ -250,6 +268,29 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'discardHandAtEndOfTurn': {
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.discardHandAtEndOfTurn = true;
+        engine.actionLog.push({
+          message: `${sourceName}: at end of turn, discard your hand.`,
+        });
+        return false;
+      }
+
+      case 'nextManeuverUnreversible': {
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        const maxDamage = step.maxDamage ?? null;
+        player.turnState.nextManeuverUnreversiblePending = true;
+        player.turnState.nextManeuverUnreversibleMaxDamage = maxDamage;
+        player.turnState.nextManeuverUnreversibleManeuverOnly = maxDamage == null;
+        const capLabel =
+          maxDamage == null ? 'your next maneuver' : `your next maneuver of ${maxDamage}D or less`;
+        engine.actionLog.push({
+          message: `${sourceName}: if ${capLabel} is played next, opponent cannot reverse it.`,
+        });
+        return false;
+      }
+
       case 'setupIrishWhip': {
         engine._applyIrishWhipSetup(player, { name: sourceName }, step.strikeBonus || 5);
         return false;
@@ -257,6 +298,9 @@ window.RawDeal.EffectPipeline = {
 
       case 'jockeyingChoice':
         return engine._beginJockeyingChoice(player, pipeline.playerIndex, sourceName);
+
+      case 'markingOutChoice':
+        return engine._beginMarkingOutChoice(player, pipeline.playerIndex, sourceName);
 
       case 'turnDamageBonus': {
         engine._addTurnDamageBonus(player, {
@@ -312,7 +356,13 @@ window.RawDeal.EffectPipeline = {
       }
 
       case 'opponentDiscardFromHand':
-        return engine._beginOpponentDiscardFromHandEffect(player, opponent, sourceName, step.count || 1);
+        return await engine._beginOpponentDiscardFromHandEffect(
+          player,
+          opponent,
+          sourceName,
+          step.count || 1,
+          { resumePipeline: true }
+        );
 
       case 'shuffleHandIntoArsenal':
         return engine._beginShuffleHandIntoArsenalPrompt(

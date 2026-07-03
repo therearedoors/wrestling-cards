@@ -1406,6 +1406,174 @@ async function testHmmmFewerThanFiveCards() {
   assert(engine.cardEffectFlow?.count === 1, 'Hmmm shows all Arsenal cards when fewer than 5');
 }
 
+async function testMarkingOutOpensChoice() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'mo-arsenal-0'));
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-choice-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+
+  assert(engine.cardEffectFlow?.type === 'choice', 'Marking Out opens choice prompt');
+  assert(engine.cardEffectFlow?.choiceId === 'markingOut', 'Marking Out choice id is markingOut');
+}
+
+async function testMarkingOutOwnArsenalEndsTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+  engine._runAutoPhases = async () => {};
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  player.arsenal = [
+    cloneCard(RawDeal, 'chop', 'mo-pick-a'),
+    cloneCard(RawDeal, 'punch', 'mo-pick-b'),
+  ];
+
+  engine._shuffle = (array) => {
+    array.reverse();
+    return array;
+  };
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-own-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+  await engine.selectChoice(0, 'ownArsenalToHand');
+  await engine.confirmArsenalSearch(0, ['mo-pick-a']);
+
+  assert(
+    player.hand.some((c) => c.instanceId === 'mo-pick-a'),
+    'Marking Out puts chosen Arsenal card in hand'
+  );
+  assert(player.arsenal.length === 1, 'Marking Out removes picked card from Arsenal');
+  assert(
+    player.arsenal[0].instanceId === 'mo-pick-b',
+    'Marking Out leaves other Arsenal cards'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.END_OF_TURN,
+    'Marking Out own Arsenal branch ends turn'
+  );
+  assert(
+    engine.actionLog.some((e) => e.message.includes('shuffled your Arsenal')),
+    'Marking Out shuffles own Arsenal'
+  );
+}
+
+async function testMarkingOutOpponentArsenalContinuesTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `mo-opp-${i}`));
+  }
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-opp-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+  await engine.selectChoice(0, 'opponentArsenalToRingside');
+
+  assert(engine.cardEffectFlow?.type === 'arsenalSearch', 'Marking Out opens opponent arsenal search');
+  assert(engine.cardEffectFlow?.selectCount === 3, 'Marking Out selects up to 3 cards');
+
+  await engine.confirmArsenalSearch(0, ['mo-opp-0', 'mo-opp-1', 'mo-opp-2']);
+
+  assert(opponent.arsenal.length === 2, 'Marking Out removes 3 cards from opponent Arsenal');
+  assert(opponent.ringside.length === 3, 'Marking Out puts 3 cards in opponent Ringside');
+  assert(engine.stateMachine.activePlayer === 0, 'Marking Out opponent branch continues turn');
+  assert(engine.stateMachine.canPlayCards(0), 'Marking Out opponent branch can still play cards');
+  assert(
+    engine.actionLog.some((e) => e.message.includes("shuffled opponent's Arsenal")),
+    'Marking Out shuffles opponent Arsenal'
+  );
+}
+
+async function testMarkingOutShortOpponentArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [
+    cloneCard(RawDeal, 'chop', 'mo-short-a'),
+    cloneCard(RawDeal, 'punch', 'mo-short-b'),
+  ];
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-short-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+  await engine.selectChoice(0, 'opponentArsenalToRingside');
+
+  assert(engine.cardEffectFlow?.selectCount === 2, 'Marking Out picks both when opponent has fewer than 3');
+
+  await engine.confirmArsenalSearch(0, ['mo-short-a', 'mo-short-b']);
+
+  assert(opponent.arsenal.length === 0, 'Marking Out empties short opponent Arsenal');
+  assert(opponent.ringside.length === 2, 'Marking Out puts all short opponent cards in Ringside');
+}
+
+async function testMarkingOutEmptyArsenals() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+  engine._runAutoPhases = async () => {};
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  player.arsenal = [];
+  opponent.arsenal = [];
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-empty-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+  await engine.selectChoice(0, 'ownArsenalToHand');
+
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.END_OF_TURN,
+    'Marking Out empty own Arsenal still ends turn'
+  );
+
+  const engine2 = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine2.startGame('austin', 'rock');
+  const player2 = engine2.players[0];
+  const opponent2 = engine2.players[1];
+  player2.hand = [];
+  player2.fortitude = 20;
+  opponent2.arsenal = [];
+  const markingOut2 = cloneCard(RawDeal, 'marking-out', 'mo-empty-opp-test');
+  player2.hand.push(markingOut2);
+
+  await engine2.playCard(0, markingOut2.instanceId, 'action');
+  await engine2.selectChoice(0, 'opponentArsenalToRingside');
+
+  assert(engine2.stateMachine.activePlayer === 0, 'Marking Out empty opponent Arsenal continues turn');
+  assert(opponent2.ringside.length === 0, 'Marking Out empty opponent Arsenal adds no Ringside cards');
+}
+
 async function testFiremansCarryHandRevealViewOnlyDone() {
   const RawDeal = loadRawDeal();
   const prompt = RawDeal.EffectPipeline.publicHandReveal(
@@ -1770,6 +1938,13 @@ async function testCleanBreakReversesJfp() {
   );
 
   await engine.playReversalFromHand(1, cleanBreak.instanceId);
+
+  if (engine.cardEffectFlow?.type === 'opponentDiscardFromHand') {
+    const toDiscard = [...attacker.hand];
+    for (const card of toDiscard) {
+      await engine.selectForCardEffect(0, card.instanceId);
+    }
+  }
 
   assert(attacker.hand.length === 0, 'Clean Break forces attacker to discard 4 hand cards');
   assert(defender.hand.length >= 1, 'Clean Break reversal player draws at least 1 card');
@@ -2849,6 +3024,1012 @@ async function testComebackMultiplayerManualRemoval() {
   assert(!engine.cardEffectFlow, 'Comeback effect completes after balancing');
 }
 
+async function testEgoBoostNextCardMinusFiveF() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-discount');
+  const snapMare = cloneCard(RawDeal, 'snap-mare', 'eb-snap-mare');
+
+  player.hand = [egoBoost, snapMare];
+  player.fortitude = 0;
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  assert(
+    !engine.canPlayCard(0, snapMare.instanceId, 'maneuver'),
+    'Snap Mare not playable at 0F without Ego Boost discount (3F cost)'
+  );
+
+  await engine.playCard(0, egoBoost.instanceId, 'action');
+  assert(
+    player.turnState?.nextCardFortitudeDiscount === 5,
+    'Ego Boost sets -5F on next card played'
+  );
+  assert(
+    engine.canPlayCard(0, snapMare.instanceId, 'maneuver'),
+    'Snap Mare playable at 0F with -5F discount (3F cost)'
+  );
+
+  await engine.playCard(0, snapMare.instanceId, 'maneuver');
+  assert(
+    player.turnState?.nextCardFortitudeDiscount === 0,
+    'Ego Boost -5F discount consumed after next card'
+  );
+}
+
+async function testEgoBoostNextCardAppliesToAction() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-action');
+  const flash = cloneCard(RawDeal, 'flash-in-the-pan', 'eb-flash');
+
+  player.hand = [egoBoost, flash];
+  player.fortitude = 1;
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, egoBoost.instanceId, 'action');
+  assert(
+    engine.canPlayCard(0, flash.instanceId, 'action'),
+    'Flash in the Pan playable at 1F with -5F discount (6F cost)'
+  );
+
+  await engine.playCard(0, flash.instanceId, 'action');
+  assert(
+    player.turnState?.nextCardFortitudeDiscount === 0,
+    'Ego Boost -5F consumed after next action'
+  );
+}
+
+async function testEgoBoostReactionReplacesOneOfFour() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const spit = cloneCard(RawDeal, 'spit-at-opponent', 'eb-spit');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-react');
+  const selfDiscard = cloneCard(RawDeal, 'chop', 'eb-self-discard');
+
+  attacker.hand = [spit, selfDiscard];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost];
+  for (let i = 0; i < 5; i++) {
+    defender.hand.push(cloneCard(RawDeal, 'kick', `eb-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Spit At Opponent offers Ego Boost reaction to defender'
+  );
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    defender.ringside.some((c) => c.id === 'ego-boost'),
+    'Ego Boost discarded to Ringside via reaction'
+  );
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Spit At Opponent discard prompt before Ego Boost draw'
+  );
+
+  const toDiscard = defender.hand.slice(0, 3);
+  for (const card of toDiscard) {
+    await engine.selectForCardEffect(1, card.instanceId);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Ego Boost draw opens after forced discards resolve'
+  );
+
+  engine.adjustDrawCount(1, 0);
+  await engine.confirmDrawCount(1);
+
+  assert(defender.hand.length === 2, 'Defender discards 3 more after Ego Boost (6 - 4 total)');
+}
+
+async function testEgoBoostReactionDrawUpToTwo() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const heelKick = cloneCard(RawDeal, 'spinning-heel-kick', 'eb-shk');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-draw2');
+
+  attacker.hand = [heelKick];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost, cloneCard(RawDeal, 'chop', 'eb-filler')];
+  defender.arsenal = [
+    cloneCard(RawDeal, 'punch', 'eb-arsenal-1'),
+    cloneCard(RawDeal, 'kick', 'eb-arsenal-2'),
+  ];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, heelKick.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Spinning Heel Kick offers Ego Boost before opponent discard'
+  );
+
+  await engine.selectChoice(1, 'egoBoost');
+  engine.adjustDrawCount(1, 2);
+  const handBefore = defender.hand.length;
+  const arsenalBefore = defender.arsenal.length;
+  await engine.confirmDrawCount(1);
+
+  assert(
+    defender.hand.length === handBefore + 2,
+    'Ego Boost reaction draws 2 after discarding Ego Boost'
+  );
+  assert(defender.arsenal.length === arsenalBefore - 2, 'Drew 2 from Arsenal');
+}
+
+async function testEgoBoostReactionFilterDiscard() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const flash = cloneCard(RawDeal, 'flash-in-the-pan', 'eb-flash-filter');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-filter');
+  const heel1 = cloneCard(RawDeal, 'chair-shot', 'eb-heel-1');
+  const heel2 = cloneCard(RawDeal, 'chair-shot', 'eb-heel-2');
+  heel1.alignment = 'heel';
+  heel2.alignment = 'heel';
+
+  attacker.hand = [flash];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost, heel1, heel2];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, flash.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  if (engine.handRevealFlow) {
+    await engine.dismissHandReveal(0);
+  }
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Flash in the Pan offers Ego Boost before HEEL discard'
+  );
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    defender.ringside.some((c) => c.id === 'ego-boost'),
+    'Ego Boost used before filter discard'
+  );
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'HEEL discard prompt before Ego Boost draw'
+  );
+
+  const heel = defender.hand.find((c) => c.alignment === 'heel');
+  if (heel) await engine.selectForCardEffect(1, heel.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Ego Boost draw opens after filter discard resolves'
+  );
+
+  engine.adjustDrawCount(1, 0);
+  await engine.confirmDrawCount(1);
+
+  assert(
+    defender.hand.length === 1,
+    'Only 1 HEEL card remains after Ego Boost replaces one filter discard'
+  );
+}
+
+async function testEgoBoostTwoCopiesChainOnSpit() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const spit = cloneCard(RawDeal, 'spit-at-opponent', 'eb-spit-2x');
+  const egoBoost1 = cloneCard(RawDeal, 'ego-boost', 'eb-react-1');
+  const egoBoost2 = cloneCard(RawDeal, 'ego-boost', 'eb-react-2');
+  const selfDiscard = cloneCard(RawDeal, 'chop', 'eb-self-discard-2x');
+
+  attacker.hand = [spit, selfDiscard];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost1, egoBoost2];
+  for (let i = 0; i < 4; i++) {
+    defender.hand.push(cloneCard(RawDeal, 'kick', `eb-opp-2x-${i}`));
+  }
+  defender.arsenal = [
+    cloneCard(RawDeal, 'punch', 'eb-ars-2x-1'),
+    cloneCard(RawDeal, 'punch', 'eb-ars-2x-2'),
+    cloneCard(RawDeal, 'punch', 'eb-ars-2x-3'),
+    cloneCard(RawDeal, 'punch', 'eb-ars-2x-4'),
+  ];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Second Ego Boost offered after first is used'
+  );
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Normal discard prompt after both Ego Boosts consumed'
+  );
+
+  const toDiscard = defender.hand.slice(0, 2);
+  for (const card of toDiscard) {
+    await engine.selectForCardEffect(1, card.instanceId);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'First Ego Boost draw after all forced discards'
+  );
+
+  const handBeforeDraws = defender.hand.length;
+  const arsenalBeforeDraws = defender.arsenal.length;
+  engine.adjustDrawCount(1, 2);
+  await engine.confirmDrawCount(1);
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Second Ego Boost draw chains after first'
+  );
+
+  engine.adjustDrawCount(1, 2);
+  await engine.confirmDrawCount(1);
+
+  assert(
+    defender.hand.length === handBeforeDraws + 4,
+    'Two Ego Boosts draw up to 4 cards total after discards'
+  );
+  assert(
+    defender.arsenal.length === arsenalBeforeDraws - 4,
+    'Drew 4 from Arsenal across two Ego Boost reactions'
+  );
+  assert(
+    defender.ringside.filter((c) => c.id === 'ego-boost').length === 2,
+    'Both Ego Boosts discarded to Ringside'
+  );
+}
+
+async function testEgoBoostDiscardNormallySkipsSecondOffer() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const spit = cloneCard(RawDeal, 'spit-at-opponent', 'eb-spit-skip');
+  const egoBoost1 = cloneCard(RawDeal, 'ego-boost', 'eb-skip-1');
+  const egoBoost2 = cloneCard(RawDeal, 'ego-boost', 'eb-skip-2');
+  const selfDiscard = cloneCard(RawDeal, 'chop', 'eb-self-discard-skip');
+
+  attacker.hand = [spit, selfDiscard];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost1, egoBoost2];
+  for (let i = 0; i < 5; i++) {
+    defender.hand.push(cloneCard(RawDeal, 'kick', `eb-opp-skip-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, spit.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.selectForCardEffect(0, selfDiscard.instanceId);
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Second Ego Boost offer after using first'
+  );
+
+  await engine.selectChoice(1, 'discardNormally');
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Discard normally completes remaining forced discards'
+  );
+  assert(
+    engine.cardEffectFlow?.count === 3,
+    'Discard normally covers 3 remaining forced discards'
+  );
+
+  const toDiscard = defender.hand.filter((c) => c.id !== 'ego-boost').slice(0, 3);
+  for (const card of toDiscard) {
+    await engine.selectForCardEffect(1, card.instanceId);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Only one Ego Boost draw after discard normally'
+  );
+
+  engine.adjustDrawCount(1, 0);
+  await engine.confirmDrawCount(1);
+
+  assert(
+    defender.ringside.filter((c) => c.id === 'ego-boost').length === 1,
+    'Only first Ego Boost was consumed'
+  );
+  assert(defender.hand.some((c) => c.id === 'ego-boost'), 'Second Ego Boost remains in hand');
+  assert(!engine.cardEffectFlow, 'Ego Boost reaction flow completes after discard normally');
+}
+
+async function testEgoBoostNotInRingForReaction() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const heelKick = cloneCard(RawDeal, 'spinning-heel-kick', 'eb-no-ring');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'eb-in-ring');
+
+  attacker.hand = [heelKick];
+  attacker.fortitude = 6;
+  defender.hand = [cloneCard(RawDeal, 'chop', 'eb-only')];
+  defender.ring.actions.push(egoBoost);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, heelKick.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'No Ego Boost reaction when Ego Boost is only in Ring'
+  );
+  assert(
+    engine.cardEffectFlow?.choiceId !== 'egoBoostOrDiscard',
+    'Ego Boost choice not offered without Ego Boost in hand'
+  );
+}
+
+async function playKickSuccessfully(engine, RawDeal, instanceId = 'stag-kick') {
+  const punch = cloneCard(RawDeal, 'punch', instanceId);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand.push(punch);
+  player.fortitude = Math.max(player.fortitude, 5);
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `${instanceId}-safe-ars-${i}`));
+  }
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return punch;
+}
+
+async function playStaggerAfterKick(engine, RawDeal, staggerInstanceId = 'stag-stagger') {
+  const stagger = cloneCard(RawDeal, 'stagger', staggerInstanceId);
+  const player = engine.players[0];
+  player.hand.push(stagger);
+  player.fortitude = Math.max(player.fortitude, 5);
+  await engine.playCard(0, stagger.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return stagger;
+}
+
+async function testStaggerNotPlayableWithoutManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-no-maneuver');
+
+  player.hand = [stagger];
+  player.fortitude = 5;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  assert(
+    !engine.canPlayCard(0, stagger.instanceId, 'action'),
+    'Stagger not playable without a successful maneuver this turn'
+  );
+}
+
+async function testStaggerNotPlayableAfterHandReversal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'stag-punch-rev');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow');
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-after-rev');
+
+  attacker.hand = [punch, stagger];
+  attacker.fortitude = 10;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `stag-rev-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, elbow.instanceId);
+
+  assert(
+    !attacker.turnState?.canPlayAfterSuccessfulManeuver,
+    'Hand-reversed maneuver does not enable Stagger'
+  );
+  assert(
+    !engine.canPlayCard(0, stagger.instanceId, 'action'),
+    'Stagger not playable after maneuver reversed from hand'
+  );
+}
+
+async function testStaggerPlayableAfterSuccessfulManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-playable');
+  const opponent = engine.players[1];
+  opponent.hand = [];
+  for (let i = 0; i < 5; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `stag-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-ok');
+
+  player.hand.push(stagger);
+  player.fortitude = 5;
+
+  assert(
+    engine.canPlayCard(0, stagger.instanceId, 'action'),
+    'Stagger playable after successful maneuver'
+  );
+
+  await engine.playCard(0, stagger.instanceId, 'action');
+
+  assert(
+    player.turnState?.nextManeuverUnreversiblePending === true,
+    'Stagger sets unreversible pending on next card played'
+  );
+  assert(
+    player.turnState?.nextManeuverUnreversibleMaxDamage === 7,
+    'Stagger sets 7D cap on next card played'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === stagger.instanceId),
+    'Stagger is in Ring actions'
+  );
+}
+
+async function testStaggerProtectsLowDamageManeuverFromHand() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-protect-hand');
+  const punch = cloneCard(RawDeal, 'punch', 'stag-punch-hand');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow-hand');
+
+  attacker.fortitude = 15;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `stag-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-hand');
+  attacker.hand.push(punch);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-protect-hand');
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    !engine.reversalWindow,
+    'Stagger skips reversal priority for protected low-damage maneuver'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, elbow.instanceId),
+    'Elbow cannot reverse protected Punch after Stagger'
+  );
+}
+
+async function testStaggerProtectsLowDamageManeuverFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-protect-ars');
+  const punch = cloneCard(RawDeal, 'punch', 'stag-punch-ars');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow-ars');
+
+  attacker.fortitude = 15;
+  defender.arsenal = [
+    cloneCard(RawDeal, 'chop', 'stag-chop-1'),
+    cloneCard(RawDeal, 'chop', 'stag-chop-2'),
+    cloneCard(RawDeal, 'chop', 'stag-chop-3'),
+  ];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-ars');
+  attacker.hand.push(punch);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-protect-ars');
+  defender.arsenal.push(elbow);
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(lastDamage?.result === 'hit', 'Arsenal Elbow does not reverse Punch protected by Stagger');
+  assert(lastDamage?.cardsOverturned === 3, 'Protected Punch overturns 3 Arsenal cards');
+}
+
+async function testStaggerDoesNotProtectHighDamageManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const bulldog = cloneCard(RawDeal, 'bulldog', 'stag-bulldog');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'stag-escape-high');
+
+  attacker.fortitude = 20;
+  attacker.ring.maneuvers.push(cloneCard(RawDeal, 'kick', 'stag-preload-f'));
+  engine._syncFortitude(attacker);
+  defender.hand = [escapeMove];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `stag-high-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-high');
+  attacker.hand.push(bulldog);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-high-d');
+  await engine.playCard(0, bulldog.instanceId, 'maneuver');
+
+  assert(
+    engine.reversalWindow?.kind === 'maneuver',
+    'Stagger does not protect Bulldog 8D — reversal window opens'
+  );
+  assert(
+    engine.canPlayReversalFromHand(1, escapeMove.instanceId),
+    'Escape Move can reverse Bulldog 8D when Stagger protection does not apply'
+  );
+}
+
+async function testStaggerProtectsExactly7D() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-7d');
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'stag-clothesline');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow-7d');
+
+  attacker.fortitude = 20;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `stag-7d-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-7d');
+  attacker.hand.push(clothesline);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-7d');
+  await engine.playCard(0, clothesline.instanceId, 'maneuver');
+
+  assert(
+    !engine.reversalWindow,
+    'Stagger protects exactly 7D Clothesline from hand reversal'
+  );
+}
+
+async function testStaggerEffectConsumedByAction() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const stagger = cloneCard(RawDeal, 'stagger', 'stag-action-consume');
+  const chop = cloneCard(RawDeal, 'chop', 'stag-chop-consume');
+  const punch = cloneCard(RawDeal, 'punch', 'stag-punch-consume');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'stag-elbow-consume');
+
+  attacker.fortitude = 20;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'kick', `stag-consume-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'stag-kick-consume');
+  attacker.hand.push(chop, punch);
+  await playStaggerAfterKick(engine, RawDeal, 'stag-action-consume');
+  await engine.playCard(0, chop.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    engine.reversalWindow?.kind === 'maneuver',
+    'Stagger effect consumed by action — Punch opens reversal window'
+  );
+  assert(
+    engine.canPlayReversalFromHand(1, elbow.instanceId),
+    'Elbow can reverse Punch after Stagger was wasted on an action'
+  );
+}
+
+async function playDiversion(engine, RawDeal, instanceId = 'div-play') {
+  const diversion = cloneCard(RawDeal, 'diversion', instanceId);
+  const player = engine.players[0];
+  player.hand.push(diversion);
+  player.fortitude = Math.max(player.fortitude, 17);
+  await engine.playCard(0, diversion.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return diversion;
+}
+
+async function testDiversionSetsUnreversibleOnNextManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  player.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playDiversion(engine, RawDeal, 'div-sets');
+
+  assert(
+    player.turnState?.nextManeuverUnreversiblePending === true,
+    'Diversion sets unreversible pending for next maneuver'
+  );
+  assert(
+    player.turnState?.nextManeuverUnreversibleMaxDamage == null,
+    'Diversion has no damage cap'
+  );
+  assert(
+    player.turnState?.nextManeuverUnreversibleManeuverOnly === true,
+    'Diversion waits for next maneuver only'
+  );
+  assert(
+    player.ring.actions.some((c) => c.id === 'diversion'),
+    'Diversion is in Ring actions'
+  );
+}
+
+async function testDiversionProtectsManeuverFromHand() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const bulldog = cloneCard(RawDeal, 'bulldog', 'div-bulldog');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'div-escape');
+
+  attacker.fortitude = 20;
+  defender.hand = [escapeMove];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `div-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playDiversion(engine, RawDeal, 'div-hand');
+  attacker.hand.push(bulldog);
+  await engine.playCard(0, bulldog.instanceId, 'maneuver');
+
+  assert(
+    !engine.reversalWindow,
+    'Diversion skips reversal priority for protected maneuver'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, escapeMove.instanceId),
+    'Escape Move cannot reverse Bulldog protected by Diversion'
+  );
+}
+
+async function testDiversionProtectsManeuverFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const clothesline = cloneCard(RawDeal, 'clothesline', 'div-clothesline-ars');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'div-elbow-ars');
+
+  attacker.fortitude = 20;
+  defender.arsenal = [
+    cloneCard(RawDeal, 'chop', 'div-chop-1'),
+    cloneCard(RawDeal, 'chop', 'div-chop-2'),
+    cloneCard(RawDeal, 'chop', 'div-chop-3'),
+    cloneCard(RawDeal, 'chop', 'div-chop-4'),
+    cloneCard(RawDeal, 'chop', 'div-chop-5'),
+    cloneCard(RawDeal, 'chop', 'div-chop-6'),
+    cloneCard(RawDeal, 'chop', 'div-chop-7'),
+  ];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playDiversion(engine, RawDeal, 'div-ars');
+  attacker.hand.push(clothesline);
+  defender.arsenal.push(elbow);
+  await engine.playCard(0, clothesline.instanceId, 'maneuver');
+
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(
+    lastDamage?.result === 'hit',
+    'Arsenal Elbow does not reverse Clothesline protected by Diversion'
+  );
+  assert(lastDamage?.cardsOverturned === 7, 'Protected Clothesline overturns 7 Arsenal cards');
+}
+
+async function testDiversionPersistsThroughAction() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const chop = cloneCard(RawDeal, 'chop', 'div-chop');
+  const bulldog = cloneCard(RawDeal, 'bulldog', 'div-bulldog-after-action');
+  const escapeMove = cloneCard(RawDeal, 'escape-move', 'div-escape-persist');
+
+  attacker.fortitude = 20;
+  defender.hand = [escapeMove];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'kick', `div-persist-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playDiversion(engine, RawDeal, 'div-persist');
+  attacker.hand.push(chop, bulldog);
+  await engine.playCard(0, chop.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    attacker.turnState?.nextManeuverUnreversiblePending === true,
+    'Diversion effect persists after playing an action'
+  );
+
+  await engine.playCard(0, bulldog.instanceId, 'maneuver');
+
+  assert(
+    !engine.reversalWindow,
+    'Diversion still protects next maneuver after an intervening action'
+  );
+}
+
+async function testDeludingYourselfDrawsFour() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const deluding = cloneCard(RawDeal, 'deluding-yourself', 'dy-test');
+
+  player.hand = [deluding];
+  player.arsenal = [
+    cloneCard(RawDeal, 'punch', 'dy-ars-1'),
+    cloneCard(RawDeal, 'kick', 'dy-ars-2'),
+    cloneCard(RawDeal, 'chop', 'dy-ars-3'),
+    cloneCard(RawDeal, 'elbow', 'dy-ars-4'),
+    cloneCard(RawDeal, 'punch', 'dy-ars-5'),
+  ];
+  player.fortitude = 10;
+
+  const arsenalBefore = player.arsenal.length;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, deluding.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(player.hand.length === 4, 'Deluding Yourself draws 4 cards');
+  assert(player.arsenal.length === arsenalBefore - 4, 'Deluding Yourself draws from Arsenal');
+  assert(
+    player.turnState?.discardHandAtEndOfTurn === true,
+    'Deluding Yourself schedules hand discard at end of turn'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === deluding.instanceId),
+    'Deluding Yourself is in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Deluding Yourself effect completes on play');
+}
+
+async function testDeludingYourselfDiscardsHandAtEndOfTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const deluding = cloneCard(RawDeal, 'deluding-yourself', 'dy-eot');
+  const extra = cloneCard(RawDeal, 'punch', 'dy-extra');
+
+  player.hand = [deluding, extra];
+  player.arsenal = [
+    cloneCard(RawDeal, 'kick', 'dy-eot-1'),
+    cloneCard(RawDeal, 'kick', 'dy-eot-2'),
+    cloneCard(RawDeal, 'kick', 'dy-eot-3'),
+    cloneCard(RawDeal, 'kick', 'dy-eot-4'),
+  ];
+  player.fortitude = 10;
+
+  const handIdsBeforeEnd = new Set();
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, deluding.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  for (const card of player.hand) {
+    handIdsBeforeEnd.add(card.instanceId);
+  }
+  assert(player.hand.length === 5, 'Hand has 4 draws plus leftover card before end of turn');
+
+  await engine.endTurn(0);
+
+  assert(player.hand.length === 0, 'Deluding Yourself empties hand at end of turn');
+  assert(
+    [...handIdsBeforeEnd].every((id) => player.ringside.some((c) => c.instanceId === id)),
+    'Deluding Yourself discards entire hand to Ringside at end of turn'
+  );
+  assert(
+    !player.turnState?.discardHandAtEndOfTurn,
+    'End-of-turn hand discard flag is consumed'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Turn passes to opponent after end-of-turn discard'
+  );
+}
+
+async function testDeludingYourselfDoesNotDiscardNextTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const deluding = cloneCard(RawDeal, 'deluding-yourself', 'dy-next');
+
+  player.hand = [deluding];
+  player.arsenal = [
+    cloneCard(RawDeal, 'kick', 'dy-next-1'),
+    cloneCard(RawDeal, 'kick', 'dy-next-2'),
+    cloneCard(RawDeal, 'kick', 'dy-next-3'),
+    cloneCard(RawDeal, 'kick', 'dy-next-4'),
+  ];
+  player.fortitude = 10;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, deluding.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  await engine.endTurn(0);
+
+  const opponent = engine.players[1];
+  opponent.hand = [cloneCard(RawDeal, 'chop', 'dy-opp-keep')];
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+  await engine.endTurn(1);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+  player.hand = [cloneCard(RawDeal, 'punch', 'dy-new-hand')];
+  await engine.endTurn(0);
+
+  assert(
+    player.hand.some((c) => c.instanceId === 'dy-new-hand'),
+    'Deluding Yourself does not discard hand on a later turn'
+  );
+}
+
 async function testGetCrowdSupportDrawAndNextManeuverBoost() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -2995,6 +4176,11 @@ async function main() {
   await testHmmmConfirmReordersTopCards();
   await testHmmmShuffleRandomizesArsenal();
   await testHmmmFewerThanFiveCards();
+  await testMarkingOutOpensChoice();
+  await testMarkingOutOwnArsenalEndsTurn();
+  await testMarkingOutOpponentArsenalContinuesTurn();
+  await testMarkingOutShortOpponentArsenal();
+  await testMarkingOutEmptyArsenals();
   await testDontThinkTooHardOpensOpponentPrompt();
   await testDontThinkTooHardConfirmReordersOpponentTop();
   await testDontThinkTooHardShuffleOpponentArsenal();
@@ -3041,6 +4227,21 @@ async function main() {
   await testSpitAtOpponentDiscardFour();
   await testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess();
   await testSpitAtOpponentPlayableWithEmptyOpponentHand();
+  await testStaggerNotPlayableWithoutManeuver();
+  await testStaggerNotPlayableAfterHandReversal();
+  await testStaggerPlayableAfterSuccessfulManeuver();
+  await testStaggerProtectsLowDamageManeuverFromHand();
+  await testStaggerProtectsLowDamageManeuverFromArsenal();
+  await testStaggerDoesNotProtectHighDamageManeuver();
+  await testStaggerProtectsExactly7D();
+  await testStaggerEffectConsumedByAction();
+  await testDiversionSetsUnreversibleOnNextManeuver();
+  await testDiversionProtectsManeuverFromHand();
+  await testDiversionProtectsManeuverFromArsenal();
+  await testDiversionPersistsThroughAction();
+  await testDeludingYourselfDrawsFour();
+  await testDeludingYourselfDiscardsHandAtEndOfTurn();
+  await testDeludingYourselfDoesNotDiscardNextTurn();
   await testGetCrowdSupportDrawAndNextManeuverBoost();
   await testGetCrowdSupportReversalTaxFromHandAndArsenal();
   await testComebackNotPlayableWithoutFourCards();
@@ -3049,6 +4250,14 @@ async function main() {
   await testComebackGoldfishOpponentHigherRemovesHighestDamage();
   await testComebackIgnoresRingActions();
   await testComebackMultiplayerManualRemoval();
+  await testEgoBoostNextCardMinusFiveF();
+  await testEgoBoostNextCardAppliesToAction();
+  await testEgoBoostReactionReplacesOneOfFour();
+  await testEgoBoostReactionDrawUpToTwo();
+  await testEgoBoostReactionFilterDiscard();
+  await testEgoBoostTwoCopiesChainOnSpit();
+  await testEgoBoostDiscardNormallySkipsSecondOffer();
+  await testEgoBoostNotInRingForReaction();
 
   if (process.exitCode) {
     console.error('\nSome timing tests failed.');

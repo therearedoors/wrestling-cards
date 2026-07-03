@@ -573,7 +573,7 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Grapple When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. Opponent must discard 2 cards. SV: 1",
     flavor: "",
-    maneuverEffects: [{"op": "topArsenalToRingside"}],
+    maneuverEffects: [{"op": "topArsenalToRingside"}, {"op": "opponentDiscardFromHand", "count": 2}],
     set: "premiere",
   },
   'power-slam': {
@@ -614,7 +614,7 @@ window.RawDeal.CARDS = {
     stunValue: 2,
     text: "Grapple When successfully played, you must take the top card of your Arsenal and put it into your Ringside pile. Opponent must discard 2 cards. SV: 2",
     flavor: "",
-    maneuverEffects: [{"op": "topArsenalToRingside"}],
+    maneuverEffects: [{"op": "topArsenalToRingside"}, {"op": "opponentDiscardFromHand", "count": 2}],
     set: "premiere",
   },
   'collar-elbow-lockup': {
@@ -1220,7 +1220,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Your next card played is -5F. If opponent forces you to discard a card from your hand, you may choose to discard this card from your hand and then draw up to 2 cards.",
     flavor: "",
-    actionEffects: [{"op": "draw", "count": 2}],
+    actionEffects: [{"op": "nextCardFortitudeDiscount", "value": 5}],
     set: "premiere",
   },
   'deluding-yourself': {
@@ -1233,6 +1233,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Draw 4 cards. At end of turn, discard your hand.",
     flavor: "",
+    actionEffects: [{"op": "draw", "count": 4}, {"op": "discardHandAtEndOfTurn"}],
     set: "premiere",
   },
   'stagger': {
@@ -1244,7 +1245,8 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Play after a successfully played maneuver. If your next card played this turn is a maneuver of 7D or less your opponent can not reverse it.",
     flavor: "",
-    maxDamage: 7,
+    requiresAfterSuccessfulManeuver: true,
+    actionEffects: [{"op": "nextManeuverUnreversible", "maxDamage": 7}],
     set: "premiere",
   },
   'diversion': {
@@ -1256,6 +1258,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Your next maneuver may not be reversed.",
     flavor: "",
+    actionEffects: [{"op": "nextManeuverUnreversible"}],
     set: "premiere",
   },
   'marking-out': {
@@ -1268,6 +1271,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Choose one: Look through your Arsenal and put 1 card in your hand, shuffle it and end your turn; or go through opponent’s Arsenal and put any 3 cards into his Ringside pile, then shuffle his Arsenal.",
     flavor: "",
+    actionEffects: [{"op": "markingOutChoice"}],
     set: "premiere",
   },
   'puppies-puppies': {

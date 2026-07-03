@@ -35,6 +35,10 @@
   const arsenalReorderModal = arsenalReorderModalRoot
     ? new window.RawDeal.ArsenalReorderModal(arsenalReorderModalRoot)
     : null;
+  const arsenalSearchModalRoot = document.getElementById('rd-arsenal-search-modal');
+  const arsenalSearchModal = arsenalSearchModalRoot
+    ? new window.RawDeal.ArsenalSearchModal(arsenalSearchModalRoot)
+    : null;
   const opponentRingModalRoot = document.getElementById('rd-opponent-ring-modal');
   const opponentRingSelectModal = opponentRingModalRoot
     ? new window.RawDeal.OpponentRingSelectModal(opponentRingModalRoot)
@@ -60,6 +64,7 @@
       pileViewModal,
       superstarAbilityModal,
       arsenalReorderModal,
+      arsenalSearchModal,
       opponentRingSelectModal
     );
 
@@ -159,6 +164,14 @@
 
     board.onArsenalReorderChange = (orderedIds) => {
       engine.updateArsenalReorderOrder(0, orderedIds);
+    };
+
+    board.onArsenalSearchSelect = async (instanceId) => {
+      await engine.toggleArsenalSearchSelection(0, instanceId);
+    };
+
+    board.onConfirmArsenalSearch = async (instanceIds) => {
+      await engine.confirmArsenalSearch(0, instanceIds);
     };
 
     board.onDismissHandReveal = async () => {

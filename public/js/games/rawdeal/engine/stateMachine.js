@@ -18,6 +18,7 @@ window.RawDeal.StateMachine = class StateMachine {
 
   _emit(prevPhase, event) {
     for (const cb of this.listeners) {
+      // Notify listeners of the transition
       cb({
         phase: this.phase,
         prevPhase,
@@ -55,7 +56,7 @@ window.RawDeal.StateMachine = class StateMachine {
         if (event === EVENTS.DRAW_DONE) {
           if (this.mode === 'multiplayer' || this.activePlayer === 0) {
             this.phase = PHASES.MAIN;
-          } else {
+          } else { // In goldfish mode, the opponent's turn is skipped
             this.phase = PHASES.OPPONENT_TURN;
           }
         }
@@ -98,7 +99,7 @@ window.RawDeal.StateMachine = class StateMachine {
           this.phase = PHASES.GAME_OVER;
         } else if (context.skipOpponentTurn) {
           this.phase = PHASES.START_OF_TURN;
-        } else {
+        } else { // Switch to the other player's turn
           this.activePlayer = 1 - this.activePlayer;
           if (this.activePlayer === 0) this.turnNumber += 1;
           this.phase = PHASES.START_OF_TURN;
