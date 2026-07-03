@@ -77,6 +77,10 @@ window.RawDeal.CardUtils = {
       }
     }
 
+    if (card.requiresAfterSuccessfulManeuver) {
+      return !!player.turnState?.canPlayAfterSuccessfulManeuver;
+    }
+
     if (!card.requiresLowerFortitudeThanOpponent) return true;
     if (!opponent) return false;
     return player.fortitude < opponent.fortitude;

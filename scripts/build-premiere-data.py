@@ -335,12 +335,16 @@ def parse_cards(text: str):
         reversal_effects = infer_reversal_effects(types_list, rules, dmg or 0)
         if reversal_effects:
             entry['reversalEffects'] = reversal_effects
-        max_damage = infer_max_damage(rules)
-        if max_damage is not None:
-            entry['maxDamage'] = max_damage
+        if 'reversal' in types_list:
+            max_damage = infer_max_damage(rules)
+            if max_damage is not None:
+                entry['maxDamage'] = max_damage
         requires = infer_requires_played(rules)
         if requires:
             entry.update(requires)
+        after_maneuver = infer_requires_after_successful_maneuver(rules)
+        if after_maneuver:
+            entry.update(after_maneuver)
         lower_f = infer_requires_lower_fortitude_than_opponent(rules)
         if lower_f:
             entry.update(lower_f)
@@ -415,6 +419,13 @@ def infer_requires_played(rules):
         or 'must play the card titled irish whip before' in blob
     ):
         return {'requiresPlayed': 'irish-whip'}
+    return None
+
+
+def infer_requires_after_successful_maneuver(rules):
+    blob = rules.lower()
+    if 'play after a successfully played maneuver' in blob:
+        return {'requiresAfterSuccessfulManeuver': True}
     return None
 
 
@@ -787,6 +798,13 @@ def infer_action_effects(types_list, rules, name=''):
             {'op': 'discardHandAtEndOfTurn'},
         ]
 
+    if 'stagger' in card_name or (
+        'play after a successfully played maneuver' in blob
+        and '7d or less' in blob
+        and 'can not reverse' in blob
+    ):
+        return [{'op': 'nextManeuverUnreversible', 'maxDamage': 7}]
+
     if 'draw up to 5' in blob:
         return [{'op': 'draw', 'count': 5}]
     if 'draw 2' in blob or 'draw up to 2' in blob:
@@ -814,6 +832,7 @@ def emit_cards(cards):
         for key in ['id', 'num', 'name', 'types', 'subtype', 'alignment', 'handSize', 'superstarValue',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
                     'unique', 'hybrid', 'reverses', 'maxDamage', 'requiresPlayed',
+                    'requiresAfterSuccessfulManeuver',
                     'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
                     'actionEffects', 'maneuverEffects', 'reversalEffects', 'set']:
             if key in card and card[key] is not None:

@@ -1245,7 +1245,8 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Play after a successfully played maneuver. If your next card played this turn is a maneuver of 7D or less your opponent can not reverse it.",
     flavor: "",
-    maxDamage: 7,
+    requiresAfterSuccessfulManeuver: true,
+    actionEffects: [{"op": "nextManeuverUnreversible", "maxDamage": 7}],
     set: "premiere",
   },
   'diversion': {
