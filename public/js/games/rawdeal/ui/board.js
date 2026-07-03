@@ -9,6 +9,7 @@ window.RawDeal.Board = class Board {
     pileViewModal = null,
     superstarAbilityModal = null,
     arsenalReorderModal = null,
+    arsenalSearchModal = null,
     opponentRingSelectModal = null
   ) {
     this.root = rootEl;
@@ -18,6 +19,7 @@ window.RawDeal.Board = class Board {
     this.pileViewModal = pileViewModal;
     this.superstarAbilityModal = superstarAbilityModal;
     this.arsenalReorderModal = arsenalReorderModal;
+    this.arsenalSearchModal = arsenalSearchModal;
     this.opponentRingSelectModal = opponentRingSelectModal;
     if (this.choiceModal) {
       this.choiceModal.onSelect = (optionId) => {
@@ -74,6 +76,14 @@ window.RawDeal.Board = class Board {
       };
       this.arsenalReorderModal.onReorder = (orderedIds) => {
         if (this.onArsenalReorderChange) this.onArsenalReorderChange(orderedIds);
+      };
+    }
+    if (this.arsenalSearchModal) {
+      this.arsenalSearchModal.onSelect = (instanceId) => {
+        if (this.onArsenalSearchSelect) this.onArsenalSearchSelect(instanceId);
+      };
+      this.arsenalSearchModal.onConfirm = (instanceIds) => {
+        if (this.onConfirmArsenalSearch) this.onConfirmArsenalSearch(instanceIds);
       };
     }
     if (this.opponentRingSelectModal) {
@@ -361,6 +371,7 @@ window.RawDeal.Board = class Board {
 
     this._renderChoiceModal(activePrompt);
     this._renderArsenalReorderModal(activePrompt);
+    this._renderArsenalSearchModal(activePrompt);
     this._renderOpponentRingSelectModal(activePrompt);
     this._renderHandReveal(state.handReveal);
     this._renderSuperstarAbilityModal(
@@ -444,6 +455,15 @@ window.RawDeal.Board = class Board {
     }
   }
 
+  _renderArsenalSearchModal(prompt) {
+    if (!this.arsenalSearchModal) return;
+    if (prompt?.mode === 'arsenalSearch') {
+      this.arsenalSearchModal.show(prompt);
+    } else {
+      this.arsenalSearchModal.hide();
+    }
+  }
+
   _renderOpponentRingSelectModal(prompt) {
     if (!this.opponentRingSelectModal) return;
     if (prompt?.mode === 'opponentRingModal') {
@@ -474,7 +494,8 @@ window.RawDeal.Board = class Board {
       prompt.mode !== 'discardCount' &&
       prompt.mode !== 'ringsideModal' &&
       prompt.mode !== 'opponentRingModal' &&
-      prompt.mode !== 'arsenalReorder';
+      prompt.mode !== 'arsenalReorder' &&
+      prompt.mode !== 'arsenalSearch';
     panel.classList.toggle('hidden', !active);
     if (active) {
       text.textContent = prompt.message;

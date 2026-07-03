@@ -1406,6 +1406,174 @@ async function testHmmmFewerThanFiveCards() {
   assert(engine.cardEffectFlow?.count === 1, 'Hmmm shows all Arsenal cards when fewer than 5');
 }
 
+async function testMarkingOutOpensChoice() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  player.arsenal.push(cloneCard(RawDeal, 'chop', 'mo-arsenal-0'));
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-choice-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+
+  assert(engine.cardEffectFlow?.type === 'choice', 'Marking Out opens choice prompt');
+  assert(engine.cardEffectFlow?.choiceId === 'markingOut', 'Marking Out choice id is markingOut');
+}
+
+async function testMarkingOutOwnArsenalEndsTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+  engine._runAutoPhases = async () => {};
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  player.arsenal = [
+    cloneCard(RawDeal, 'chop', 'mo-pick-a'),
+    cloneCard(RawDeal, 'punch', 'mo-pick-b'),
+  ];
+
+  engine._shuffle = (array) => {
+    array.reverse();
+    return array;
+  };
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-own-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+  await engine.selectChoice(0, 'ownArsenalToHand');
+  await engine.confirmArsenalSearch(0, ['mo-pick-a']);
+
+  assert(
+    player.hand.some((c) => c.instanceId === 'mo-pick-a'),
+    'Marking Out puts chosen Arsenal card in hand'
+  );
+  assert(player.arsenal.length === 1, 'Marking Out removes picked card from Arsenal');
+  assert(
+    player.arsenal[0].instanceId === 'mo-pick-b',
+    'Marking Out leaves other Arsenal cards'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.END_OF_TURN,
+    'Marking Out own Arsenal branch ends turn'
+  );
+  assert(
+    engine.actionLog.some((e) => e.message.includes('shuffled your Arsenal')),
+    'Marking Out shuffles own Arsenal'
+  );
+}
+
+async function testMarkingOutOpponentArsenalContinuesTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `mo-opp-${i}`));
+  }
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-opp-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+  await engine.selectChoice(0, 'opponentArsenalToRingside');
+
+  assert(engine.cardEffectFlow?.type === 'arsenalSearch', 'Marking Out opens opponent arsenal search');
+  assert(engine.cardEffectFlow?.selectCount === 3, 'Marking Out selects up to 3 cards');
+
+  await engine.confirmArsenalSearch(0, ['mo-opp-0', 'mo-opp-1', 'mo-opp-2']);
+
+  assert(opponent.arsenal.length === 2, 'Marking Out removes 3 cards from opponent Arsenal');
+  assert(opponent.ringside.length === 3, 'Marking Out puts 3 cards in opponent Ringside');
+  assert(engine.stateMachine.activePlayer === 0, 'Marking Out opponent branch continues turn');
+  assert(engine.stateMachine.canPlayCards(0), 'Marking Out opponent branch can still play cards');
+  assert(
+    engine.actionLog.some((e) => e.message.includes("shuffled opponent's Arsenal")),
+    'Marking Out shuffles opponent Arsenal'
+  );
+}
+
+async function testMarkingOutShortOpponentArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  opponent.arsenal = [
+    cloneCard(RawDeal, 'chop', 'mo-short-a'),
+    cloneCard(RawDeal, 'punch', 'mo-short-b'),
+  ];
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-short-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+  await engine.selectChoice(0, 'opponentArsenalToRingside');
+
+  assert(engine.cardEffectFlow?.selectCount === 2, 'Marking Out picks both when opponent has fewer than 3');
+
+  await engine.confirmArsenalSearch(0, ['mo-short-a', 'mo-short-b']);
+
+  assert(opponent.arsenal.length === 0, 'Marking Out empties short opponent Arsenal');
+  assert(opponent.ringside.length === 2, 'Marking Out puts all short opponent cards in Ringside');
+}
+
+async function testMarkingOutEmptyArsenals() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+  engine._runAutoPhases = async () => {};
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand = [];
+  player.fortitude = 20;
+  player.arsenal = [];
+  opponent.arsenal = [];
+
+  const markingOut = cloneCard(RawDeal, 'marking-out', 'mo-empty-test');
+  player.hand.push(markingOut);
+
+  await engine.playCard(0, markingOut.instanceId, 'action');
+  await engine.selectChoice(0, 'ownArsenalToHand');
+
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.END_OF_TURN,
+    'Marking Out empty own Arsenal still ends turn'
+  );
+
+  const engine2 = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine2.startGame('austin', 'rock');
+  const player2 = engine2.players[0];
+  const opponent2 = engine2.players[1];
+  player2.hand = [];
+  player2.fortitude = 20;
+  opponent2.arsenal = [];
+  const markingOut2 = cloneCard(RawDeal, 'marking-out', 'mo-empty-opp-test');
+  player2.hand.push(markingOut2);
+
+  await engine2.playCard(0, markingOut2.instanceId, 'action');
+  await engine2.selectChoice(0, 'opponentArsenalToRingside');
+
+  assert(engine2.stateMachine.activePlayer === 0, 'Marking Out empty opponent Arsenal continues turn');
+  assert(opponent2.ringside.length === 0, 'Marking Out empty opponent Arsenal adds no Ringside cards');
+}
+
 async function testFiremansCarryHandRevealViewOnlyDone() {
   const RawDeal = loadRawDeal();
   const prompt = RawDeal.EffectPipeline.publicHandReveal(
@@ -4008,6 +4176,11 @@ async function main() {
   await testHmmmConfirmReordersTopCards();
   await testHmmmShuffleRandomizesArsenal();
   await testHmmmFewerThanFiveCards();
+  await testMarkingOutOpensChoice();
+  await testMarkingOutOwnArsenalEndsTurn();
+  await testMarkingOutOpponentArsenalContinuesTurn();
+  await testMarkingOutShortOpponentArsenal();
+  await testMarkingOutEmptyArsenals();
   await testDontThinkTooHardOpensOpponentPrompt();
   await testDontThinkTooHardConfirmReordersOpponentTop();
   await testDontThinkTooHardShuffleOpponentArsenal();

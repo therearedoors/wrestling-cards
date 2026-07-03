@@ -1271,6 +1271,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Choose one: Look through your Arsenal and put 1 card in your hand, shuffle it and end your turn; or go through opponent’s Arsenal and put any 3 cards into his Ringside pile, then shuffle his Arsenal.",
     flavor: "",
+    actionEffects: [{"op": "markingOutChoice"}],
     set: "premiere",
   },
   'puppies-puppies': {
