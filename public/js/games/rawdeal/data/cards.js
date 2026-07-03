@@ -1258,6 +1258,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Your next maneuver may not be reversed.",
     flavor: "",
+    actionEffects: [{"op": "nextManeuverUnreversible"}],
     set: "premiere",
   },
   'marking-out': {

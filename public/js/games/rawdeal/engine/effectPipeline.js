@@ -280,7 +280,9 @@ window.RawDeal.EffectPipeline = {
       case 'nextManeuverUnreversible': {
         if (!player.turnState) player.turnState = engine._emptyTurnState();
         const maxDamage = step.maxDamage ?? null;
+        player.turnState.nextManeuverUnreversiblePending = true;
         player.turnState.nextManeuverUnreversibleMaxDamage = maxDamage;
+        player.turnState.nextManeuverUnreversibleManeuverOnly = maxDamage == null;
         const capLabel =
           maxDamage == null ? 'your next maneuver' : `your next maneuver of ${maxDamage}D or less`;
         engine.actionLog.push({
