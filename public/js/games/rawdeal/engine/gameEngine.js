@@ -36,6 +36,10 @@ window.RawDeal.GameEngine = class GameEngine {
     this._notify();
   }
 
+  _gc() {
+    return window.RawDeal.GameCopy;
+  }
+
   _notify() {
     this.onStateChange(this.getPublicState());
   }
@@ -158,15 +162,14 @@ window.RawDeal.GameEngine = class GameEngine {
     if (all) {
       bonuses.all += all;
       this.actionLog.push({
-        message: `${sourceName}: all maneuvers +${all}D for the rest of this turn.`,
+        message: this._gc().log.turnDamageAll(sourceName, all),
       });
     }
 
     if (subtype && value) {
       bonuses[subtype] = (bonuses[subtype] || 0) + value;
-      const label = subtype.charAt(0).toUpperCase() + subtype.slice(1);
       this.actionLog.push({
-        message: `${sourceName}: ${label} maneuvers +${value}D for the rest of this turn.`,
+        message: this._gc().log.turnDamageSubtype(sourceName, subtype, value),
       });
     }
   }
@@ -259,10 +262,11 @@ window.RawDeal.GameEngine = class GameEngine {
 
     const flow = this.cardEffectFlow;
     if (flow.type === 'choice') {
+      const { message, options } = this._gc().choice(flow.choiceId, flow) || {};
       return {
         mode: 'choice',
-        message: flow.message,
-        options: flow.options.map((o) => ({ ...o })),
+        message,
+        options: (options || []).map((o) => ({ ...o })),
       };
     }
 
@@ -271,7 +275,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const available = this._drawCountAvailableMax(player, flow.max);
       return {
         mode: 'drawCount',
-        message: `${flow.sourceName}: draw how many cards? (0–${available})`,
+        message: this._gc().prompt.drawCountChoice(flow.sourceName, available),
         min: 0,
         max: available,
         selected: flow.selectedCount ?? 0,
@@ -283,7 +287,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const available = this._discardUpToAvailableMax(player, flow.max);
       return {
         mode: 'discardCount',
-        message: `${flow.sourceName}: discard how many cards to Ringside? (0–${available})`,
+        message: this._gc().prompt.discardCountChoice(flow.sourceName, available),
         min: 0,
         max: available,
         selected: flow.selectedCount ?? 0,
@@ -294,10 +298,11 @@ window.RawDeal.GameEngine = class GameEngine {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
       const player = this.players[flow.playerIndex];
-      const message =
-        n === 1
-          ? `${flow.sourceName}: choose 1 card from your Ringside to shuffle into your Arsenal.`
-          : `${flow.sourceName}: choose ${n} cards from your Ringside to shuffle into your Arsenal (${picked}/${n}).`;
+      const message = this._gc().prompt.shuffleRingsideIntoArsenal(
+        flow.sourceName,
+        n,
+        picked
+      );
       return {
         mode: 'ringsideModal',
         message,
@@ -311,10 +316,7 @@ window.RawDeal.GameEngine = class GameEngine {
     if (flow.type === 'returnFromRingside') {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
-      const message =
-        n === 1
-          ? `${flow.sourceName}: choose 1 card from your Ringside to return to your hand.`
-          : `${flow.sourceName}: choose ${n} cards from your Ringside to return to your hand (${picked}/${n}).`;
+      const message = this._gc().prompt.returnFromRingside(flow.sourceName, n, picked);
       const player = this.players[flow.playerIndex];
       return {
         mode: 'ringsideModal',
@@ -329,10 +331,7 @@ window.RawDeal.GameEngine = class GameEngine {
     if (flow.type === 'discardFromHand') {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
-      const message =
-        n === 1
-          ? `${flow.sourceName}: discard 1 card from your hand to Ringside before damage is applied.`
-          : `${flow.sourceName}: discard ${n} cards from your hand to Ringside before damage (${picked}/${n}).`;
+      const message = this._gc().prompt.discardFromHand(flow.sourceName, n, picked);
       return {
         mode: 'hand',
         count: n,
@@ -344,10 +343,7 @@ window.RawDeal.GameEngine = class GameEngine {
     if (flow.type === 'opponentDiscardFromHand') {
       const n = flow.count || 1;
       const picked = flow.selectedIds.length;
-      const message =
-        n === 1
-          ? `${flow.sourceName}: choose 1 card from your hand to discard to Ringside.`
-          : `${flow.sourceName}: choose ${n} cards from your hand to discard to Ringside (${picked}/${n}).`;
+      const message = this._gc().prompt.opponentDiscardFromHand(flow.sourceName, n, picked);
       return {
         mode: 'hand',
         count: n,
@@ -358,14 +354,10 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (flow.type === 'shuffleHandIntoArsenal') {
       const drawCount = flow.drawCount || 0;
-      const drawHint =
-        drawCount > 0
-          ? ` Then draw ${drawCount} card${drawCount === 1 ? '' : 's'}.`
-          : '';
       return {
         mode: 'hand',
         count: 1,
-        message: `${flow.sourceName}: choose 1 card from your hand to shuffle into your Arsenal.${drawHint}`,
+        message: this._gc().prompt.shuffleHandIntoArsenal(flow.sourceName, drawCount),
         selectedIds: [...flow.selectedIds],
       };
     }
@@ -375,7 +367,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const sections = this._buildOpponentRingSelectSections(opponent, flow.maxDamage);
       return {
         mode: 'opponentRingModal',
-        message: `${flow.sourceName}: choose 1 card in opponent's Ring (D ≤ ${flow.maxDamage}) to put in Ringside.`,
+        message: this._gc().prompt.removeOpponentRingCard(flow.sourceName, flow.maxDamage),
         sections,
         selectedId: flow.selectedId || null,
       };
@@ -390,7 +382,11 @@ window.RawDeal.GameEngine = class GameEngine {
       });
       return {
         mode: 'opponentRingModal',
-        message: `${flow.sourceName}: remove 1 maneuver or reversal from your Ring (${target.fortitude}F → ≤ ${other.fortitude}F).`,
+        message: this._gc().prompt.balanceFortitudeRingRemoval(
+          flow.sourceName,
+          target.fortitude,
+          other.fortitude
+        ),
         sections,
         selectedId: flow.selectedId || null,
       };
@@ -408,13 +404,14 @@ window.RawDeal.GameEngine = class GameEngine {
         .filter(Boolean);
       const whose =
         flow.target === 'opponent' ? "opponent's top" : 'your top';
-      const shuffleHint =
-        flow.target === 'opponent'
-          ? "Shuffle to shuffle opponent's entire Arsenal."
-          : 'Shuffle to shuffle your entire Arsenal.';
       return {
         mode: 'arsenalReorder',
-        message: `${flow.sourceName}: drag to reorder ${whose} ${flow.count} Arsenal card${flow.count === 1 ? '' : 's'} (left = next to draw). ${shuffleHint}`,
+        message: this._gc().prompt.arsenalReorder(
+          flow.sourceName,
+          whose,
+          flow.count,
+          flow.target
+        ),
         cards,
         orderedIds: [...flow.orderedIds],
         count: flow.count,
@@ -427,15 +424,12 @@ window.RawDeal.GameEngine = class GameEngine {
       const cards = targetPlayer.arsenal.map((c) => ({ ...c }));
       const picked = flow.selectedIds.length;
       const n = flow.selectCount || 1;
-      let message;
-      if (flow.purpose === 'toHand') {
-        message = `${flow.sourceName}: choose 1 card from your Arsenal to put in your hand.`;
-      } else {
-        message =
-          n === 1
-            ? `${flow.sourceName}: choose 1 card from opponent's Arsenal to put in Ringside.`
-            : `${flow.sourceName}: choose ${n} cards from opponent's Arsenal to put in Ringside (${picked}/${n}).`;
-      }
+      const message = this._gc().prompt.arsenalSearch(
+        flow.sourceName,
+        flow.purpose,
+        n,
+        picked
+      );
       return {
         mode: 'arsenalSearch',
         purpose: flow.purpose,
@@ -477,8 +471,7 @@ window.RawDeal.GameEngine = class GameEngine {
       if (flow.step === 'rockRingside') {
         prompt = {
           mode: 'ringsideModal',
-          message:
-            'The Rock: choose 1 card from your Ringside to put on the bottom of your Arsenal, or Pass.',
+          message: this._gc().prompt.superstar.rockRingside(),
           cards: player.ringside.map((c) => ({ ...c })),
           selectedId: flow.selectedId || null,
         };
@@ -486,20 +479,20 @@ window.RawDeal.GameEngine = class GameEngine {
         prompt = {
           mode: 'hand',
           count: 1,
-          message: 'Drew 1 card — choose a card from your hand to put on the bottom of your Arsenal.',
+          message: this._gc().prompt.superstar.pickBottom(),
           selectedIds: [],
         };
       } else if (flow.step === 'pickDiscard') {
         prompt = {
           mode: 'hand',
           count: 2,
-          message: `Choose 2 cards from your hand to discard to Ringside (${flow.discardSelected.length}/2).`,
+          message: this._gc().prompt.superstar.pickDiscard(flow.discardSelected.length),
           selectedIds: [...flow.discardSelected],
         };
       } else if (flow.step === 'pickRingside') {
         prompt = {
           mode: 'ringsideModal',
-          message: 'Undertaker: choose 1 card from your Ringside to put into your hand.',
+          message: this._gc().prompt.superstar.pickRingside(),
           cards: player.ringside.map((c) => ({ ...c })),
           selectCount: 1,
           selectedId: flow.selectedId || null,
@@ -509,8 +502,7 @@ window.RawDeal.GameEngine = class GameEngine {
         prompt = {
           mode: 'hand',
           count: 1,
-          message:
-            'Chris Jericho: discard 1 card from your hand to force opponent to discard 1 card.',
+          message: this._gc().prompt.superstar.jerichoDiscardSelf(),
           selectedIds: [],
         };
       }
@@ -521,7 +513,7 @@ window.RawDeal.GameEngine = class GameEngine {
       usesButton,
       canUse: this.canUseSuperstarAbility(viewerIndex),
       used: player.superstarAbilityUsed,
-      label: 'Superstar Ability',
+      label: this._gc().prompt.superstarAbilityLabel,
       prompt,
     };
   }
@@ -613,11 +605,11 @@ window.RawDeal.GameEngine = class GameEngine {
     }
     if (drawn > 0) {
       this.actionLog.push({
-        message: `${sourceName}: drew ${drawn} card${drawn === 1 ? '' : 's'}.`,
+        message: this._gc().log.drewCards(sourceName, drawn),
       });
     } else {
       this.actionLog.push({
-        message: `${sourceName}: Arsenal was empty — could not draw.`,
+        message: this._gc().log.arsenalEmptyNoDraw(sourceName),
       });
     }
   }
@@ -625,7 +617,7 @@ window.RawDeal.GameEngine = class GameEngine {
   async _completeShuffleHandIntoArsenal(player, flow, card) {
     this._shuffleCardIntoArsenal(player, card);
     this.actionLog.push({
-      message: `${flow.sourceName}: shuffled ${card.name} from hand into Arsenal.`,
+      message: this._gc().log.shuffledFromHand(flow.sourceName, card.name),
     });
     this._drawCardsForEffect(player, flow.sourceName, flow.drawCount || 0);
     await this._finishCardEffectResolution();
@@ -634,7 +626,7 @@ window.RawDeal.GameEngine = class GameEngine {
   _beginShuffleHandIntoArsenalPrompt(player, playerIndex, sourceName, drawCount = 0) {
     if (player.hand.length === 0) {
       this.actionLog.push({
-        message: `${sourceName}: no cards in hand to shuffle into Arsenal.`,
+        message: this._gc().log.noHandToShuffle(sourceName),
       });
       return false;
     }
@@ -644,7 +636,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const card = player.hand.splice(idx, 1)[0];
       this._shuffleCardIntoArsenal(player, card);
       this.actionLog.push({
-        message: `${sourceName}: shuffled ${card.name} from hand into Arsenal.`,
+        message: this._gc().log.shuffledFromHand(sourceName, card.name),
       });
       this._drawCardsForEffect(player, sourceName, drawCount);
       return false;
@@ -816,7 +808,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     const count = discarded.length;
     this.actionLog.push({
-      message: `End of turn: discarded your hand (${count} card${count === 1 ? '' : 's'}) to Ringside.`,
+      message: this._gc().log.endOfTurnDiscardHand(count),
     });
   }
 
@@ -916,14 +908,14 @@ window.RawDeal.GameEngine = class GameEngine {
         this._drawCard(player);
       }
       this.actionLog.push({
-        message: `${card.name} (action): discarded to draw ${draws} card${draws === 1 ? '' : 's'}.`,
+        message: this._gc().log.actionDiscardToDraw(card.name, draws),
       });
       return;
     }
 
     player.ring.actions.push(card);
     this.actionLog.push({
-      message: `${card.name} played as an action.`,
+      message: this._gc().log.actionPlayed(card.name),
     });
 
     if (card.actionEffects?.length) {
@@ -997,7 +989,7 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.nextStrikeBonus = bonus;
     this.actionLog.push({
-      message: `${sourceName}: your next Strike maneuver is +${bonus}D this turn.`,
+      message: this._gc().log.nextStrikeBonus(sourceName, bonus),
     });
   }
 
@@ -1013,11 +1005,6 @@ window.RawDeal.GameEngine = class GameEngine {
       choiceId: 'jockeyingForPosition',
       playerIndex,
       sourceName,
-      message: `${sourceName}: choose an effect for your next Grapple maneuver.`,
-      options: [
-        { id: 'grappleDamage', label: 'Next Grapple +4D' },
-        { id: 'grappleReversalTax', label: "Opponent's reversal to it +8F" },
-      ],
     };
     this._notify();
     return true;
@@ -1026,7 +1013,7 @@ window.RawDeal.GameEngine = class GameEngine {
   _beginDiscardFromHandPrompt(player, playerIndex, sourceName, count) {
     if (player.hand.length === 0) {
       this.actionLog.push({
-        message: `${sourceName}: no cards in hand to discard.`,
+        message: this._gc().log.noHandToDiscard(sourceName),
       });
       return false;
     }
@@ -1049,11 +1036,6 @@ window.RawDeal.GameEngine = class GameEngine {
       playerIndex,
       sourceName,
       count,
-      message: `${sourceName}: choose one.`,
-      options: [
-        { id: 'draw', label: `Draw ${count} cards` },
-        { id: 'opponentDiscard', label: `Opponent discards ${count} cards` },
-      ],
     };
     this._notify();
     return true;
@@ -1065,17 +1047,6 @@ window.RawDeal.GameEngine = class GameEngine {
       choiceId: 'markingOut',
       playerIndex,
       sourceName,
-      message: `${sourceName}: choose one.`,
-      options: [
-        {
-          id: 'ownArsenalToHand',
-          label: 'Look through your Arsenal — put 1 in hand, shuffle, end turn',
-        },
-        {
-          id: 'opponentArsenalToRingside',
-          label: "Look through opponent's Arsenal — put up to 3 in Ringside, shuffle",
-        },
-      ],
     };
     this._notify();
     return true;
@@ -1097,7 +1068,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const count = this._shuffleRingsideUpToAvailableMax(player, max);
     if (count === 0) {
       this.actionLog.push({
-        message: `${sourceName}: shuffled 0 cards from Ringside into Arsenal.`,
+        message: this._gc().log.shuffledZeroRingside(sourceName),
       });
       return false;
     }
@@ -1124,7 +1095,7 @@ window.RawDeal.GameEngine = class GameEngine {
         this.effectPipelineFlow.discardedCount = 0;
       }
       this.actionLog.push({
-        message: `${sourceName}: discarded 0 cards to Ringside.`,
+        message: this._gc().log.discardedZero(sourceName),
       });
       return false;
     }
@@ -1169,7 +1140,7 @@ window.RawDeal.GameEngine = class GameEngine {
         this.effectPipelineFlow.discardedCount = 0;
       }
       this.actionLog.push({
-        message: `${sourceName}: discarded 0 cards to Ringside.`,
+        message: this._gc().log.discardedZero(sourceName),
       });
       this.cardEffectFlow = null;
       this._notify();
@@ -1236,10 +1207,7 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     this.actionLog.push({
-      message:
-        drawn === 0
-          ? `${flow.sourceName}: drew 0 cards.`
-          : `${flow.sourceName}: drew ${drawn} card${drawn === 1 ? '' : 's'}.`,
+      message: this._gc().log.drewZeroOrCards(flow.sourceName, drawn),
     });
 
     this.cardEffectFlow = null;
@@ -1292,11 +1260,6 @@ window.RawDeal.GameEngine = class GameEngine {
       sourceName,
       count,
       meta,
-      message: `${sourceName} forces you to discard from your hand. Use Ego Boost? (${count} card${count === 1 ? '' : 's'} left to discard)`,
-      options: [
-        { id: 'egoBoost', label: 'Use Ego Boost (draw up to 2)' },
-        { id: 'discardNormally', label: 'Discard normally' },
-      ],
     };
     this._notify();
     return true;
@@ -1325,7 +1288,7 @@ window.RawDeal.GameEngine = class GameEngine {
     if (discardCount <= 0) {
       if (!batchCards?.length) {
         this.actionLog.push({
-          message: `${sourceName}: opponent had no cards in hand to discard.`,
+          message: this._gc().log.opponentNoHandToDiscard(sourceName),
         });
       }
       return await this._finishOpponentControlledDiscard(meta);
@@ -1349,7 +1312,7 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!ego) return false;
 
     this.actionLog.push({
-      message: `Ego Boost: discarded in place of 1 forced discard (${sourceName}).`,
+      message: this._gc().log.egoBoostReplacedDiscard(sourceName),
     });
 
     if (this.pendingEgoBoostDraws.length === 0) {
@@ -1415,7 +1378,7 @@ window.RawDeal.GameEngine = class GameEngine {
       if (toRemove.length > 0) {
         const names = toRemove.map((c) => c.name).join(', ');
         this.actionLog.push({
-          message: `${sourceName}: opponent discarded ${names} to Ringside.`,
+          message: this._gc().log.opponentDiscarded(sourceName, names),
         });
       }
       return await this._beginPendingEgoBoostDraws(meta);
@@ -1427,11 +1390,11 @@ window.RawDeal.GameEngine = class GameEngine {
       if (discarded > 0) {
         const names = cards.map((c) => c.name).join(', ');
         this.actionLog.push({
-          message: `${sourceName}: opponent discarded ${names} to Ringside.`,
+          message: this._gc().log.opponentDiscarded(sourceName, names),
         });
       } else {
         this.actionLog.push({
-          message: `${sourceName}: opponent had no cards in hand to discard.`,
+          message: this._gc().log.opponentNoHandToDiscard(sourceName),
         });
       }
       return await this._beginPendingEgoBoostDraws(meta);
@@ -1446,7 +1409,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const drawn = this._drawCard(reversalPlayer);
       if (drawn) {
         this.actionLog.push({
-          message: `${meta.sourceName}: drew 1 card.`,
+          message: this._gc().log.drewOneCard(meta.sourceName),
         });
       }
       this._notify();
@@ -1473,7 +1436,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const snapshot = pipeline.snapshotInstanceIds;
     if (!snapshot?.size) {
       this.actionLog.push({
-        message: `${sourceName}: no cards to discard from opponent's hand.`,
+        message: this._gc().log.noOpponentHandToDiscard(sourceName),
       });
       return false;
     }
@@ -1495,7 +1458,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (toDiscard.length === 0) {
       this.actionLog.push({
-        message: `${sourceName}: no matching cards in opponent's hand to discard.`,
+        message: this._gc().log.noMatchingOpponentHand(sourceName),
       });
       return false;
     }
@@ -1591,9 +1554,11 @@ window.RawDeal.GameEngine = class GameEngine {
     const { higher, higherIndex } = match;
     const candidates = this._listManeuverReversalRingCards(higher);
     if (candidates.length === 0) {
-      const who = higher.isHuman ? 'You have' : 'Opponent has';
       this.actionLog.push({
-        message: `${sourceName}: ${who} no maneuver/reversal cards to remove.`,
+        message: this._gc().log.comebackNoCardsToRemove(
+          sourceName,
+          this._gc().whoHas(higher.isHuman)
+        ),
       });
       this.cardEffectFlow = null;
       return false;
@@ -1605,7 +1570,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const card = this._removeCardFromRing(higher, pick.card.instanceId, pick.ringArea);
       if (card) {
         this.actionLog.push({
-          message: `${sourceName}: removed ${card.name} from Ring to Ringside.`,
+          message: this._gc().log.removedFromRing(sourceName, card.name),
         });
       }
       this._notify();
@@ -1632,7 +1597,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (!hasSelectable) {
       this.actionLog.push({
-        message: `${sourceName}: no valid cards in opponent's Ring to remove.`,
+        message: this._gc().log.noValidOpponentRing(sourceName),
       });
       return false;
     }
@@ -1732,7 +1697,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
       const sourceName = flow.sourceName;
       this.actionLog.push({
-        message: `${sourceName}: removed ${card.name} from Ring to Ringside.`,
+        message: this._gc().log.removedFromRing(sourceName, card.name),
       });
       this.cardEffectFlow = null;
       this._notify();
@@ -1757,7 +1722,7 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!card) return false;
 
     this.actionLog.push({
-      message: `${flow.sourceName}: removed ${card.name} from opponent's Ring to Ringside.`,
+      message: this._gc().log.removedFromOpponentRing(flow.sourceName, card.name),
     });
     await this._finishCardEffectResolution();
     return true;
@@ -1775,7 +1740,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const n = Math.min(count, targetPlayer.arsenal.length);
     if (n === 0) {
       this.actionLog.push({
-        message: `${sourceName}: Arsenal is empty.`,
+        message: this._gc().log.arsenalEmpty(sourceName),
       });
       return false;
     }
@@ -1794,9 +1759,8 @@ window.RawDeal.GameEngine = class GameEngine {
       count: n,
       orderedIds,
     };
-    const lookTarget = target === 'opponent' ? "opponent's" : 'your';
     this.actionLog.push({
-      message: `${sourceName}: look at top ${n} card${n === 1 ? '' : 's'} of ${lookTarget} Arsenal.`,
+      message: this._gc().log.lookAtTopArsenal(sourceName, n, target),
     });
     this._notify();
     return true;
@@ -1843,10 +1807,10 @@ window.RawDeal.GameEngine = class GameEngine {
     const targetPlayer = this._targetPlayerForArsenalReorder(flow);
     this._shuffle(targetPlayer.arsenal);
     this.actionLog.push({
-      message:
+      message: this._gc().log.shuffledArsenal(
+        flow.sourceName,
         flow.target === 'opponent'
-          ? `${flow.sourceName}: shuffled opponent's Arsenal.`
-          : `${flow.sourceName}: shuffled your Arsenal.`,
+      ),
     });
     await this._finishCardEffectResolution();
     return true;
@@ -1861,9 +1825,12 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!this._validateArsenalReorderIds(targetPlayer, flow, orderedIds)) return false;
 
     this._applyArsenalReorder(targetPlayer, orderedIds);
-    const whose = flow.target === 'opponent' ? "opponent's" : 'your';
     this.actionLog.push({
-      message: `${flow.sourceName}: rearranged top ${flow.count} card${flow.count === 1 ? '' : 's'} of ${whose} Arsenal.`,
+      message: this._gc().log.rearrangedTopArsenal(
+        flow.sourceName,
+        flow.count,
+        flow.target
+      ),
     });
     await this._finishCardEffectResolution();
     return true;
@@ -1872,7 +1839,7 @@ window.RawDeal.GameEngine = class GameEngine {
   async _beginMarkingOutOwnArsenalPrompt(player, playerIndex, sourceName) {
     if (player.arsenal.length === 0) {
       this.actionLog.push({
-        message: `${sourceName}: your Arsenal is empty — no card to put in hand.`,
+        message: this._gc().log.markingOutEmptyOwnArsenal(sourceName),
       });
       return await this._completeMarkingOutToHand(player, playerIndex, sourceName, null);
     }
@@ -1887,7 +1854,7 @@ window.RawDeal.GameEngine = class GameEngine {
       selectedIds: [],
     };
     this.actionLog.push({
-      message: `${sourceName}: look through your Arsenal.`,
+      message: this._gc().log.markingOutLookOwn(sourceName),
     });
     this._notify();
     return true;
@@ -1899,7 +1866,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (selectCount === 0) {
       this.actionLog.push({
-        message: `${sourceName}: opponent's Arsenal is empty — no cards to put in Ringside.`,
+        message: this._gc().log.markingOutEmptyOpponentArsenal(sourceName),
       });
       return await this._completeMarkingOutToRingside(
         opponent,
@@ -1919,7 +1886,7 @@ window.RawDeal.GameEngine = class GameEngine {
       selectedIds: [],
     };
     this.actionLog.push({
-      message: `${sourceName}: look through opponent's Arsenal.`,
+      message: this._gc().log.markingOutLookOpponent(sourceName),
     });
     this._notify();
     return true;
@@ -1935,12 +1902,12 @@ window.RawDeal.GameEngine = class GameEngine {
     if (card) {
       player.hand.push(card);
       this.actionLog.push({
-        message: `${sourceName}: put ${card.name} from your Arsenal into your hand.`,
+        message: this._gc().log.markingOutPutInHand(sourceName, card.name),
       });
     }
     this._shuffle(player.arsenal);
     this.actionLog.push({
-      message: `${sourceName}: shuffled your Arsenal.`,
+      message: this._gc().log.shuffledArsenal(sourceName, false),
     });
     this.cardEffectFlow = null;
     this._notify();
@@ -1955,12 +1922,12 @@ window.RawDeal.GameEngine = class GameEngine {
     if (cards.length > 0) {
       const names = cards.map((c) => c.name).join(', ');
       this.actionLog.push({
-        message: `${sourceName}: put ${names} from opponent's Arsenal into Ringside.`,
+        message: this._gc().log.markingOutPutOpponentInRingside(sourceName, names),
       });
     }
     this._shuffle(opponent.arsenal);
     this.actionLog.push({
-      message: `${sourceName}: shuffled opponent's Arsenal.`,
+      message: this._gc().log.shuffledArsenal(sourceName, true),
     });
     await this._finishCardEffectResolution();
     return true;
@@ -2034,11 +2001,11 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (drawn > 0) {
       this.actionLog.push({
-        message: `${sourceName}: opponent drew ${drawn} card${drawn === 1 ? '' : 's'}.`,
+        message: this._gc().log.opponentDrew(sourceName, drawn),
       });
     } else {
       this.actionLog.push({
-        message: `${sourceName}: opponent had no cards in Arsenal to draw.`,
+        message: this._gc().log.opponentArsenalEmptyNoDraw(sourceName),
       });
     }
   }
@@ -2046,7 +2013,7 @@ window.RawDeal.GameEngine = class GameEngine {
   async _beginOpponentDiscardFromHandEffect(player, opponent, sourceName, count, meta = {}) {
     if (opponent.hand.length === 0) {
       this.actionLog.push({
-        message: `${sourceName}: opponent had no cards in hand to discard.`,
+        message: this._gc().log.opponentNoHandToDiscard(sourceName),
       });
       return false;
     }
@@ -2109,7 +2076,7 @@ window.RawDeal.GameEngine = class GameEngine {
   ) {
     if (opponent.hand.length === 0) {
       this.actionLog.push({
-        message: `${sourceName}: opponent had no cards in hand to discard.`,
+        message: this._gc().log.opponentNoHandToDiscard(sourceName),
       });
       return false;
     }
@@ -2292,7 +2259,7 @@ window.RawDeal.GameEngine = class GameEngine {
         reversal.id === 'clean-break' && played.id === 'jockeying-for-position';
 
       this.actionLog.push({
-        message: `${reversal.name} reversed ${played.name} — action has no effect.`,
+        message: this._gc().log.actionReversedNoEffect(reversal.name, played.name),
       });
       this.reversalWindow = null;
       this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
@@ -2332,7 +2299,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this._sendReversedManeuverToRingside(attacker, played);
 
     this.actionLog.push({
-      message: `${reversal.name} reversed ${played.name} from hand!`,
+      message: this._gc().log.reversalFromHand(reversal.name, played.name),
     });
 
     if (played.subtype === 'grapple') {
@@ -2471,7 +2438,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const names = toDiscard.map((c) => c.name).join(', ');
       if (flow.type === 'opponentDiscardFromHand') {
         this.actionLog.push({
-          message: `${flow.sourceName}: opponent discarded ${names} to Ringside.`,
+          message: this._gc().log.opponentDiscarded(flow.sourceName, names),
         });
         const meta = flow.meta || {};
         if (flow.superstarAbilityOwnerIndex !== undefined) {
@@ -2490,7 +2457,7 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       this.actionLog.push({
-        message: `${flow.sourceName}: discarded ${names} to Ringside.`,
+        message: this._gc().log.discardedToRingside(flow.sourceName, names),
       });
       if (this.effectPipelineFlow) {
         this.effectPipelineFlow.discardedCount = toDiscard.length;
@@ -2526,12 +2493,12 @@ window.RawDeal.GameEngine = class GameEngine {
       if (optionId === 'grappleDamage') {
         player.turnState.nextGrappleBonus = 4;
         this.actionLog.push({
-          message: `${flow.sourceName}: your next Grapple maneuver is +4D.`,
+          message: this._gc().log.grappleDamageBonus(flow.sourceName),
         });
       } else if (optionId === 'grappleReversalTax') {
         player.turnState.nextGrappleReversalTax = 8;
         this.actionLog.push({
-          message: `${flow.sourceName}: opponent's reversal to your next Grapple is +8F.`,
+          message: this._gc().log.grappleReversalTax(flow.sourceName),
         });
       } else {
         return false;
@@ -2592,7 +2559,7 @@ window.RawDeal.GameEngine = class GameEngine {
           this._drawCard(player);
         }
         this.actionLog.push({
-          message: `${flow.sourceName}: drew ${n} cards.`,
+          message: this._gc().log.drewNCards(flow.sourceName, n),
         });
         this._notify();
       } else if (optionId === 'opponentDiscard') {
@@ -2631,7 +2598,7 @@ window.RawDeal.GameEngine = class GameEngine {
       onReveal: () => {
         player.ringside.push(top);
         this.actionLog.push({
-          message: `${sourceCard.name}: put ${top.name} from Arsenal into Ringside.`,
+          message: this._gc().log.putArsenalInRingside(sourceCard.name, top.name),
         });
         this._notify();
       },
@@ -2690,9 +2657,13 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     if (drawn > 0) {
-      const who = maneuverOwner.isHuman ? 'You draw' : 'Opponent draws';
       this.actionLog.push({
-        message: `${maneuver.name} reversed (SV ${sv}): ${who} ${drawn} card${drawn === 1 ? '' : 's'}.`,
+        message: this._gc().log.reversalSvDraw(
+          maneuver.name,
+          sv,
+          this._gc().whoDraws(maneuverOwner.isHuman),
+          drawn
+        ),
       });
       this._notify();
     }
@@ -2758,7 +2729,7 @@ window.RawDeal.GameEngine = class GameEngine {
     const opponent = this.players[1 - kanePlayerIndex];
     if (opponent.arsenal.length === 0) {
       this.actionLog.push({
-        message: "Kane: opponent's Arsenal is empty — no card to overturn.",
+        message: this._gc().log.kaneEmptyArsenal(),
       });
       return;
     }
@@ -2773,7 +2744,7 @@ window.RawDeal.GameEngine = class GameEngine {
       onReveal: () => {
         opponent.ringside.push(top);
         this.actionLog.push({
-          message: `Kane overturned ${top.name} from opponent's Arsenal to Ringside.`,
+          message: this._gc().log.kaneOverturned(top.name),
         });
         this._notify();
       },
@@ -2847,7 +2818,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     const player = this.players[playerIndex];
     this.actionLog.push({
-      message: 'The Rock passed on moving a card from Ringside to Arsenal.',
+      message: this._gc().log.rockPassed(),
     });
     await this._finishPreDrawSuperstarAbility(player);
     return true;
@@ -2866,7 +2837,7 @@ window.RawDeal.GameEngine = class GameEngine {
       const [card] = player.ringside.splice(idx, 1);
       player.arsenal.unshift(card);
       this.actionLog.push({
-        message: `The Rock put ${card.name} from Ringside on the bottom of your Arsenal.`,
+        message: this._gc().log.rockMovedToArsenalBottom(card.name),
       });
       await this._finishPreDrawSuperstarAbility(player);
       return true;
@@ -2882,7 +2853,7 @@ window.RawDeal.GameEngine = class GameEngine {
       player.superstarAbilityUsed = true;
       const discarded = (ability.discardedNames || []).join(' and ');
       this.actionLog.push({
-        message: `Undertaker discarded ${discarded} and retrieved ${card.name} from Ringside.`,
+        message: this._gc().log.undertakerDiscardedRetrieved(discarded, card.name),
       });
       this.abilityFlow = null;
       this._notify();
@@ -2914,7 +2885,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
       const names = toReturn.map((c) => c.name).join(', ');
       this.actionLog.push({
-        message: `${cardFlow.sourceName}: returned ${names} from Ringside to hand.`,
+        message: this._gc().log.returnedFromRingside(cardFlow.sourceName, names),
       });
       await this._finishCardEffectResolution();
       return true;
@@ -2944,7 +2915,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
       const names = toShuffle.map((c) => c.name).join(', ');
       this.actionLog.push({
-        message: `${cardFlow.sourceName}: shuffled ${names} from Ringside into Arsenal.`,
+        message: this._gc().log.shuffledRingsideIntoArsenal(cardFlow.sourceName, names),
       });
       await this._finishCardEffectResolution();
       return true;
@@ -2974,7 +2945,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (opponent.hand.length === 0) {
       this.actionLog.push({
-        message: `Chris Jericho discarded ${discardedCardName}; opponent had no cards in hand to discard.`,
+        message: this._gc().log.jerichoNoOpponentHand(discardedCardName),
       });
       jerichoPlayer.superstarAbilityUsed = true;
       this.abilityFlow = null;
@@ -2984,7 +2955,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     this.abilityFlow = null;
     this.actionLog.push({
-      message: `Chris Jericho discarded ${discardedCardName}; opponent must discard 1 card.`,
+      message: this._gc().log.jerichoForcedDiscard(discardedCardName),
     });
     const paused = await this._beginOpponentControlledDiscard(
       opponent,
@@ -3040,7 +3011,7 @@ window.RawDeal.GameEngine = class GameEngine {
       player.superstarAbilityUsed = true;
       this.abilityFlow = null;
       this.actionLog.push({
-        message: `Stone Cold drew 1 card and put ${card.name} on the bottom of your Arsenal.`,
+        message: this._gc().log.stoneColdBottomArsenal(card.name),
       });
       this._notify();
       return true;
