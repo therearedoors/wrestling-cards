@@ -147,3 +147,4 @@ app.yml
 Dockerfile
 paul
 paul.pub
+docker-compose.yml
