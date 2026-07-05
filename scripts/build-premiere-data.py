@@ -230,6 +230,8 @@ def parse_cards(text: str):
             line = lines[idx]
             if line.startswith('"') or re.search(r'\bF:\s*\d+', line):
                 break
+            if re.search(r'^\+\d+[df]\b', line, re.I) or line.startswith('Unique'):
+                break
             type_lines.append(line)
             idx += 1
             if idx < len(lines) and lines[idx].startswith(rule_starters):
@@ -567,7 +569,7 @@ def classify(types_blob, rules, name, damage):
             reverses.append('submission')
         if 'reverse any strike, grapple or submission' in blob or 'reverse any strike, grapple or submission' in blob:
             reverses = ['strike', 'grapple', 'submission']
-        if 'reverse any maneuver' in blob:
+        if re.search(r'reverses? any maneuver', blob):
             reverses = ['strike', 'grapple', 'submission', 'high-risk', 'trademark', 'trademark-finisher']
         if 'reverse any action' in blob:
             reverses.append('action')
@@ -707,13 +709,19 @@ def infer_reversal_effects(types_list, rules, damage):
     if 'reversal' not in types_list:
         return None
     blob = rules.lower()
+    effects = []
+
     if '# = d of maneuver' in blob or '# = d of maneuver card' in blob:
-        return [{'op': 'dealDamage', 'fromReversedManeuver': True}]
-    if damage <= 0:
-        return None
-    if 'read as 0 when in your ring' in blob:
-        return None
-    return [{'op': 'dealDamage'}]
+        effects.append({'op': 'dealDamage', 'fromReversedManeuver': True})
+    elif damage > 0 and 'read as 0 when in your ring' not in blob:
+        effects.append({'op': 'dealDamage'})
+
+    if 'jockeying for position' in blob and 'discard 4' in blob:
+        pass
+    elif m := re.search(r'if played from your hand.*?draw (\d+)', blob):
+        effects.append({'op': 'draw', 'count': int(m.group(1))})
+
+    return effects or None
 
 
 def infer_action_effects(types_list, rules, name=''):
