@@ -167,14 +167,25 @@ window.RawDeal.CardUtils = {
   canReverseManeuver(reversalCard, maneuver, defenderFortitude, effectiveDamage = null, options = {}) {
     const canReverse =
       this.hasType(reversalCard, 'reversal') ||
-      (reversalCard.reverses && reversalCard.reverses.length > 0);
-    if (!canReverse || !reversalCard.reverses) return false;
+      (reversalCard.reverses && reversalCard.reverses.length > 0) ||
+      !!reversalCard.reversesOnlyManeuver;
+    if (!canReverse) return false;
 
     const { afterIrishWhip = false, reversalFortitudeTax = 0 } = options;
     const reversalCost = (reversalCard.fortitude || 0) + reversalFortitudeTax;
     if (defenderFortitude < reversalCost) return false;
 
     const damage = effectiveDamage ?? (maneuver.damage || 0);
+
+    if (reversalCard.reversesOnlyManeuver) {
+      return (
+        maneuver.id === reversalCard.reversesOnlyManeuver &&
+        this.passesReversalDamageCap(reversalCard, damage)
+      );
+    }
+
+    if (!reversalCard.reverses) return false;
+
     const reverses = reversalCard.reverses;
     const withinCap = (match) => match && this.passesReversalDamageCap(reversalCard, damage);
 

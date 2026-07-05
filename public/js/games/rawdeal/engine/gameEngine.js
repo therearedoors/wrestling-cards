@@ -62,6 +62,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextCardSubtypeBonus: null,
       nextCardFortitudeDiscount: 0,
       lastPlayedCardId: null,
+      lastSuccessfulManeuverSubtype: null,
       opponentReversalsBlocked: false,
       skipOpponentNextTurn: false,
       discardHandAtEndOfTurn: false,
@@ -134,6 +135,9 @@ window.RawDeal.GameEngine = class GameEngine {
   _markManeuverSuccessfullyPlayed(player, played) {
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.canPlayAfterSuccessfulManeuver = true;
+    if (played?.subtype) {
+      player.turnState.lastSuccessfulManeuverSubtype = played.subtype;
+    }
     if (
       played &&
       (played.subtype === 'submission' || played.grantsMaintainHoldAfterPlay)
@@ -1125,6 +1129,14 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     damage += this._getRingPassiveManeuverDamageBonus(player);
+
+    const afterSubtypeBonus = played.damageBonusAfterLastSubtype;
+    if (
+      afterSubtypeBonus &&
+      player.turnState?.lastSuccessfulManeuverSubtype === afterSubtypeBonus.subtype
+    ) {
+      damage += afterSubtypeBonus.value || 0;
+    }
 
     if (played.subtype === 'strike' && player.turnState?.nextStrikeBonus) {
       damage += player.turnState.nextStrikeBonus;

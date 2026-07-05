@@ -1304,6 +1304,172 @@ async function testWhoopCanReversalTaxFromHand() {
   );
 }
 
+async function testPedigreeBonusAfterStrike() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-bonus');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'ped-kick');
+  player.hand.push(pedigree);
+  player.fortitude = 35;
+
+  assert(
+    engine._peekManeuverDamage(player, opponent, pedigree) === 27,
+    'Pedigree +2D after successful Strike (25D + 2)'
+  );
+}
+
+async function testPedigreeNoBonusWithoutStrike() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'ped-grapple');
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-no-bonus');
+
+  player.hand.push(grapple);
+  player.fortitude = 15;
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `ped-gr-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  player.hand.push(pedigree);
+  player.fortitude = 35;
+
+  assert(
+    engine._peekManeuverDamage(player, opponent, pedigree) === 25,
+    'Pedigree has no bonus without prior successful Strike'
+  );
+}
+
+async function testPedigreeNoBonusAfterReversedStrike() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'ped-punch-rev');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'ped-elbow');
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-after-rev');
+
+  attacker.hand = [punch, pedigree];
+  attacker.fortitude = 35;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `ped-rev-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, elbow.instanceId);
+
+  assert(
+    !attacker.turnState?.lastSuccessfulManeuverSubtype,
+    'Reversed Strike does not set last successful maneuver subtype'
+  );
+  assert(
+    engine._peekManeuverDamage(attacker, defender, pedigree) === 25,
+    'Pedigree has no +2D after Strike reversed from hand'
+  );
+}
+
+async function testPedigreeReversesBackBodyDrop() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const irishWhip = cloneCard(RawDeal, 'irish-whip', 'ped-iw');
+  const backBodyDrop = cloneCard(RawDeal, 'back-body-drop', 'ped-bbd');
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-rev-bbd');
+
+  attacker.hand = [irishWhip, backBodyDrop];
+  attacker.fortitude = 20;
+  defender.hand = [pedigree];
+  defender.fortitude = 35;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `ped-bbd-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, irishWhip.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(attacker.turnState?.irishWhipPlayed, 'Irish Whip action enables Back Body Drop');
+
+  await engine.playCard(0, backBodyDrop.instanceId, 'maneuver');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Back Body Drop opens reversal window'
+  );
+  assert(
+    engine.canPlayReversalFromHand(1, pedigree.instanceId),
+    'Pedigree can reverse Back Body Drop from hand'
+  );
+
+  await engine.playReversalFromHand(1, pedigree.instanceId);
+
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === pedigree.instanceId),
+    'Pedigree lands in Ring reversals after reversing Back Body Drop'
+  );
+}
+
+async function testPedigreeCannotReverseOtherManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'ped-punch-only');
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-no-punch-rev');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 10;
+  defender.hand = [pedigree];
+  defender.fortitude = 35;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    !engine.canPlayReversalFromHand(1, pedigree.instanceId),
+    'Pedigree cannot reverse maneuvers other than Back Body Drop'
+  );
+}
+
 async function playMrSocko(engine, RawDeal, instanceId = 'socko-play', pick = null) {
   const socko = cloneCard(RawDeal, 'mr-socko', instanceId);
   const player = engine.players[0];
@@ -5033,6 +5199,11 @@ async function main() {
   await testNotYetEmptyHandSkipsEffect();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
+  await testPedigreeBonusAfterStrike();
+  await testPedigreeNoBonusWithoutStrike();
+  await testPedigreeNoBonusAfterReversedStrike();
+  await testPedigreeReversesBackBodyDrop();
+  await testPedigreeCannotReverseOtherManeuver();
   await testMrSockoPickFromArsenal();
   await testMrSockoPickFromRingside();
   await testMrSockoEmptyZones();
