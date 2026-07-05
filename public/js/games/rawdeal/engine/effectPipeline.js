@@ -42,20 +42,7 @@ window.RawDeal.EffectPipeline = {
     const flow = engine.handRevealFlow;
     if (!flow || flow.viewerIndex !== viewerIndex) return null;
 
-    const n = flow.cards.length;
-    let message = flow.message;
-    if (!message) {
-      message =
-        n === 0
-          ? `${flow.sourceName}: opponent has no cards in hand.`
-          : `${flow.sourceName}: opponent's hand (${n} card${n === 1 ? '' : 's'}).`;
-    }
-
-    if (flow.mode === 'select') {
-      const need = flow.selectCount || 1;
-      const picked = flow.selectedIds?.length || 0;
-      message = `${flow.sourceName}: choose ${need} card${need === 1 ? '' : 's'} from opponent's hand (${picked}/${need}).`;
-    }
+    const message = window.RawDeal.GameCopy.prompt.handReveal(engine, flow);
 
     return {
       message,
@@ -77,7 +64,7 @@ window.RawDeal.EffectPipeline = {
     if (skipped) {
       if (!reveal.allowSkip) return false;
       engine.actionLog.push({
-        message: `${pipeline.sourceName}: skipped looking at opponent's hand.`,
+        message: window.RawDeal.GameCopy.log.skippedHandReveal(pipeline.sourceName),
       });
     } else if (reveal.mode === 'select') {
       const need = reveal.selectCount || 1;
@@ -174,7 +161,7 @@ window.RawDeal.EffectPipeline = {
           engine._drawCard(player);
         }
         engine.actionLog.push({
-          message: `${sourceName}: drew ${count} card${count === 1 ? '' : 's'}.`,
+          message: window.RawDeal.GameCopy.log.pipelineDrew(sourceName, count),
         });
         return false;
       }
@@ -202,7 +189,7 @@ window.RawDeal.EffectPipeline = {
         const value = step.value || 0;
         engine.nextManeuverBonus[pipeline.playerIndex] += value;
         engine.actionLog.push({
-          message: `${sourceName}: next maneuver +${value}D.`,
+          message: window.RawDeal.GameCopy.log.nextManeuverBonus(sourceName, value),
         });
         return false;
       }
@@ -212,7 +199,7 @@ window.RawDeal.EffectPipeline = {
         if (!player.turnState) player.turnState = engine._emptyTurnState();
         player.turnState.nextCardManeuverBonus = value;
         engine.actionLog.push({
-          message: `${sourceName}: if your next card played this turn is a maneuver, it is +${value}D.`,
+          message: window.RawDeal.GameCopy.log.nextCardManeuverBonus(sourceName, value),
         });
         return false;
       }
@@ -222,9 +209,12 @@ window.RawDeal.EffectPipeline = {
         const subtype = step.subtype || 'strike';
         if (!player.turnState) player.turnState = engine._emptyTurnState();
         player.turnState.nextCardSubtypeBonus = { subtype, value };
-        const label = subtype.charAt(0).toUpperCase() + subtype.slice(1);
         engine.actionLog.push({
-          message: `${sourceName}: if your next card played this turn is a ${label} maneuver, it is +${value}D.`,
+          message: window.RawDeal.GameCopy.log.nextSubtypeManeuverBonus(
+            sourceName,
+            subtype,
+            value
+          ),
         });
         return false;
       }
@@ -234,7 +224,7 @@ window.RawDeal.EffectPipeline = {
         if (!player.turnState) player.turnState = engine._emptyTurnState();
         player.turnState.nextCardFortitudeDiscount = value;
         engine.actionLog.push({
-          message: `${sourceName}: your next card played is -${value}F.`,
+          message: window.RawDeal.GameCopy.log.nextCardFortitudeReduction(sourceName, value),
         });
         return false;
       }
@@ -245,7 +235,7 @@ window.RawDeal.EffectPipeline = {
         player.turnState.nextManeuverReversalTax =
           (player.turnState.nextManeuverReversalTax || 0) + value;
         engine.actionLog.push({
-          message: `${sourceName}: opponent's reversal to your next maneuver is +${value}F.`,
+          message: window.RawDeal.GameCopy.log.nextManeuverReversalTax(sourceName, value),
         });
         return false;
       }
@@ -254,7 +244,7 @@ window.RawDeal.EffectPipeline = {
         if (!player.turnState) player.turnState = engine._emptyTurnState();
         player.turnState.opponentReversalsBlocked = true;
         engine.actionLog.push({
-          message: `${sourceName}: opponent's Arsenal reversals cannot reverse your maneuvers this turn.`,
+          message: window.RawDeal.GameCopy.log.blockOpponentReversals(sourceName),
         });
         return false;
       }
@@ -263,7 +253,7 @@ window.RawDeal.EffectPipeline = {
         if (!player.turnState) player.turnState = engine._emptyTurnState();
         player.turnState.skipOpponentNextTurn = true;
         engine.actionLog.push({
-          message: `${sourceName}: opponent skips their next turn.`,
+          message: window.RawDeal.GameCopy.log.skipOpponentTurn(sourceName),
         });
         return false;
       }
@@ -272,7 +262,7 @@ window.RawDeal.EffectPipeline = {
         if (!player.turnState) player.turnState = engine._emptyTurnState();
         player.turnState.discardHandAtEndOfTurn = true;
         engine.actionLog.push({
-          message: `${sourceName}: at end of turn, discard your hand.`,
+          message: window.RawDeal.GameCopy.log.discardHandAtEndOfTurn(sourceName),
         });
         return false;
       }
@@ -283,10 +273,11 @@ window.RawDeal.EffectPipeline = {
         player.turnState.nextManeuverUnreversiblePending = true;
         player.turnState.nextManeuverUnreversibleMaxDamage = maxDamage;
         player.turnState.nextManeuverUnreversibleManeuverOnly = maxDamage == null;
-        const capLabel =
-          maxDamage == null ? 'your next maneuver' : `your next maneuver of ${maxDamage}D or less`;
         engine.actionLog.push({
-          message: `${sourceName}: if ${capLabel} is played next, opponent cannot reverse it.`,
+          message: window.RawDeal.GameCopy.log.nextManeuverUnreversible(
+            sourceName,
+            maxDamage
+          ),
         });
         return false;
       }
@@ -323,7 +314,8 @@ window.RawDeal.EffectPipeline = {
           player,
           pipeline.playerIndex,
           sourceName,
-          step.max || 2
+          step.max || 2,
+          { exact: step.exact !== false }
         );
 
       case 'returnFromRingside': {
@@ -331,7 +323,7 @@ window.RawDeal.EffectPipeline = {
         if (count === 0) return false;
         if (player.ringside.length === 0) {
           engine.actionLog.push({
-            message: `${sourceName}: no cards in Ringside to return.`,
+            message: window.RawDeal.GameCopy.log.noRingsideToReturn(sourceName),
           });
           return false;
         }
@@ -460,8 +452,8 @@ window.RawDeal.EffectPipeline = {
     engine.actionLog.push({
       message:
         n === 0
-          ? `${pipeline.sourceName}: opponent has no cards in hand.`
-          : `${pipeline.sourceName}: viewing opponent's hand (${n} card${n === 1 ? '' : 's'}).`,
+          ? window.RawDeal.GameCopy.log.opponentNoHand(pipeline.sourceName)
+          : window.RawDeal.GameCopy.log.viewingOpponentHand(pipeline.sourceName, n),
     });
 
     if (n === 0 && step.optional) {
@@ -482,7 +474,7 @@ window.RawDeal.EffectPipeline = {
     const snapshot = pipeline.snapshotInstanceIds;
     if (!snapshot?.size) {
       engine.actionLog.push({
-        message: `${sourceName}: no cards to discard from opponent's hand.`,
+        message: window.RawDeal.GameCopy.log.noOpponentHandToDiscard(sourceName),
       });
       return;
     }
@@ -501,7 +493,7 @@ window.RawDeal.EffectPipeline = {
 
     if (toDiscard.length === 0) {
       engine.actionLog.push({
-        message: `${sourceName}: no matching cards in opponent's hand to discard.`,
+        message: window.RawDeal.GameCopy.log.noMatchingOpponentHand(sourceName),
       });
       return;
     }
@@ -514,7 +506,7 @@ window.RawDeal.EffectPipeline = {
 
     const names = toDiscard.map((c) => c.name).join(', ');
     engine.actionLog.push({
-      message: `${sourceName}: opponent discarded ${names} to Ringside.`,
+      message: window.RawDeal.GameCopy.log.opponentDiscarded(sourceName, names),
     });
   },
 
