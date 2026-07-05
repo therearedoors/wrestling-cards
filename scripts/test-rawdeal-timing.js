@@ -1304,6 +1304,149 @@ async function testWhoopCanReversalTaxFromHand() {
   );
 }
 
+async function playPowerOfDarkness(engine, RawDeal, instanceId = 'pod-play') {
+  const pod = cloneCard(RawDeal, 'power-of-darkness', instanceId);
+  const player = engine.players[0];
+  player.hand.push(pod);
+  player.fortitude = Math.max(player.fortitude, 15);
+  await engine.playCard(0, pod.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return pod;
+}
+
+async function testPowerOfDarknessAppliesTurnBonuses() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playPowerOfDarkness(engine, RawDeal, 'pod-bonuses');
+
+  assert(
+    engine.turnDamageBonus[0].all === 5,
+    'Power of Darkness gives +5D to all maneuvers for the turn'
+  );
+  assert(
+    attacker.turnState?.turnOpponentReversalTax === 20,
+    'Power of Darkness gives +20F to opponent reversals for the turn'
+  );
+  assert(
+    attacker.ring.actions.some((c) => c.id === 'power-of-darkness'),
+    'Power of Darkness is in Ring actions'
+  );
+}
+
+async function testPowerOfDarknessDamageAllManeuvers() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('undertaker', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'pod-punch');
+  const kick = cloneCard(RawDeal, 'kick', 'pod-kick');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playPowerOfDarkness(engine, RawDeal, 'pod-damage');
+
+  assert(
+    engine._peekManeuverDamage(player, opponent, punch) === 8,
+    'Power of Darkness +5D applies to first maneuver (Punch 3D + 5)'
+  );
+  assert(
+    engine._peekManeuverDamage(player, opponent, kick) === 10,
+    'Power of Darkness +5D applies to second maneuver (Kick 5D + 5)'
+  );
+}
+
+async function testPowerOfDarknessReversalTaxPersists() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch1 = cloneCard(RawDeal, 'punch', 'pod-punch-tax-1');
+  const punch2 = cloneCard(RawDeal, 'punch', 'pod-punch-tax-2');
+  const stepAside = cloneCard(RawDeal, 'step-aside', 'pod-step');
+
+  attacker.fortitude = 20;
+  defender.hand = [stepAside];
+  defender.fortitude = 0;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playPowerOfDarkness(engine, RawDeal, 'pod-tax');
+
+  attacker.hand.push(punch1);
+  await engine.playCard(0, punch1.instanceId, 'maneuver');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'First boosted maneuver opens reversal window'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, stepAside.instanceId),
+    'Power of Darkness blocks first maneuver reversal below +20F tax'
+  );
+  await engine.passPriority(1);
+
+  attacker.hand.push(punch2);
+  await engine.playCard(0, punch2.instanceId, 'maneuver');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Second maneuver still opens reversal window'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, stepAside.instanceId),
+    'Power of Darkness reversal tax persists for second maneuver'
+  );
+}
+
+async function testPowerOfDarknessActionReversalTax() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'pod-hmmm');
+  const noChance = cloneCard(RawDeal, 'no-chance-in-hell', 'pod-nch');
+
+  attacker.fortitude = 20;
+  defender.hand = [noChance];
+  defender.fortitude = 31;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playPowerOfDarkness(engine, RawDeal, 'pod-action-tax');
+
+  attacker.hand.push(hmmm);
+  await engine.playCard(0, hmmm.instanceId, 'action');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Follow-up action opens reversal window'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, noChance.instanceId),
+    'Power of Darkness blocks action reversal below +20F tax (12F + 20F)'
+  );
+
+  defender.fortitude = 32;
+  assert(
+    engine.canPlayReversalFromHand(1, noChance.instanceId),
+    'Power of Darkness allows action reversal at 32F (12F + 20F)'
+  );
+}
+
 async function testWhoopCanReversalTaxFromArsenal() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -4715,6 +4858,10 @@ async function main() {
   await testNotYetEmptyHandSkipsEffect();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
+  await testPowerOfDarknessAppliesTurnBonuses();
+  await testPowerOfDarknessDamageAllManeuvers();
+  await testPowerOfDarknessReversalTaxPersists();
+  await testPowerOfDarknessActionReversalTax();
   await testJfpGrappleReversalTaxFromArsenal();
   await testJfpGrappleDamageBonus();
   await testJfpSelfReverseOpensChoice();

@@ -1375,6 +1375,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     hybrid: true,
+    actionEffects: [{"op": "turnDamageBonus", "value": 5}, {"op": "turnOpponentReversalTax", "value": 20}],
     set: "premiere",
   },
   'mandible-claw': {

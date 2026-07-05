@@ -57,6 +57,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextGrappleBonus: 0,
       nextGrappleReversalTax: 0,
       nextManeuverReversalTax: 0,
+      turnOpponentReversalTax: 0,
       nextCardManeuverBonus: 0,
       nextCardSubtypeBonus: null,
       nextCardFortitudeDiscount: 0,
@@ -176,10 +177,16 @@ window.RawDeal.GameEngine = class GameEngine {
   _getManeuverReversalFortitudeTax(attacker, maneuver) {
     if (!attacker?.turnState) return 0;
     let tax = attacker.turnState.nextManeuverReversalTax || 0;
+    tax += attacker.turnState.turnOpponentReversalTax || 0;
     if (maneuver.subtype === 'grapple') {
       tax += attacker.turnState.nextGrappleReversalTax || 0;
     }
     return tax;
+  }
+
+  _getActionReversalFortitudeTax(attacker) {
+    if (!attacker?.turnState) return 0;
+    return attacker.turnState.turnOpponentReversalTax || 0;
   }
 
   _clearNextManeuverReversalTax(player) {
@@ -289,12 +296,14 @@ window.RawDeal.GameEngine = class GameEngine {
           ? !!this.players[attackerIndex]?.turnState?.irishWhipPlayed
           : false,
         reversalFortitudeTax:
-          kind === 'maneuver'
-            ? this._getManeuverReversalFortitudeTax(
-                this.players[attackerIndex],
-                played
-              )
-            : 0,
+          kind === 'action'
+            ? this._getActionReversalFortitudeTax(this.players[attackerIndex])
+            : kind === 'maneuver' || kind === 'maintained'
+              ? this._getManeuverReversalFortitudeTax(
+                  this.players[attackerIndex],
+                  played
+                )
+              : 0,
       },
     };
   }
@@ -2421,7 +2430,10 @@ window.RawDeal.GameEngine = class GameEngine {
 
     const { played, kind = 'maneuver' } = this.reversalWindow;
     if (kind === 'action') {
-      return window.RawDeal.CardUtils.canReverseAction(card, played, player.fortitude);
+      const attacker = this.players[this.reversalWindow.attackerIndex];
+      return window.RawDeal.CardUtils.canReverseAction(card, played, player.fortitude, {
+        reversalFortitudeTax: this._getActionReversalFortitudeTax(attacker),
+      });
     }
 
     const attacker = this.players[this.reversalWindow.attackerIndex];
