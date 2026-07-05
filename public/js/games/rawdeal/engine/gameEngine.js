@@ -295,19 +295,20 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     if (flow.type === 'shuffleRingsideIntoArsenal') {
-      const n = flow.count || 1;
       const picked = flow.selectedIds.length;
       const player = this.players[flow.playerIndex];
-      const message = this._gc().prompt.shuffleRingsideIntoArsenal(
-        flow.sourceName,
-        n,
-        picked
-      );
+      const upTo = flow.exact === false;
+      const maxSelect = flow.maxSelect ?? flow.count ?? 1;
+      const message = upTo
+        ? this._gc().prompt.shuffleRingsideUpTo(flow.sourceName, maxSelect, picked)
+        : this._gc().prompt.shuffleRingsideIntoArsenal(flow.sourceName, maxSelect, picked);
       return {
         mode: 'ringsideModal',
         message,
         cards: player.ringside.map((c) => ({ ...c })),
-        selectCount: n,
+        selectCount: upTo ? maxSelect : maxSelect,
+        maxSelect,
+        upTo,
         selectedIds: [...flow.selectedIds],
         allowPass: false,
       };
@@ -1064,24 +1065,40 @@ window.RawDeal.GameEngine = class GameEngine {
     return Math.min(max || 0, player.ringside.length);
   }
 
-  _beginShuffleRingsideUpToPrompt(player, playerIndex, sourceName, max = 2) {
-    const count = this._shuffleRingsideUpToAvailableMax(player, max);
-    if (count === 0) {
+  _beginShuffleRingsideUpToPrompt(
+    player,
+    playerIndex,
+    sourceName,
+    max = 2,
+    { exact = true } = {}
+  ) {
+    if (player.ringside.length === 0) {
       this.actionLog.push({
         message: this._gc().log.shuffledZeroRingside(sourceName),
       });
       return false;
     }
 
-    return this._beginShuffleRingsideSelectPrompt(player, playerIndex, sourceName, count);
+    const maxSelect = Math.min(max, player.ringside.length);
+    return this._beginShuffleRingsideSelectPrompt(player, playerIndex, sourceName, maxSelect, {
+      exact,
+    });
   }
 
-  _beginShuffleRingsideSelectPrompt(player, playerIndex, sourceName, count) {
+  _beginShuffleRingsideSelectPrompt(
+    player,
+    playerIndex,
+    sourceName,
+    maxSelect,
+    { exact = true } = {}
+  ) {
     this.cardEffectFlow = {
       type: 'shuffleRingsideIntoArsenal',
       playerIndex,
       sourceName,
-      count,
+      count: exact ? maxSelect : maxSelect,
+      maxSelect,
+      exact,
       selectedIds: [],
     };
     this._notify();
@@ -2799,10 +2816,20 @@ window.RawDeal.GameEngine = class GameEngine {
         cardFlow.type === 'shuffleRingsideIntoArsenal')
     ) {
       if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
-      if (cardFlow.selectedIds.includes(instanceId)) return false;
 
-      const needed = cardFlow.count || 1;
-      if (cardFlow.selectedIds.length >= needed) return false;
+      const maxSelect = cardFlow.maxSelect ?? cardFlow.count ?? 1;
+      const upTo = cardFlow.type === 'shuffleRingsideIntoArsenal' && cardFlow.exact === false;
+
+      if (cardFlow.selectedIds.includes(instanceId)) {
+        if (upTo) {
+          cardFlow.selectedIds = cardFlow.selectedIds.filter((id) => id !== instanceId);
+          this._notify();
+          return true;
+        }
+        return false;
+      }
+
+      if (cardFlow.selectedIds.length >= maxSelect) return false;
 
       cardFlow.selectedIds.push(instanceId);
       this._notify();
@@ -2896,8 +2923,14 @@ window.RawDeal.GameEngine = class GameEngine {
       cardFlow.type === 'shuffleRingsideIntoArsenal'
     ) {
       const ids = Array.isArray(selection) ? selection : cardFlow.selectedIds;
-      const needed = cardFlow.count || 1;
-      if (ids.length !== needed) return false;
+      const maxSelect = cardFlow.maxSelect ?? cardFlow.count ?? 1;
+      const upTo = cardFlow.exact === false;
+
+      if (upTo) {
+        if (ids.length > maxSelect) return false;
+      } else if (ids.length !== maxSelect) {
+        return false;
+      }
 
       const valid = new Set(player.ringside.map((c) => c.instanceId));
       if (!ids.every((id) => valid.has(id))) return false;
@@ -2913,10 +2946,16 @@ window.RawDeal.GameEngine = class GameEngine {
         }
       }
 
-      const names = toShuffle.map((c) => c.name).join(', ');
-      this.actionLog.push({
-        message: this._gc().log.shuffledRingsideIntoArsenal(cardFlow.sourceName, names),
-      });
+      if (toShuffle.length === 0) {
+        this.actionLog.push({
+          message: this._gc().log.shuffledZeroRingside(cardFlow.sourceName),
+        });
+      } else {
+        const names = toShuffle.map((c) => c.name).join(', ');
+        this.actionLog.push({
+          message: this._gc().log.shuffledRingsideIntoArsenal(cardFlow.sourceName, names),
+        });
+      }
       await this._finishCardEffectResolution();
       return true;
     }

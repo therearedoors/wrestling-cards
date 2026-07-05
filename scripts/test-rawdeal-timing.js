@@ -2743,6 +2743,134 @@ async function testRecoveryEmptyRingsideSkipsShuffle() {
   assert(player.hand.length === 1, 'Recovery draw puts 1 card in hand when Ringside is empty');
 }
 
+async function createPuppiesTest(RawDeal, { ringsideCards = [], arsenalCount = 8 } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const puppies = cloneCard(RawDeal, 'puppies-puppies', 'puppies-test');
+
+  player.hand = [puppies];
+  player.ringside = [...ringsideCards];
+  player.arsenal = [];
+  for (let i = 0; i < arsenalCount; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `puppies-arsenal-${i}`));
+  }
+  player.fortitude = 20;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, puppies };
+}
+
+async function testPuppiesOpensUpToFiveShuffleModal() {
+  const RawDeal = loadRawDeal();
+  const ringside = [];
+  for (let i = 0; i < 6; i++) {
+    ringside.push(cloneCard(RawDeal, 'punch', `puppies-rs-${i}`));
+  }
+  const { engine, player, puppies } = await createPuppiesTest(RawDeal, { ringsideCards: ringside });
+
+  await engine.playCard(0, puppies.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'shuffleRingsideIntoArsenal',
+    'Puppies opens Ringside shuffle modal'
+  );
+  assert(engine.cardEffectFlow.exact === false, 'Puppies uses up-to shuffle mode');
+  assert(engine.cardEffectFlow.maxSelect === 5, 'Puppies caps selection at 5 cards');
+
+  const prompt = engine._publicSelectionPrompt(0);
+  assert(prompt?.mode === 'ringsideModal', 'Puppies uses Ringside modal');
+  assert(prompt.upTo === true, 'Puppies prompt is up-to mode');
+  assert(prompt.maxSelect === 5, 'Puppies prompt allows up to 5 cards');
+}
+
+async function testPuppiesShuffleThreeThenDrawTwo() {
+  const RawDeal = loadRawDeal();
+  const rs1 = cloneCard(RawDeal, 'punch', 'puppies-rs-a');
+  const rs2 = cloneCard(RawDeal, 'kick', 'puppies-rs-b');
+  const rs3 = cloneCard(RawDeal, 'chop', 'puppies-rs-c');
+  const rs4 = cloneCard(RawDeal, 'elbow', 'puppies-rs-d');
+  const { engine, player, puppies } = await createPuppiesTest(RawDeal, {
+    ringsideCards: [rs1, rs2, rs3, rs4],
+    arsenalCount: 6,
+  });
+
+  const arsenalBefore = player.arsenal.length;
+  const handBefore = player.hand.length;
+
+  await engine.playCard(0, puppies.instanceId, 'action');
+
+  engine.toggleSuperstarAbilitySelection(0, rs1.instanceId);
+  engine.toggleSuperstarAbilitySelection(0, rs2.instanceId);
+  engine.toggleSuperstarAbilitySelection(0, rs3.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, [rs1.instanceId, rs2.instanceId, rs3.instanceId]);
+
+  assert(
+    player.arsenal.length === arsenalBefore + 3 - 2,
+    'Puppies shuffles 3 into Arsenal then draws 2 (net +1)'
+  );
+  assert(
+    !player.ringside.some((c) => ['puppies-rs-a', 'puppies-rs-b', 'puppies-rs-c'].includes(c.instanceId)),
+    'Shuffled cards leave Ringside'
+  );
+  assert(
+    player.ringside.some((c) => c.instanceId === 'puppies-rs-d'),
+    'Unselected Ringside cards remain'
+  );
+  assert(
+    player.hand.length === handBefore - 1 + 2,
+    'Puppies draws 2 after shuffling (-played card, +2 draw)'
+  );
+  assert(!engine.cardEffectFlow, 'Puppies effect completes');
+}
+
+async function testPuppiesConfirmZeroShuffleStillDrawsTwo() {
+  const RawDeal = loadRawDeal();
+  const rs1 = cloneCard(RawDeal, 'punch', 'puppies-rs-only');
+  const { engine, player, puppies } = await createPuppiesTest(RawDeal, {
+    ringsideCards: [rs1],
+    arsenalCount: 4,
+  });
+
+  const arsenalBefore = player.arsenal.length;
+
+  await engine.playCard(0, puppies.instanceId, 'action');
+  await engine.confirmSuperstarAbilityPrompt(0, []);
+
+  assert(
+    player.ringside.some((c) => c.instanceId === 'puppies-rs-only'),
+    'Puppies can skip shuffling and leave Ringside unchanged'
+  );
+  assert(
+    player.arsenal.length === arsenalBefore - 2,
+    'Puppies draws 2 from Arsenal when 0 cards shuffled'
+  );
+  assert(player.hand.length === 2, 'Puppies puts 2 drawn cards in hand');
+  assert(!engine.cardEffectFlow, 'Puppies completes after confirming 0 shuffle');
+}
+
+async function testPuppiesEmptyRingsideSkipsShuffle() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, puppies } = await createPuppiesTest(RawDeal, {
+    ringsideCards: [],
+    arsenalCount: 4,
+  });
+
+  const arsenalBefore = player.arsenal.length;
+
+  await engine.playCard(0, puppies.instanceId, 'action');
+
+  assert(!engine.cardEffectFlow, 'Puppies skips shuffle prompt when Ringside is empty');
+  assert(
+    player.arsenal.length === arsenalBefore - 2,
+    'Puppies draws 2 from Arsenal when Ringside is empty'
+  );
+  assert(player.hand.length === 2, 'Puppies puts 2 drawn cards in hand when Ringside empty');
+}
+
 async function createSpitAtOpponentTest(RawDeal, { opponentHandCount = 5 } = {}) {
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
   await engine.startGame('rock', 'austin');
@@ -4224,6 +4352,10 @@ async function main() {
   await testRecoveryShuffleTwoThenDraw();
   await testRecoveryShuffleOneWhenOnlyOneInRingside();
   await testRecoveryEmptyRingsideSkipsShuffle();
+  await testPuppiesOpensUpToFiveShuffleModal();
+  await testPuppiesShuffleThreeThenDrawTwo();
+  await testPuppiesConfirmZeroShuffleStillDrawsTwo();
+  await testPuppiesEmptyRingsideSkipsShuffle();
   await testSpitAtOpponentDiscardFour();
   await testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess();
   await testSpitAtOpponentPlayableWithEmptyOpponentHand();
