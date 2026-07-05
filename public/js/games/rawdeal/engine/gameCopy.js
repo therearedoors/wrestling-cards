@@ -396,6 +396,14 @@ window.RawDeal = window.RawDeal || {};
       return `Kane overturned ${topName} from opponent's Arsenal to Ringside.`;
     },
 
+    shaneOMacEmptyArsenal(sourceName) {
+      return `${sourceName}: opponent's Arsenal is empty — no card to overturn.`;
+    },
+
+    shaneOMacOverturned(sourceName, topName) {
+      return `${sourceName}: opponent's top Arsenal card (${topName}) moved to Ringside.`;
+    },
+
     rockPassed() {
       return 'The Rock passed on moving a card from Ringside to Arsenal.';
     },

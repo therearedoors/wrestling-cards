@@ -2742,12 +2742,13 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  async _applyKanePreDrawAbility(kanePlayer, kanePlayerIndex) {
-    const opponent = this.players[1 - kanePlayerIndex];
+  _shaneOMacCardsInRing(player) {
+    return (player.ring?.actions || []).filter((c) => c.id === 'shane-omac');
+  }
+
+  async _flipOpponentTopArsenalToRingside(opponent, opponentIndex, sourceCard, { emptyLog, successLog }) {
     if (opponent.arsenal.length === 0) {
-      this.actionLog.push({
-        message: this._gc().log.kaneEmptyArsenal(),
-      });
+      this.actionLog.push({ message: emptyLog() });
       return;
     }
 
@@ -2756,16 +2757,49 @@ window.RawDeal.GameEngine = class GameEngine {
 
     await this.onArsenalToRingside({
       card: top,
-      sourceManeuver: kanePlayer.superstar,
-      playerSeat: 1 - kanePlayerIndex,
+      sourceManeuver: sourceCard,
+      playerSeat: opponentIndex,
       onReveal: () => {
         opponent.ringside.push(top);
-        this.actionLog.push({
-          message: this._gc().log.kaneOverturned(top.name),
-        });
+        this.actionLog.push({ message: successLog(top.name) });
         this._notify();
       },
     });
+  }
+
+  async _applyKanePreDrawAbility(kanePlayer, kanePlayerIndex) {
+    const opponent = this.players[1 - kanePlayerIndex];
+    await this._flipOpponentTopArsenalToRingside(
+      opponent,
+      1 - kanePlayerIndex,
+      kanePlayer.superstar,
+      {
+        emptyLog: () => this._gc().log.kaneEmptyArsenal(),
+        successLog: (topName) => this._gc().log.kaneOverturned(topName),
+      }
+    );
+  }
+
+  async _applyShaneOMacPreDrawRingEffects(player, playerIndex) {
+    const shaneCards = this._shaneOMacCardsInRing(player);
+    if (shaneCards.length === 0) return;
+
+    const opponent = this.players[1 - playerIndex];
+    const opponentIndex = 1 - playerIndex;
+
+    for (const shane of shaneCards) {
+      await this._flipOpponentTopArsenalToRingside(opponent, opponentIndex, shane, {
+        emptyLog: () => this._gc().log.shaneOMacEmptyArsenal(shane.name),
+        successLog: (topName) => this._gc().log.shaneOMacOverturned(shane.name, topName),
+      });
+    }
+  }
+
+  async _resolvePreDrawBeforeDrawEffects(player, playerIndex) {
+    if (player.superstar.id === 'kane') {
+      await this._applyKanePreDrawAbility(player, playerIndex);
+    }
+    await this._applyShaneOMacPreDrawRingEffects(player, playerIndex);
   }
 
   async _handlePreDrawSuperstarAbilities(player, playerIndex) {
@@ -2777,9 +2811,7 @@ window.RawDeal.GameEngine = class GameEngine {
       return this._beginRockPreDraw(player, playerIndex);
     }
 
-    if (player.superstar.id === 'kane') {
-      await this._applyKanePreDrawAbility(player, playerIndex);
-    }
+    await this._resolvePreDrawBeforeDrawEffects(player, playerIndex);
 
     player.preDrawSuperstarResolved = true;
     this._notify();
@@ -2787,6 +2819,8 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async _finishPreDrawSuperstarAbility(player) {
+    const playerIndex = this._playerIndex(player);
+    await this._resolvePreDrawBeforeDrawEffects(player, playerIndex);
     player.preDrawSuperstarResolved = true;
     this.abilityFlow = null;
     this._notify();
