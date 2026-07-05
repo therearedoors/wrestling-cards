@@ -1,5 +1,6 @@
 const { resolveDecksForMatch } = require('./deckResolver');
 const { updateRawDealRoom } = require('../../utils/room');
+const { isDevelopment } = require('../../utils/env');
 
 const activeGames = new Map();
 
@@ -146,6 +147,13 @@ class RoomGame {
         ok = await engine.confirmRemoveOpponentRingCard(seat);
         break;
       case 'devCommand': {
+        if (!isDevelopment()) {
+          return {
+            ok: true,
+            devResult: { ok: false, message: 'Dev console is only available in development' },
+            mutates: false,
+          };
+        }
         const { loadRawDeal } = require('./bootstrap');
         const RawDeal = loadRawDeal();
         const devResult = RawDeal.DevCommands.execute(engine, action.line, { mySeat: seat });
