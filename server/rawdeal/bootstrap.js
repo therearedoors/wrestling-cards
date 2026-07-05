@@ -14,6 +14,7 @@ function loadRawDeal() {
     'data/cards.js',
     'data/decks.js',
     'engine/constants.js',
+    'engine/gameCopy.js',
     'engine/cardUtils.js',
     'engine/stateMachine.js',
     'engine/effectPipeline.js',

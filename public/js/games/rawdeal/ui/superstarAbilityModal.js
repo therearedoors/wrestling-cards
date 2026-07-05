@@ -37,13 +37,17 @@ window.RawDeal.SuperstarAbilityModal = class SuperstarAbilityModal {
   }
 
   _isSelected(prompt, instanceId) {
-    if (this._selectCount(prompt) > 1) {
+    if (prompt.upTo || this._selectCount(prompt) > 1) {
       return this._selectedIds(prompt).includes(instanceId);
     }
     return prompt.selectedId === instanceId;
   }
 
   _canConfirm(prompt) {
+    if (prompt.upTo) {
+      const max = prompt.maxSelect ?? this._selectCount(prompt);
+      return this._selectedIds(prompt).length <= max;
+    }
     if (this._selectCount(prompt) > 1) {
       return this._selectedIds(prompt).length === this._selectCount(prompt);
     }
@@ -51,7 +55,7 @@ window.RawDeal.SuperstarAbilityModal = class SuperstarAbilityModal {
   }
 
   _selectionForConfirm(prompt) {
-    if (this._selectCount(prompt) > 1) {
+    if (prompt.upTo || this._selectCount(prompt) > 1) {
       return [...this._selectedIds(prompt)];
     }
     return prompt.selectedId;

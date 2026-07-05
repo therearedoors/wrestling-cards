@@ -1283,7 +1283,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Shuffle up to 5 cards from your Ringside pile into your Arsenal. Then draw 2 cards.",
     flavor: "",
-    actionEffects: [{"op": "draw", "count": 2}],
+    actionEffects: [{"op": "shuffleRingsideUpTo", "max": 5, "exact": false}, {"op": "draw", "count": 2}],
     set: "premiere",
   },
   'shane-omac': {
