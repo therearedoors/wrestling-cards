@@ -992,6 +992,119 @@ async function testKanePreDrawOverturnsOpponentArsenal() {
   );
 }
 
+async function testShaneOMacPreDrawOverturnsOpponentArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const shane = cloneCard(RawDeal, 'shane-omac', 'shane-ring-test');
+  player.ring.actions.push(shane);
+
+  const topCard = cloneCard(RawDeal, 'chop', 'shane-opp-top');
+  opponent.arsenal.push(topCard);
+  const arsenalBefore = opponent.arsenal.length;
+
+  player.preDrawSuperstarResolved = false;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+  engine.abilityFlow = null;
+
+  await engine._runAutoPhases();
+
+  assert(
+    opponent.ringside.some((c) => c.instanceId === topCard.instanceId),
+    'Shane O\'Mac puts opponent top Arsenal card into Ringside'
+  );
+  assert(
+    opponent.arsenal.length === arsenalBefore - 1,
+    'Opponent Arsenal loses the overturned card'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.MAIN,
+    'Draw step completes after Shane O\'Mac pre-draw overturn'
+  );
+}
+
+async function testShaneOMacPreDrawSkipsWhenOpponentArsenalEmpty() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const shane = cloneCard(RawDeal, 'shane-omac', 'shane-empty-test');
+  player.ring.actions.push(shane);
+
+  opponent.arsenal = [];
+  const ringsideBefore = opponent.ringside.length;
+  player.preDrawSuperstarResolved = false;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine._runAutoPhases();
+
+  assert(
+    opponent.ringside.length === ringsideBefore,
+    'Shane O\'Mac does not add Ringside cards when opponent Arsenal is empty'
+  );
+  assert(
+    engine.actionLog.some((e) => e.message.includes("opponent's Arsenal is empty")),
+    'Shane O\'Mac logs empty opponent Arsenal'
+  );
+}
+
+async function testShaneOMacNoEffectWhenNotInRing() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const topCard = cloneCard(RawDeal, 'chop', 'shane-no-ring-top');
+  opponent.arsenal.push(topCard);
+
+  player.preDrawSuperstarResolved = false;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine._runAutoPhases();
+
+  assert(
+    !opponent.ringside.some((c) => c.instanceId === topCard.instanceId),
+    'No Shane O\'Mac in Ring — opponent top Arsenal stays'
+  );
+  assert(
+    opponent.arsenal.some((c) => c.instanceId === topCard.instanceId),
+    'Opponent Arsenal unchanged without Shane O\'Mac'
+  );
+}
+
+async function testShaneOMacPlayedToRingActions() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  player.hand = [];
+  player.fortitude = 20;
+  const shane = cloneCard(RawDeal, 'shane-omac', 'shane-play-test');
+  player.hand.push(shane);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, shane.instanceId, 'action');
+
+  assert(
+    player.ring.actions.some((c) => c.instanceId === shane.instanceId),
+    'Shane O\'Mac is placed in Ring actions'
+  );
+  assert(!engine.cardEffectFlow, 'Shane O\'Mac has no immediate effect pipeline');
+  assert(!engine.effectPipelineFlow?.paused, 'Shane O\'Mac does not pause the effect pipeline');
+}
+
 async function testKanePreDrawSkipsWhenOpponentArsenalEmpty() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -4281,6 +4394,10 @@ async function main() {
   await testRockPreDrawPassKeepsRingside();
   await testKanePreDrawOverturnsOpponentArsenal();
   await testKanePreDrawSkipsWhenOpponentArsenalEmpty();
+  await testShaneOMacPreDrawOverturnsOpponentArsenal();
+  await testShaneOMacPreDrawSkipsWhenOpponentArsenalEmpty();
+  await testShaneOMacNoEffectWhenNotInRing();
+  await testShaneOMacPlayedToRingActions();
   await testJerichoSuperstarAbilityForcesOpponentDiscard();
   await testJerichoAbilityWhenOpponentHandEmpty();
   await testAtomicDropNextCardManeuverBonus();
