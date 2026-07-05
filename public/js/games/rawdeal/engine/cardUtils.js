@@ -198,13 +198,14 @@ window.RawDeal.CardUtils = {
   },
 
   /** Whether a reversal can stop an action played from hand. */
-  canReverseAction(reversalCard, actionCard, defenderFortitude) {
+  canReverseAction(reversalCard, actionCard, defenderFortitude, options = {}) {
     const canReverse =
       this.hasType(reversalCard, 'reversal') ||
       (reversalCard.reverses && reversalCard.reverses.length > 0);
     if (!canReverse || !this.hasType(actionCard, 'action')) return false;
 
-    const reversalCost = reversalCard.fortitude || 0;
+    const { reversalFortitudeTax = 0 } = options;
+    const reversalCost = (reversalCard.fortitude || 0) + reversalFortitudeTax;
     if (defenderFortitude < reversalCost) return false;
 
     const reverses = reversalCard.reverses || [];

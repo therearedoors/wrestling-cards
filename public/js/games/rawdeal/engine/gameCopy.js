@@ -495,6 +495,10 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceName}: opponent's reversal to your next maneuver is +${value}F.`;
     },
 
+    turnOpponentReversalTax(sourceName, value) {
+      return `${sourceName}: opponent's reversals are +${value}F for the rest of this turn.`;
+    },
+
     blockOpponentReversals(sourceName) {
       return `${sourceName}: opponent's Arsenal reversals cannot reverse your maneuvers this turn.`;
     },

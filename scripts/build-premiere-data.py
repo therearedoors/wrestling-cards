@@ -744,6 +744,14 @@ def infer_action_effects(types_list, rules, name=''):
         effects.append({'op': 'draw', 'count': 1})
         return effects
 
+    if 'power of darkness' in card_name:
+        effects = []
+        if '+5d' in blob and 'all your maneuvers' in blob:
+            effects.append({'op': 'turnDamageBonus', 'value': 5})
+        if '+20f' in blob and 'reversals' in blob:
+            effects.append({'op': 'turnOpponentReversalTax', 'value': 20})
+        return effects or None
+
     if 'get crowd support' in card_name or (
         'draw 1 card' in blob
         and 'next maneuver this turn' in blob

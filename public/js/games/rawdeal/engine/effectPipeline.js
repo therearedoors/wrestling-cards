@@ -301,6 +301,17 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'turnOpponentReversalTax': {
+        const value = step.value || 0;
+        if (!player.turnState) player.turnState = engine._emptyTurnState();
+        player.turnState.turnOpponentReversalTax =
+          (player.turnState.turnOpponentReversalTax || 0) + value;
+        engine.actionLog.push({
+          message: window.RawDeal.GameCopy.log.turnOpponentReversalTax(sourceName, value),
+        });
+        return false;
+      }
+
       case 'discardUpTo':
         return engine._beginDiscardUpToPrompt(
           player,
