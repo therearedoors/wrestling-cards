@@ -1113,6 +1113,85 @@ body:has(.rd-page) {
   outline-offset: 2px;
 }
 
+.rd-arsenal-ringside-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 92;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rd-arsenal-ringside-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 18, 30, 0.72);
+  pointer-events: none;
+}
+
+.rd-arsenal-ringside-modal__panel {
+  position: relative;
+  background: var(--main-color-darker);
+  border: 2px solid var(--bg-orange);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  max-width: min(92vw, 720px);
+  width: 100%;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rd-arsenal-ringside-modal__message {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.rd-arsenal-ringside-modal__zone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rd-arsenal-ringside-modal__zone-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #aab4c4);
+}
+
+.rd-arsenal-ringside-modal__scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+  min-height: 5.5rem;
+}
+
+.rd-arsenal-ringside-modal__scroll--overflow {
+  mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
+}
+
+.rd-arsenal-ringside-modal__actions {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.25rem;
+}
+
+.rd-arsenal-ringside-modal__confirm {
+  min-width: 120px;
+}
+
+.rd-arsenal-ringside-modal .rd-card--selected {
+  outline: 3px solid var(--bg-orange);
+  outline-offset: 2px;
+}
+
 .rd-superstar-ability-modal {
   position: absolute;
   inset: 0;

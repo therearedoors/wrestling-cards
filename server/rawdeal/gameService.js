@@ -123,6 +123,18 @@ class RoomGame {
       case 'confirmArsenalSearch':
         ok = await engine.confirmArsenalSearch(seat, action.instanceIds || []);
         break;
+      case 'selectArsenalOrRingsidePick':
+        ok = engine.selectArsenalOrRingsidePick(seat, action.instanceId, action.zone);
+        break;
+      case 'confirmArsenalOrRingsidePick':
+        if (action.instanceId && action.zone) {
+          engine.selectArsenalOrRingsidePick(seat, action.instanceId, action.zone);
+        }
+        ok = await engine.confirmArsenalOrRingsidePick(seat);
+        break;
+      case 'pickArsenalOrRingsideToHand':
+        ok = await engine.pickArsenalOrRingsideToHand(seat, action.instanceId, action.zone);
+        break;
       case 'toggleRemoveOpponentRingSelect':
         ok = engine.toggleRemoveOpponentRingSelect(
           seat,

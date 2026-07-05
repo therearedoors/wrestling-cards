@@ -1304,6 +1304,181 @@ async function testWhoopCanReversalTaxFromHand() {
   );
 }
 
+async function playMrSocko(engine, RawDeal, instanceId = 'socko-play', pick = null) {
+  const socko = cloneCard(RawDeal, 'mr-socko', instanceId);
+  const player = engine.players[0];
+  player.hand.push(socko);
+  player.fortitude = Math.max(player.fortitude, 25);
+  await engine.playCard(0, socko.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  if (engine.cardEffectFlow?.type === 'pickArsenalOrRingsideToHand') {
+    let pickId = pick?.instanceId;
+    let pickZone = pick?.zone;
+    if (!pickId) {
+      if (player.ringside.length > 0) {
+        pickId = player.ringside[0].instanceId;
+        pickZone = 'ringside';
+      } else if (player.arsenal.length > 0) {
+        pickId = player.arsenal[0].instanceId;
+        pickZone = 'arsenal';
+      }
+    }
+    if (pickId && pickZone) {
+      await engine.pickArsenalOrRingsideToHand(0, pickId, pickZone);
+    }
+  }
+
+  return socko;
+}
+
+async function testMrSockoPickFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const arsenalCard = cloneCard(RawDeal, 'chop', 'socko-ars-pick');
+  player.ringside = [];
+  player.arsenal = [arsenalCard];
+  const arsenalBefore = [...player.arsenal.map((c) => c.instanceId)];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const socko = await playMrSocko(engine, RawDeal, 'socko-ars');
+
+  assert(
+    player.hand.some((c) => c.instanceId === arsenalCard.instanceId),
+    'Mr. Socko puts chosen Arsenal card in hand'
+  );
+  assert(
+    !player.arsenal.some((c) => c.instanceId === arsenalCard.instanceId),
+    'Mr. Socko removes chosen card from Arsenal'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === socko.instanceId),
+    'Mr. Socko is in Ring actions'
+  );
+  const arsenalAfter = player.arsenal.map((c) => c.instanceId);
+  assert(
+    arsenalAfter.length === arsenalBefore.length - 1,
+    'Mr. Socko Arsenal count drops by 1 after pick'
+  );
+}
+
+async function testMrSockoPickFromRingside() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const ringsideCard = cloneCard(RawDeal, 'punch', 'socko-rs-pick');
+  player.ringside = [ringsideCard];
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'socko-ars-remain')];
+  const arsenalOrderBefore = player.arsenal.map((c) => c.instanceId);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playMrSocko(engine, RawDeal, 'socko-rs', {
+    instanceId: ringsideCard.instanceId,
+    zone: 'ringside',
+  });
+
+  assert(
+    player.hand.some((c) => c.instanceId === ringsideCard.instanceId),
+    'Mr. Socko puts chosen Ringside card in hand'
+  );
+  assert(
+    !player.ringside.some((c) => c.instanceId === ringsideCard.instanceId),
+    'Mr. Socko removes chosen card from Ringside'
+  );
+  assert(
+    player.arsenal.length === arsenalOrderBefore.length,
+    'Mr. Socko still shuffles Arsenal after Ringside pick'
+  );
+}
+
+async function testMrSockoEmptyZones() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  player.arsenal = [];
+  player.ringside = [];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const socko = await playMrSocko(engine, RawDeal, 'socko-empty');
+
+  assert(
+    engine.actionLog.some((e) => e.message.includes('no cards in Arsenal or Ringside')),
+    'Mr. Socko logs when both zones are empty'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === socko.instanceId),
+    'Mr. Socko still enters Ring when zones are empty'
+  );
+}
+
+async function testMrSockoRingPassiveDamage() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const socko = cloneCard(RawDeal, 'mr-socko', 'socko-passive');
+  player.ring.actions.push(socko);
+
+  const punch = cloneCard(RawDeal, 'punch', 'socko-punch');
+  assert(
+    engine._peekManeuverDamage(player, opponent, punch) === 4,
+    'Mr. Socko in Ring gives all maneuvers +1D (Punch 3D + 1)'
+  );
+}
+
+async function testMrSockoPassivePersistsNextTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const socko = cloneCard(RawDeal, 'mr-socko', 'socko-persist');
+  player.ring.actions.push(socko);
+
+  engine.stateMachine.phase = RawDeal.PHASES.END_OF_TURN;
+  engine.stateMachine.activePlayer = 0;
+  await engine._runAutoPhases();
+
+  const kick = cloneCard(RawDeal, 'kick', 'socko-kick');
+  assert(
+    engine._peekManeuverDamage(player, opponent, kick) === 6,
+    'Mr. Socko +1D persists on following turn (Kick 5D + 1)'
+  );
+}
+
+async function testMandibleClawDiscountWithSockoInRing() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const socko = cloneCard(RawDeal, 'mr-socko', 'socko-discount');
+  player.ring.actions.push(socko);
+
+  const mandible = RawDeal.CARDS['mandible-claw'];
+  const cost = RawDeal.CardUtils.playFortitudeCost(mandible, 'maneuver', player);
+
+  assert(cost === 24, 'Mandible Claw costs 24F when Mr. Socko is in Ring (30F - 6F)');
+}
+
 async function playPowerOfDarkness(engine, RawDeal, instanceId = 'pod-play') {
   const pod = cloneCard(RawDeal, 'power-of-darkness', instanceId);
   const player = engine.players[0];
@@ -4858,6 +5033,12 @@ async function main() {
   await testNotYetEmptyHandSkipsEffect();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
+  await testMrSockoPickFromArsenal();
+  await testMrSockoPickFromRingside();
+  await testMrSockoEmptyZones();
+  await testMrSockoRingPassiveDamage();
+  await testMrSockoPassivePersistsNextTurn();
+  await testMandibleClawDiscountWithSockoInRing();
   await testPowerOfDarknessAppliesTurnBonuses();
   await testPowerOfDarknessDamageAllManeuvers();
   await testPowerOfDarknessReversalTaxPersists();

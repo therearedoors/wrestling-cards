@@ -301,6 +301,13 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'pickArsenalOrRingsideToHand':
+        return engine._beginPickArsenalOrRingsidePrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName
+        );
+
       case 'turnOpponentReversalTax': {
         const value = step.value || 0;
         if (!player.turnState) player.turnState = engine._emptyTurnState();

@@ -361,6 +361,12 @@ def parse_cards(text: str):
         discount = infer_discount_after_card(entry['text'], cards)
         if discount:
             entry.update(discount)
+        ring_passive = infer_ring_passive_effects(entry.get('text', ''))
+        if ring_passive:
+            entry.update(ring_passive)
+        ring_discount = infer_discount_when_ring_card(entry.get('text', ''))
+        if ring_discount:
+            entry.update(ring_discount)
 
     return cards
 
@@ -426,6 +432,23 @@ def infer_requires_played(rules):
     ):
         return {'requiresPlayed': 'irish-whip'}
     return None
+
+
+def infer_ring_passive_effects(text):
+    blob = text.lower()
+    if 'while' in blob and 'in your ring area' in blob and 'all your maneuvers are +1d' in blob:
+        return {'ringPassiveEffects': [{'op': 'maneuverDamageBonus', 'value': 1}]}
+    return None
+
+
+def infer_discount_when_ring_card(text):
+    blob = text.lower()
+    m = re.search(r'-(\d+)f on this card if (.+?) card is in your ring area', blob)
+    if not m:
+        return None
+    title = m.group(2).strip()
+    ref_id = slugify(title)
+    return {'discountWhenRingCard': {'cardId': ref_id, 'fortitude': int(m.group(1))}}
 
 
 def infer_requires_after_successful_maneuver(rules):
@@ -744,6 +767,11 @@ def infer_action_effects(types_list, rules, name=''):
         effects.append({'op': 'draw', 'count': 1})
         return effects
 
+    if 'mr socko' in card_name or (
+        'either your arsenal or ringside' in blob and 'shuffle your arsenal' in blob
+    ):
+        return [{'op': 'pickArsenalOrRingsideToHand'}]
+
     if 'power of darkness' in card_name:
         effects = []
         if '+5d' in blob and 'all your maneuvers' in blob:
@@ -883,7 +911,9 @@ def emit_cards(cards):
                     'requiresAfterSuccessfulSubmission',
                     'grantsMaintainHoldAfterPlay',
                     'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
-                    'actionEffects', 'maneuverEffects', 'reversalEffects', 'set']:
+                    'discountWhenRingCard',
+                    'actionEffects', 'maneuverEffects', 'reversalEffects',
+                    'ringPassiveEffects', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]
                 if isinstance(val, bool):

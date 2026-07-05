@@ -204,6 +204,21 @@ window.RawDeal.GameEngine = class GameEngine {
     return this.stateMachine.activePlayer;
   }
 
+  _getRingPassiveManeuverDamageBonus(player) {
+    if (!player?.ring) return 0;
+    let bonus = 0;
+    for (const area of ['maneuvers', 'reversals', 'actions']) {
+      for (const card of player.ring[area] || []) {
+        for (const effect of card.ringPassiveEffects || []) {
+          if (effect.op === 'maneuverDamageBonus') {
+            bonus += effect.value || 0;
+          }
+        }
+      }
+    }
+    return bonus;
+  }
+
   _addTurnDamageBonus(player, { all = 0, subtype, value = 0, sourceName }) {
     const idx = this._playerIndex(player);
     const bonuses = this.turnDamageBonus[idx];
@@ -489,6 +504,18 @@ window.RawDeal.GameEngine = class GameEngine {
         cards,
         selectCount: n,
         selectedIds: [...flow.selectedIds],
+      };
+    }
+
+    if (flow.type === 'pickArsenalOrRingsideToHand') {
+      const player = this.players[flow.playerIndex];
+      return {
+        mode: 'arsenalOrRingsideModal',
+        message: this._gc().prompt.arsenalOrRingsidePick(flow.sourceName),
+        arsenalCards: player.arsenal.map((c) => ({ ...c })),
+        ringsideCards: player.ringside.map((c) => ({ ...c })),
+        selectedId: flow.selectedId,
+        selectedZone: flow.selectedZone,
       };
     }
 
@@ -1097,6 +1124,8 @@ window.RawDeal.GameEngine = class GameEngine {
       damage += turnBonus[subtype];
     }
 
+    damage += this._getRingPassiveManeuverDamageBonus(player);
+
     if (played.subtype === 'strike' && player.turnState?.nextStrikeBonus) {
       damage += player.turnState.nextStrikeBonus;
     }
@@ -1340,6 +1369,113 @@ window.RawDeal.GameEngine = class GameEngine {
     };
     this._notify();
     return true;
+  }
+
+  async _beginPickArsenalOrRingsidePrompt(player, playerIndex, sourceName) {
+    if (player.arsenal.length === 0 && player.ringside.length === 0) {
+      this.actionLog.push({
+        message: this._gc().log.noArsenalOrRingsideToPick(sourceName),
+      });
+      this._shuffle(player.arsenal);
+      this.actionLog.push({
+        message: this._gc().log.shuffledArsenal(sourceName, false),
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'pickArsenalOrRingsideToHand',
+      playerIndex,
+      sourceName,
+      selectedId: null,
+      selectedZone: null,
+    };
+    this._notify();
+    return true;
+  }
+
+  async _completePickArsenalOrRingside(player, playerIndex, sourceName, card, zone) {
+    if (zone === 'ringside') {
+      const idx = player.ringside.findIndex((c) => c.instanceId === card.instanceId);
+      if (idx >= 0) {
+        const [picked] = player.ringside.splice(idx, 1);
+        player.hand.push(picked);
+        this.actionLog.push({
+          message: this._gc().log.pickedFromRingsideToHand(sourceName, picked.name),
+        });
+      }
+    } else {
+      const idx = player.arsenal.findIndex((c) => c.instanceId === card.instanceId);
+      if (idx >= 0) {
+        const [picked] = player.arsenal.splice(idx, 1);
+        player.hand.push(picked);
+        this.actionLog.push({
+          message: this._gc().log.pickedFromArsenalToHand(sourceName, picked.name),
+        });
+      }
+    }
+
+    this._shuffle(player.arsenal);
+    this.actionLog.push({
+      message: this._gc().log.shuffledArsenal(sourceName, false),
+    });
+    this.cardEffectFlow = null;
+    await this._finishCardEffectResolution();
+    return true;
+  }
+
+  selectArsenalOrRingsidePick(playerIndex, instanceId, zone) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'pickArsenalOrRingsideToHand') return false;
+
+    const player = this.players[playerIndex];
+    const pool = zone === 'ringside' ? player.ringside : player.arsenal;
+    if (!pool.some((c) => c.instanceId === instanceId)) return false;
+
+    const flow = this.cardEffectFlow;
+    if (flow.selectedId === instanceId && flow.selectedZone === zone) {
+      flow.selectedId = null;
+      flow.selectedZone = null;
+    } else {
+      flow.selectedId = instanceId;
+      flow.selectedZone = zone;
+    }
+
+    this._notify();
+    return true;
+  }
+
+  async confirmArsenalOrRingsidePick(playerIndex) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'pickArsenalOrRingsideToHand') return false;
+
+    const flow = this.cardEffectFlow;
+    if (!flow.selectedId || !flow.selectedZone) return false;
+
+    return this.pickArsenalOrRingsideToHand(
+      playerIndex,
+      flow.selectedId,
+      flow.selectedZone
+    );
+  }
+
+  async pickArsenalOrRingsideToHand(playerIndex, instanceId, zone) {
+    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
+    if (this.cardEffectFlow.type !== 'pickArsenalOrRingsideToHand') return false;
+
+    const player = this.players[playerIndex];
+    const pool = zone === 'ringside' ? player.ringside : player.arsenal;
+    const card = pool.find((c) => c.instanceId === instanceId);
+    if (!card) return false;
+
+    const { sourceName } = this.cardEffectFlow;
+    return this._completePickArsenalOrRingside(
+      player,
+      playerIndex,
+      sourceName,
+      card,
+      zone
+    );
   }
 
   _beginDrawUpToPrompt(player, playerIndex, sourceName, max = 3) {
@@ -2700,6 +2836,11 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     return false;
+  }
+
+  async selectArsenalOrRingsideForCardEffect(playerIndex, instanceId, zone) {
+    if (this.cardEffectFlow?.type !== 'pickArsenalOrRingsideToHand') return false;
+    return this.selectArsenalOrRingsidePick(playerIndex, instanceId, zone);
   }
 
   async selectChoice(playerIndex, optionId) {

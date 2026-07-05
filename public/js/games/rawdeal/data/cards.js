@@ -1390,6 +1390,7 @@ window.RawDeal.CARDS = {
     text: "Trademark Finisher (Maneuver) / -6F on this card if Mr. Socko card is in your Ring area. You may play the card titled Maintain Hold after this card as if it were a Submission maneuver. Unique SV: 3",
     flavor: "",
     grantsMaintainHoldAfterPlay: true,
+    discountWhenRingCard: {"cardId": "mr-socko", "fortitude": 6},
     set: "premiere",
   },
   'mr-socko': {
@@ -1401,6 +1402,8 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Take 1 card from either your Arsenal or Ringside pile and place it into your hand, then shuffle your Arsenal. While Mr. Socko is in your Ring area, all your maneuvers are +1D. Unique",
     flavor: "",
+    actionEffects: [{"op": "pickArsenalOrRingsideToHand"}],
+    ringPassiveEffects: [{"op": "maneuverDamageBonus", "value": 1}],
     set: "premiere",
   },
   'pedigree': {
