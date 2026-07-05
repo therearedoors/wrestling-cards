@@ -29,6 +29,8 @@ window.RawDeal.GameEngine = class GameEngine {
     this.pendingEgoBoostDraws = [];
     this.opponentDiscardResumeMeta = null;
     this.reversedManeuverDamage = null;
+    this.maintainedSubmissionFlow = null;
+    this._pendingMaintainedSubmissionWindow = false;
     this.animationEvents = [];
     this.stateMachine.phase = window.RawDeal.PHASES.SETUP;
     this.stateMachine.activePlayer = 0;
@@ -63,6 +65,8 @@ window.RawDeal.GameEngine = class GameEngine {
       skipOpponentNextTurn: false,
       discardHandAtEndOfTurn: false,
       canPlayAfterSuccessfulManeuver: false,
+      canPlayAfterSuccessfulSubmission: false,
+      lastSuccessfulSubmissionInstanceId: null,
       nextManeuverUnreversiblePending: false,
       nextManeuverUnreversibleMaxDamage: null,
       nextManeuverUnreversibleManeuverOnly: false,
@@ -126,9 +130,47 @@ window.RawDeal.GameEngine = class GameEngine {
     }
   }
 
-  _markManeuverSuccessfullyPlayed(player) {
+  _markManeuverSuccessfullyPlayed(player, played) {
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.canPlayAfterSuccessfulManeuver = true;
+    if (
+      played &&
+      (played.subtype === 'submission' || played.grantsMaintainHoldAfterPlay)
+    ) {
+      player.turnState.canPlayAfterSuccessfulSubmission = true;
+      player.turnState.lastSuccessfulSubmissionInstanceId = played.instanceId;
+    }
+  }
+
+  _isMaintainHoldLockActive() {
+    const flow = this.maintainedSubmissionFlow;
+    return !!(flow?.active && flow?.abilityActive);
+  }
+
+  _resolveMaintainedSubmissionCard() {
+    const flow = this.maintainedSubmissionFlow;
+    if (!flow?.submissionInstanceId) return null;
+    const maintainer = this.players[flow.maintainerIndex];
+    if (!maintainer) return null;
+    return (
+      maintainer.ring.maneuvers.find((c) => c.instanceId === flow.submissionInstanceId) || null
+    );
+  }
+
+  _shouldOpenMaintainedSubmissionWindow() {
+    const flow = this.maintainedSubmissionFlow;
+    if (!flow?.abilityActive) return false;
+    if (this.stateMachine.activePlayer !== flow.maintainerIndex) return false;
+    return !!this._resolveMaintainedSubmissionCard();
+  }
+
+  _disableMaintainHoldAbility(reason) {
+    if (!this.maintainedSubmissionFlow) return;
+    this.maintainedSubmissionFlow.abilityActive = false;
+    this.maintainedSubmissionFlow.active = false;
+    this.actionLog.push({
+      message: this._gc().log.maintainHoldDisabled(reason),
+    });
   }
 
   _getManeuverReversalFortitudeTax(attacker, maneuver) {
@@ -754,6 +796,7 @@ window.RawDeal.GameEngine = class GameEngine {
           this._drawCard(active);
         }
         this.stateMachine.transition(EVENTS.DRAW_DONE);
+        this._pendingMaintainedSubmissionWindow = this._shouldOpenMaintainedSubmissionWindow();
         continue;
       }
 
@@ -781,6 +824,14 @@ window.RawDeal.GameEngine = class GameEngine {
       }
 
       break;
+    }
+
+    if (
+      this.stateMachine.phase === PHASES.MAIN &&
+      this._pendingMaintainedSubmissionWindow
+    ) {
+      this._pendingMaintainedSubmissionWindow = false;
+      await this._openMaintainedSubmissionWindowOrReapply();
     }
 
     this._notify();
@@ -828,9 +879,20 @@ window.RawDeal.GameEngine = class GameEngine {
       return false;
     }
 
+    if (this._isMaintainHoldLockActive()) {
+      return false;
+    }
+
     const player = this.players[playerIndex];
     const card = player.hand.find((c) => c.instanceId === instanceId);
     if (!card) return false;
+
+    if (card.requiresAfterSuccessfulSubmission) {
+      const subId = player.turnState?.lastSuccessfulSubmissionInstanceId;
+      if (!subId || !player.ring.maneuvers.some((c) => c.instanceId === subId)) {
+        return false;
+      }
+    }
 
     const utils = window.RawDeal.CardUtils;
     const mode =
@@ -900,6 +962,11 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async _playFromHandAsAction(player, card) {
+    if (card.requiresAfterSuccessfulSubmission) {
+      await this._resolveMaintainHoldAction(player, card);
+      return;
+    }
+
     const firstOp = card.actionEffects?.[0]?.op;
 
     if (firstOp === 'discardSelfToDraw') {
@@ -922,6 +989,88 @@ window.RawDeal.GameEngine = class GameEngine {
     if (card.actionEffects?.length) {
       await this._startEffectPipeline(player, card.name, card.actionEffects, 'action');
     }
+  }
+
+  async _resolveMaintainHoldAction(player, card) {
+    const playerIndex = this._playerIndex(player);
+    const submissionInstanceId = player.turnState?.lastSuccessfulSubmissionInstanceId;
+    const submission = player.ring.maneuvers.find(
+      (c) => c.instanceId === submissionInstanceId
+    );
+    if (!submission) return;
+
+    player.ring.actions.push(card);
+    this.actionLog.push({
+      message: this._gc().log.maintainHoldPlayed(submission.name),
+    });
+
+    this.maintainedSubmissionFlow = {
+      active: true,
+      abilityActive: true,
+      maintainerIndex: playerIndex,
+      submissionInstanceId: submission.instanceId,
+      maintainHoldInstanceId: card.instanceId,
+    };
+
+    player.turnState.canPlayAfterSuccessfulSubmission = false;
+    player.turnState.lastSuccessfulSubmissionInstanceId = null;
+
+    this._notify();
+    await this._forceEndTurnFromEffect(playerIndex);
+  }
+
+  async _openMaintainedSubmissionWindowOrReapply() {
+    const flow = this.maintainedSubmissionFlow;
+    if (!flow?.abilityActive) return;
+
+    const maintainer = this.players[flow.maintainerIndex];
+    const opponent = this.players[1 - flow.maintainerIndex];
+    const submission = this._resolveMaintainedSubmissionCard();
+    if (!submission) {
+      this._disableMaintainHoldAbility('missing');
+      return;
+    }
+
+    const damage = this._calcManeuverDamage(maintainer, opponent, submission);
+
+    if (this.engineMode !== 'multiplayer') {
+      await this._reapplyMaintainedSubmission();
+      return;
+    }
+
+    this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_CARD, { openReversalWindow: true });
+    this.reversalWindow = {
+      kind: 'maintained',
+      attackerIndex: flow.maintainerIndex,
+      defenderIndex: 1 - flow.maintainerIndex,
+      player: maintainer,
+      opponent,
+      played: submission,
+      damage,
+    };
+    this._notify();
+  }
+
+  async _reapplyMaintainedSubmission() {
+    const flow = this.maintainedSubmissionFlow;
+    if (!flow?.abilityActive) return false;
+
+    const maintainer = this.players[flow.maintainerIndex];
+    const opponent = this.players[1 - flow.maintainerIndex];
+    const submission = this._resolveMaintainedSubmissionCard();
+    if (!submission) {
+      this._disableMaintainHoldAbility('missing');
+      return false;
+    }
+
+    const damage = this._calcManeuverDamage(maintainer, opponent, submission);
+    this.actionLog.push({
+      message: this._gc().log.maintainHoldReapplied(submission.name, damage),
+    });
+
+    return this._continueManeuverAfterReversal(maintainer, opponent, submission, damage, {
+      isMaintainedReapplication: true,
+    });
   }
 
   _peekManeuverDamage(player, opponent, played) {
@@ -2112,7 +2261,9 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  async _applyManeuverDamage(player, opponent, played, damage) {
+  async _applyManeuverDamage(player, opponent, played, damage, {
+    isMaintainedReapplication = false,
+  } = {}) {
     if (damage > 0) {
       const damageResult = await this._resolveDamage(player, opponent, played, damage);
       this._clearNextManeuverReversalTax(player);
@@ -2128,6 +2279,14 @@ window.RawDeal.GameEngine = class GameEngine {
       });
 
       if (damageResult.result === 'reversed') {
+        if (isMaintainedReapplication) {
+          this._disableMaintainHoldAbility('arsenalReversal');
+          this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
+          this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
+          this._notify();
+          await this._runAutoPhases();
+          return true;
+        }
         this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
         this.stateMachine.transition(window.RawDeal.EVENTS.END_TURN);
         this._notify();
@@ -2146,7 +2305,9 @@ window.RawDeal.GameEngine = class GameEngine {
       if (player.turnState) {
         player.turnState.activeManeuverUnreversible = false;
       }
-      this._markManeuverSuccessfullyPlayed(player);
+      if (!isMaintainedReapplication) {
+        this._markManeuverSuccessfullyPlayed(player, played);
+      }
     }
 
     this._clearNextManeuverReversalTax(player);
@@ -2156,7 +2317,9 @@ window.RawDeal.GameEngine = class GameEngine {
     if (player.turnState) {
       player.turnState.activeManeuverUnreversible = false;
     }
-    this._markManeuverSuccessfullyPlayed(player);
+    if (!isMaintainedReapplication) {
+      this._markManeuverSuccessfullyPlayed(player, played);
+    }
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();
     return true;
@@ -2164,9 +2327,17 @@ window.RawDeal.GameEngine = class GameEngine {
 
   async _continueManeuverAfterReversal(player, opponent, played, damage, {
     skipManeuverEffects = false,
+    isMaintainedReapplication = false,
   } = {}) {
     if (!skipManeuverEffects && played.maneuverEffects?.length) {
-      this.pendingManeuverResolution = { player, opponent, played, damage, resumeAt: 'maneuver' };
+      this.pendingManeuverResolution = {
+        player,
+        opponent,
+        played,
+        damage,
+        resumeAt: 'maneuver',
+        isMaintainedReapplication,
+      };
       const paused = await this._startEffectPipeline(player, played.name, played.maneuverEffects, 'maneuver');
       if (paused || this.cardEffectFlow || this.handRevealFlow) {
         return true;
@@ -2178,7 +2349,9 @@ window.RawDeal.GameEngine = class GameEngine {
     }
 
     this.pendingManeuverResolution = null;
-    return this._applyManeuverDamage(player, opponent, played, damage);
+    return this._applyManeuverDamage(player, opponent, played, damage, {
+      isMaintainedReapplication,
+    });
   }
 
   async _continuePendingManeuverDamage() {
@@ -2190,8 +2363,10 @@ window.RawDeal.GameEngine = class GameEngine {
       return;
     }
 
-    const { player, opponent, played, damage } = pending;
-    await this._applyManeuverDamage(player, opponent, played, damage);
+    const { player, opponent, played, damage, isMaintainedReapplication = false } = pending;
+    await this._applyManeuverDamage(player, opponent, played, damage, {
+      isMaintainedReapplication,
+    });
   }
 
   _openActionReversalWindowOrPlay(player, opponent, played) {
@@ -2311,6 +2486,18 @@ window.RawDeal.GameEngine = class GameEngine {
       return true;
     }
 
+    if (kind === 'maintained') {
+      player.ring.reversals.push(reversal);
+      this._syncFortitude(player);
+      this.actionLog.push({
+        message: this._gc().log.maintainHoldReversedFromHand(reversal.name, played.name),
+      });
+      this.reversalWindow = null;
+      this._disableMaintainHoldAbility('handReversal');
+      await this._finishHandReversalTurn();
+      return true;
+    }
+
     player.ring.reversals.push(reversal);
     this._syncFortitude(player);
     this._sendReversedManeuverToRingside(attacker, played);
@@ -2388,6 +2575,12 @@ window.RawDeal.GameEngine = class GameEngine {
       await this._playFromHandAsAction(player, played);
       this._notify();
       return true;
+    }
+
+    if (kind === 'maintained') {
+      this.stateMachine.transition(window.RawDeal.EVENTS.PASS_PRIORITY);
+      this._notify();
+      return await this._reapplyMaintainedSubmission();
     }
 
     this.stateMachine.transition(window.RawDeal.EVENTS.PASS_PRIORITY);
@@ -2850,7 +3043,6 @@ window.RawDeal.GameEngine = class GameEngine {
         cardFlow.type === 'shuffleRingsideIntoArsenal')
     ) {
       if (!player.ringside.some((c) => c.instanceId === instanceId)) return false;
-
       const maxSelect = cardFlow.maxSelect ?? cardFlow.count ?? 1;
       const upTo = cardFlow.type === 'shuffleRingsideIntoArsenal' && cardFlow.exact === false;
 
@@ -2998,7 +3190,13 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   canUseSuperstarAbility(playerIndex) {
-    if (!this.stateMachine.canPlayCards(playerIndex) || this.abilityFlow || this.cardEffectFlow || this.reversalWindow) {
+    if (
+      !this.stateMachine.canPlayCards(playerIndex) ||
+      this.abilityFlow ||
+      this.cardEffectFlow ||
+      this.reversalWindow ||
+      this._isMaintainHoldLockActive()
+    ) {
       return false;
     }
 

@@ -368,6 +368,28 @@ window.RawDeal = window.RawDeal || {};
       return `${reversalName} reversed ${playedName} from hand!`;
     },
 
+    maintainHoldPlayed(submissionName) {
+      return `Maintain Hold: maintaining ${submissionName}.`;
+    },
+
+    maintainHoldReapplied(submissionName, damage) {
+      return `Maintain Hold: ${submissionName} applies again (${damage}D).`;
+    },
+
+    maintainHoldReversedFromHand(reversalName, submissionName) {
+      return `${reversalName} reversed maintained ${submissionName} from hand — Maintain Hold disabled.`;
+    },
+
+    maintainHoldDisabled(reason) {
+      if (reason === 'handReversal') {
+        return 'Maintain Hold ability disabled (reversed from hand).';
+      }
+      if (reason === 'arsenalReversal') {
+        return 'Maintain Hold ability disabled (reversed from Arsenal).';
+      }
+      return 'Maintain Hold ability disabled.';
+    },
+
     grappleDamageBonus(sourceName) {
       return `${sourceName}: your next Grapple maneuver is +4D.`;
     },

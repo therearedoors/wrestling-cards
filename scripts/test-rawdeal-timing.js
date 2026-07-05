@@ -3938,6 +3938,283 @@ async function testStaggerProtectsExactly7D() {
   );
 }
 
+function stripReversalsFromOpponentArsenal(opponent, RawDeal, prefix) {
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `${prefix}-safe-ars-${i}`));
+  }
+}
+
+async function playSubmissionSuccessfully(engine, RawDeal, instanceId = 'mh-chin-lock') {
+  const chinLock = cloneCard(RawDeal, 'chin-lock', instanceId);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand.push(chinLock);
+  player.fortitude = Math.max(player.fortitude, 5);
+  stripReversalsFromOpponentArsenal(opponent, RawDeal, instanceId);
+  await engine.playCard(0, chinLock.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return chinLock;
+}
+
+async function passReversalWindowIfOpen(engine, RawDeal, defenderIndex = 1) {
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(defenderIndex);
+  }
+}
+
+async function testMaintainHoldNotPlayableWithoutSubmission() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-no-sub');
+  player.hand = [mh];
+  player.fortitude = 15;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  assert(
+    !engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Maintain Hold not playable without a successful Submission'
+  );
+}
+
+async function testMaintainHoldNotPlayableAfterHandReversal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const chinLock = cloneCard(RawDeal, 'chin-lock', 'mh-chin-rev');
+  const breakHold = cloneCard(RawDeal, 'break-the-hold', 'mh-break');
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-after-rev');
+
+  attacker.hand = [chinLock, mh];
+  attacker.fortitude = 15;
+  defender.hand = [breakHold];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `mh-rev-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, chinLock.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, breakHold.instanceId);
+
+  assert(
+    !attacker.turnState?.canPlayAfterSuccessfulSubmission,
+    'Hand-reversed Submission does not enable Maintain Hold'
+  );
+  assert(
+    !engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Maintain Hold not playable after Submission reversed from hand'
+  );
+}
+
+async function testMaintainHoldPlayableAfterSubmission() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-playable');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playSubmissionSuccessfully(engine, RawDeal, 'mh-chin-ok');
+
+  player.hand.push(mh);
+  player.fortitude = 15;
+
+  assert(
+    engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Maintain Hold playable after successful Submission'
+  );
+}
+
+async function testMaintainHoldNotPlayableAfterStrike() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-no-strike');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'mh-kick-only');
+
+  player.hand.push(mh);
+  player.fortitude = 15;
+
+  assert(
+    !engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Maintain Hold not playable after Strike maneuver'
+  );
+}
+
+async function testMaintainHoldEndsTurnAndLocks() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-lock');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playSubmissionSuccessfully(engine, RawDeal, 'mh-chin-lock');
+  player.hand.push(mh);
+  player.fortitude = 15;
+
+  const turnBefore = engine.stateMachine.turnNumber;
+  await engine.playCard(0, mh.instanceId, 'action');
+  await passReversalWindowIfOpen(engine, RawDeal);
+
+  assert(
+    player.ring.actions.some((c) => c.instanceId === mh.instanceId),
+    'Maintain Hold is in Ring actions'
+  );
+  assert(
+    engine.maintainedSubmissionFlow?.active && engine.maintainedSubmissionFlow?.abilityActive,
+    'Maintain Hold flow is active'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Maintain Hold ends the turn'
+  );
+  assert(
+    engine.stateMachine.turnNumber === turnBefore,
+    'Maintain Hold ends the turn without advancing the turn counter yet'
+  );
+  assert(
+    !engine.canPlayCard(0, mh.instanceId, 'action') &&
+      !engine.canPlayCard(1, mh.instanceId, 'action'),
+    'Both players locked from playing cards while hold is maintained'
+  );
+}
+
+async function testMaintainHoldReappliesOnMaintainerTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-reapply');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const chinLock = await playSubmissionSuccessfully(engine, RawDeal, 'mh-chin-reapply');
+  player.hand.push(mh);
+  player.fortitude = 15;
+
+  await engine.playCard(0, mh.instanceId, 'action');
+  await passReversalWindowIfOpen(engine, RawDeal);
+
+  const reappliedLogs = engine.actionLog.filter((e) =>
+    e.message.includes('applies again')
+  );
+  const chinDamageEntries = engine.damageLog.filter((e) => e.card === chinLock.name);
+
+  assert(reappliedLogs.length >= 1, 'Maintain Hold re-applies Submission on maintainer turn');
+  assert(chinDamageEntries.length >= 2, 'Maintained Submission damage applied more than once');
+}
+
+async function testMaintainHoldHandReversalDisables() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-hand-rev');
+  const breakHold = cloneCard(RawDeal, 'break-the-hold', 'mh-break-maint');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const chinLock = await playSubmissionSuccessfully(engine, RawDeal, 'mh-chin-maint');
+  attacker.hand.push(mh);
+  attacker.fortitude = 15;
+  defender.hand = [breakHold];
+  defender.fortitude = 10;
+
+  await engine.playCard(0, mh.instanceId, 'action');
+  await passReversalWindowIfOpen(engine, RawDeal);
+
+  await engine.endTurn(1);
+
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY &&
+      engine.reversalWindow?.kind === 'maintained',
+    'Maintained Submission opens reversal window on maintainer turn'
+  );
+
+  await engine.playReversalFromHand(1, breakHold.instanceId);
+
+  assert(
+    !engine.maintainedSubmissionFlow?.abilityActive,
+    'Maintain Hold ability disabled after hand reversal'
+  );
+  assert(
+    attacker.ring.maneuvers.some((c) => c.instanceId === chinLock.instanceId),
+    'Maintained Submission stays in Ring after reversal'
+  );
+  assert(
+    attacker.ring.actions.some((c) => c.instanceId === mh.instanceId),
+    'Maintain Hold stays in Ring after reversal'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Maintained hand reversal ends maintainer turn'
+  );
+  assert(
+    !engine.maintainedSubmissionFlow?.active,
+    'Maintain Hold lock lifted after maintained reversal'
+  );
+}
+
+async function testMaintainHoldFinisherSetup() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const walls = cloneCard(RawDeal, 'walls-of-jericho', 'mh-walls');
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-finisher');
+
+  player.hand = [walls];
+  player.fortitude = 35;
+  stripReversalsFromOpponentArsenal(opponent, RawDeal, 'mh-walls');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, walls.instanceId, 'maneuver');
+  await passReversalWindowIfOpen(engine, RawDeal);
+
+  player.hand.push(mh);
+
+  assert(
+    engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Walls of Jericho enables Maintain Hold as if Submission'
+  );
+}
+
 async function testStaggerEffectConsumedByAction() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -4476,6 +4753,14 @@ async function main() {
   await testSpitAtOpponentDiscardFour();
   await testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess();
   await testSpitAtOpponentPlayableWithEmptyOpponentHand();
+  await testMaintainHoldNotPlayableWithoutSubmission();
+  await testMaintainHoldNotPlayableAfterHandReversal();
+  await testMaintainHoldPlayableAfterSubmission();
+  await testMaintainHoldNotPlayableAfterStrike();
+  await testMaintainHoldEndsTurnAndLocks();
+  await testMaintainHoldReappliesOnMaintainerTurn();
+  await testMaintainHoldHandReversalDisables();
+  await testMaintainHoldFinisherSetup();
   await testStaggerNotPlayableWithoutManeuver();
   await testStaggerNotPlayableAfterHandReversal();
   await testStaggerPlayableAfterSuccessfulManeuver();

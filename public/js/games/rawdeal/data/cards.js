@@ -1307,6 +1307,7 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Play after a successful Submission maneuver not reversed and end your turn. You and your opponent may not play maneuvers or actions until your opponent reverses the maintained Submission. On your turn, during the main segment, the Submission does its damage, along with any other abilities on the card. If a reversal is played by your opponent or is revealed while applying damage, both Maintain Hold and the Submission maneuver remain in your Ring area, but you may no longer use the ability of this Maintain Hold card.",
     flavor: "",
+    requiresAfterSuccessfulSubmission: true,
     set: "premiere",
   },
   'pat-and-gerry': {
@@ -1387,6 +1388,7 @@ window.RawDeal.CARDS = {
     stunValue: 3,
     text: "Trademark Finisher (Maneuver) / -6F on this card if Mr. Socko card is in your Ring area. You may play the card titled Maintain Hold after this card as if it were a Submission maneuver. Unique SV: 3",
     flavor: "",
+    grantsMaintainHoldAfterPlay: true,
     set: "premiere",
   },
   'mr-socko': {
@@ -1489,6 +1491,7 @@ window.RawDeal.CARDS = {
     stunValue: 3,
     text: "Trademark Finisher (Maneuver) You may play the card titled Maintain Hold after this card as if it were a Submission maneuver. Unique SV: 3",
     flavor: "",
+    grantsMaintainHoldAfterPlay: true,
     set: "premiere",
   },
   'ayatollah-of-rock-n-roll-a': {

@@ -568,11 +568,15 @@ window.RawDeal.Board = class Board {
     if (reversalWindow.canRespond) {
       if (reversalWindow.kind === 'action') {
         text.textContent = `Opponent played ${m.name} as an Action — play a Reversal from hand or Pass.`;
+      } else if (reversalWindow.kind === 'maintained') {
+        text.textContent = `Opponent is maintaining ${m.name} (${m.damage}D) — play a Reversal from hand or Pass.`;
       } else {
         text.textContent = `Opponent played ${m.name} (${m.damage}D) — play a Reversal from hand or Pass.`;
       }
     } else if (reversalWindow.kind === 'action') {
       text.textContent = `Waiting for opponent to respond to ${m.name} (Action)…`;
+    } else if (reversalWindow.kind === 'maintained') {
+      text.textContent = `Waiting for opponent to respond to maintained ${m.name}…`;
     } else {
       text.textContent = `Waiting for opponent to respond to ${m.name}…`;
     }

@@ -345,6 +345,12 @@ def parse_cards(text: str):
         after_maneuver = infer_requires_after_successful_maneuver(rules)
         if after_maneuver:
             entry.update(after_maneuver)
+        after_submission = infer_requires_after_successful_submission(rules)
+        if after_submission:
+            entry.update(after_submission)
+        maintain_hold_setup = infer_grants_maintain_hold_after_play(rules)
+        if maintain_hold_setup:
+            entry.update(maintain_hold_setup)
         lower_f = infer_requires_lower_fortitude_than_opponent(rules)
         if lower_f:
             entry.update(lower_f)
@@ -426,6 +432,20 @@ def infer_requires_after_successful_maneuver(rules):
     blob = rules.lower()
     if 'play after a successfully played maneuver' in blob:
         return {'requiresAfterSuccessfulManeuver': True}
+    return None
+
+
+def infer_requires_after_successful_submission(rules):
+    blob = rules.lower()
+    if 'play after a successful submission maneuver not reversed' in blob:
+        return {'requiresAfterSuccessfulSubmission': True}
+    return None
+
+
+def infer_grants_maintain_hold_after_play(rules):
+    blob = rules.lower()
+    if 'play the card titled maintain hold after this card as if it were a submission maneuver' in blob:
+        return {'grantsMaintainHoldAfterPlay': True}
     return None
 
 
@@ -852,6 +872,8 @@ def emit_cards(cards):
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
                     'unique', 'hybrid', 'reverses', 'maxDamage', 'requiresPlayed',
                     'requiresAfterSuccessfulManeuver',
+                    'requiresAfterSuccessfulSubmission',
+                    'grantsMaintainHoldAfterPlay',
                     'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
                     'actionEffects', 'maneuverEffects', 'reversalEffects', 'set']:
             if key in card and card[key] is not None:
