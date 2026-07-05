@@ -314,7 +314,8 @@ window.RawDeal.EffectPipeline = {
           player,
           pipeline.playerIndex,
           sourceName,
-          step.max || 2
+          step.max || 2,
+          { exact: step.exact !== false }
         );
 
       case 'returnFromRingside': {

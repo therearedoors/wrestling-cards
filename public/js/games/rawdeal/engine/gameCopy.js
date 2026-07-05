@@ -93,6 +93,13 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceName}: choose ${n} cards from your Ringside to shuffle into your Arsenal (${picked}/${n}).`;
     },
 
+    shuffleRingsideUpTo(sourceName, maxSelect, picked) {
+      if (maxSelect === 1) {
+        return `${sourceName}: choose up to 1 card from your Ringside to shuffle into your Arsenal.`;
+      }
+      return `${sourceName}: choose up to ${maxSelect} cards from your Ringside to shuffle into your Arsenal (${picked}/${maxSelect}).`;
+    },
+
     returnFromRingside(sourceName, n, picked) {
       if (n === 1) {
         return `${sourceName}: choose 1 card from your Ringside to return to your hand.`;

@@ -768,6 +768,16 @@ def infer_action_effects(types_list, rules, name=''):
             {'op': 'draw', 'count': 1},
         ]
 
+    if (
+        'shuffle up to 5' in blob
+        and 'ringside' in blob
+        and 'draw 2' in blob
+    ):
+        return [
+            {'op': 'shuffleRingsideUpTo', 'max': 5, 'exact': False},
+            {'op': 'draw', 'count': 2},
+        ]
+
     if 'you discard 1 card' in blob and 'opponent discards 4' in blob:
         return [
             {'op': 'discardFromHand', 'count': 1},
