@@ -230,6 +230,8 @@ def parse_cards(text: str):
             line = lines[idx]
             if line.startswith('"') or re.search(r'\bF:\s*\d+', line):
                 break
+            if re.search(r'^\+\d+[df]\b', line, re.I) or line.startswith('Unique'):
+                break
             type_lines.append(line)
             idx += 1
             if idx < len(lines) and lines[idx].startswith(rule_starters):
@@ -345,6 +347,12 @@ def parse_cards(text: str):
         after_maneuver = infer_requires_after_successful_maneuver(rules)
         if after_maneuver:
             entry.update(after_maneuver)
+        after_submission = infer_requires_after_successful_submission(rules)
+        if after_submission:
+            entry.update(after_submission)
+        maintain_hold_setup = infer_grants_maintain_hold_after_play(rules)
+        if maintain_hold_setup:
+            entry.update(maintain_hold_setup)
         lower_f = infer_requires_lower_fortitude_than_opponent(rules)
         if lower_f:
             entry.update(lower_f)
@@ -355,6 +363,18 @@ def parse_cards(text: str):
         discount = infer_discount_after_card(entry['text'], cards)
         if discount:
             entry.update(discount)
+        ring_passive = infer_ring_passive_effects(entry.get('text', ''))
+        if ring_passive:
+            entry.update(ring_passive)
+        ring_discount = infer_discount_when_ring_card(entry.get('text', ''))
+        if ring_discount:
+            entry.update(ring_discount)
+        reverses_only = infer_reverses_only_maneuver(entry.get('text', ''), cards)
+        if reverses_only:
+            entry.update(reverses_only)
+        after_subtype_bonus = infer_damage_bonus_after_last_subtype(entry.get('text', ''))
+        if after_subtype_bonus:
+            entry.update(after_subtype_bonus)
 
     return cards
 
@@ -422,10 +442,64 @@ def infer_requires_played(rules):
     return None
 
 
+def infer_ring_passive_effects(text):
+    blob = text.lower()
+    if 'while' in blob and 'in your ring area' in blob and 'all your maneuvers are +1d' in blob:
+        return {'ringPassiveEffects': [{'op': 'maneuverDamageBonus', 'value': 1}]}
+    return None
+
+
+def infer_damage_bonus_after_last_subtype(text):
+    blob = text.lower()
+    m = re.search(r'\+(\d+)d if played after a (strike|grapple|submission) maneuver', blob)
+    if m:
+        return {
+            'damageBonusAfterLastSubtype': {
+                'subtype': m.group(2),
+                'value': int(m.group(1)),
+            }
+        }
+    return None
+
+
+def infer_reverses_only_maneuver(text, cards):
+    m = re.search(r'may only reverse the maneuver titled ([^.]+)', text, re.I)
+    if not m:
+        return None
+    ref_id = _resolve_referenced_card_id(m.group(1).strip(), cards)
+    if not ref_id:
+        return None
+    return {'reversesOnlyManeuver': ref_id}
+
+
+def infer_discount_when_ring_card(text):
+    blob = text.lower()
+    m = re.search(r'-(\d+)f on this card if (.+?) card is in your ring area', blob)
+    if not m:
+        return None
+    title = m.group(2).strip()
+    ref_id = slugify(title)
+    return {'discountWhenRingCard': {'cardId': ref_id, 'fortitude': int(m.group(1))}}
+
+
 def infer_requires_after_successful_maneuver(rules):
     blob = rules.lower()
     if 'play after a successfully played maneuver' in blob:
         return {'requiresAfterSuccessfulManeuver': True}
+    return None
+
+
+def infer_requires_after_successful_submission(rules):
+    blob = rules.lower()
+    if 'play after a successful submission maneuver not reversed' in blob:
+        return {'requiresAfterSuccessfulSubmission': True}
+    return None
+
+
+def infer_grants_maintain_hold_after_play(rules):
+    blob = rules.lower()
+    if 'play the card titled maintain hold after this card as if it were a submission maneuver' in blob:
+        return {'grantsMaintainHoldAfterPlay': True}
     return None
 
 
@@ -495,7 +569,7 @@ def classify(types_blob, rules, name, damage):
             reverses.append('submission')
         if 'reverse any strike, grapple or submission' in blob or 'reverse any strike, grapple or submission' in blob:
             reverses = ['strike', 'grapple', 'submission']
-        if 'reverse any maneuver' in blob:
+        if re.search(r'reverses? any maneuver', blob):
             reverses = ['strike', 'grapple', 'submission', 'high-risk', 'trademark', 'trademark-finisher']
         if 'reverse any action' in blob:
             reverses.append('action')
@@ -635,13 +709,19 @@ def infer_reversal_effects(types_list, rules, damage):
     if 'reversal' not in types_list:
         return None
     blob = rules.lower()
+    effects = []
+
     if '# = d of maneuver' in blob or '# = d of maneuver card' in blob:
-        return [{'op': 'dealDamage', 'fromReversedManeuver': True}]
-    if damage <= 0:
-        return None
-    if 'read as 0 when in your ring' in blob:
-        return None
-    return [{'op': 'dealDamage'}]
+        effects.append({'op': 'dealDamage', 'fromReversedManeuver': True})
+    elif damage > 0 and 'read as 0 when in your ring' not in blob:
+        effects.append({'op': 'dealDamage'})
+
+    if 'jockeying for position' in blob and 'discard 4' in blob:
+        pass
+    elif m := re.search(r'if played from your hand.*?draw (\d+)', blob):
+        effects.append({'op': 'draw', 'count': int(m.group(1))})
+
+    return effects or None
 
 
 def infer_action_effects(types_list, rules, name=''):
@@ -723,6 +803,19 @@ def infer_action_effects(types_list, rules, name=''):
             effects.append({'op': 'nextManeuverReversalTax', 'value': 20})
         effects.append({'op': 'draw', 'count': 1})
         return effects
+
+    if 'mr socko' in card_name or (
+        'either your arsenal or ringside' in blob and 'shuffle your arsenal' in blob
+    ):
+        return [{'op': 'pickArsenalOrRingsideToHand'}]
+
+    if 'power of darkness' in card_name:
+        effects = []
+        if '+5d' in blob and 'all your maneuvers' in blob:
+            effects.append({'op': 'turnDamageBonus', 'value': 5})
+        if '+20f' in blob and 'reversals' in blob:
+            effects.append({'op': 'turnOpponentReversalTax', 'value': 20})
+        return effects or None
 
     if 'get crowd support' in card_name or (
         'draw 1 card' in blob
@@ -852,8 +945,14 @@ def emit_cards(cards):
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
                     'unique', 'hybrid', 'reverses', 'maxDamage', 'requiresPlayed',
                     'requiresAfterSuccessfulManeuver',
+                    'requiresAfterSuccessfulSubmission',
+                    'grantsMaintainHoldAfterPlay',
                     'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
-                    'actionEffects', 'maneuverEffects', 'reversalEffects', 'set']:
+                    'discountWhenRingCard',
+                    'damageBonusAfterLastSubtype',
+                    'reversesOnlyManeuver',
+                    'actionEffects', 'maneuverEffects', 'reversalEffects',
+                    'ringPassiveEffects', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]
                 if isinstance(val, bool):
