@@ -176,6 +176,7 @@ async function createHandReversalTest(RawDeal, options = {}) {
     afterIrishWhip = false,
     effectiveDamage = null,
     defenderFortitude = 0,
+    defenderArsenalCount = 5,
   } = options;
 
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -201,6 +202,9 @@ async function createHandReversalTest(RawDeal, options = {}) {
 
   for (let i = 0; i < arsenalCount; i++) {
     attacker.arsenal.push(cloneCard(RawDeal, 'chop', `atk-arsenal-${i}`));
+  }
+  for (let i = 0; i < defenderArsenalCount; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `def-arsenal-${i}`));
   }
 
   defender.hand.push(reversal);
@@ -1301,6 +1305,578 @@ async function testWhoopCanReversalTaxFromHand() {
   assert(
     engine.canPlayReversalFromHand(1, escapeMove.instanceId),
     'Opponent can reverse from hand with 20F'
+  );
+}
+
+async function testPedigreeBonusAfterStrike() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-bonus');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'ped-kick');
+  player.hand.push(pedigree);
+  player.fortitude = 35;
+
+  assert(
+    engine._peekManeuverDamage(player, opponent, pedigree) === 27,
+    'Pedigree +2D after successful Strike (25D + 2)'
+  );
+}
+
+async function testPedigreeNoBonusWithoutStrike() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'ped-grapple');
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-no-bonus');
+
+  player.hand.push(grapple);
+  player.fortitude = 15;
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `ped-gr-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  player.hand.push(pedigree);
+  player.fortitude = 35;
+
+  assert(
+    engine._peekManeuverDamage(player, opponent, pedigree) === 25,
+    'Pedigree has no bonus without prior successful Strike'
+  );
+}
+
+async function testPedigreeNoBonusAfterReversedStrike() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'ped-punch-rev');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'ped-elbow');
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-after-rev');
+
+  attacker.hand = [punch, pedigree];
+  attacker.fortitude = 35;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `ped-rev-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, elbow.instanceId);
+
+  assert(
+    !attacker.turnState?.lastSuccessfulManeuverSubtype,
+    'Reversed Strike does not set last successful maneuver subtype'
+  );
+  assert(
+    engine._peekManeuverDamage(attacker, defender, pedigree) === 25,
+    'Pedigree has no +2D after Strike reversed from hand'
+  );
+}
+
+async function testPedigreeReversesBackBodyDrop() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const irishWhip = cloneCard(RawDeal, 'irish-whip', 'ped-iw');
+  const backBodyDrop = cloneCard(RawDeal, 'back-body-drop', 'ped-bbd');
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-rev-bbd');
+
+  attacker.hand = [irishWhip, backBodyDrop];
+  attacker.fortitude = 20;
+  defender.hand = [pedigree];
+  defender.fortitude = 35;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `ped-bbd-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, irishWhip.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(attacker.turnState?.irishWhipPlayed, 'Irish Whip action enables Back Body Drop');
+
+  await engine.playCard(0, backBodyDrop.instanceId, 'maneuver');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Back Body Drop opens reversal window'
+  );
+  assert(
+    engine.canPlayReversalFromHand(1, pedigree.instanceId),
+    'Pedigree can reverse Back Body Drop from hand'
+  );
+
+  await engine.playReversalFromHand(1, pedigree.instanceId);
+
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === pedigree.instanceId),
+    'Pedigree lands in Ring reversals after reversing Back Body Drop'
+  );
+}
+
+async function testPedigreeCannotReverseOtherManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'ped-punch-only');
+  const pedigree = cloneCard(RawDeal, 'pedigree', 'ped-no-punch-rev');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 10;
+  defender.hand = [pedigree];
+  defender.fortitude = 35;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    !engine.canPlayReversalFromHand(1, pedigree.instanceId),
+    'Pedigree cannot reverse maneuvers other than Back Body Drop'
+  );
+}
+
+async function testChynaInterferesReversesAnyManeuver() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, maneuver, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'punch',
+    reversalId: 'chyna-interferes',
+    defenderFortitude: 10,
+  });
+
+  assert(
+    engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Chyna Interferes can reverse any maneuver from hand'
+  );
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === reversal.instanceId),
+    'Chyna Interferes lands in Ring reversals'
+  );
+  assert(
+    attacker.ringside.some((c) => c.instanceId === maneuver.instanceId),
+    'Reversed maneuver goes to attacker Ringside'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Chyna Interferes ends attacker turn'
+  );
+}
+
+async function testChynaInterferesDeals3DAndDraws2() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'punch',
+    reversalId: 'chyna-interferes',
+    defenderFortitude: 10,
+    arsenalCount: 10,
+    defenderArsenalCount: 5,
+  });
+  const arsenalBefore = attacker.arsenal.length;
+  const defenderArsenalBefore = defender.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 3,
+    'Chyna Interferes deals 3D to attacker Arsenal'
+  );
+  assert(
+    defender.hand.length === 3,
+    'Chyna Interferes draws 2 cards from hand plus 1 from draw segment'
+  );
+  assert(
+    defender.arsenal.length === defenderArsenalBefore - 3,
+    'Chyna Interferes draw comes from defender Arsenal'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('drew 2')),
+    'Chyna Interferes logs draw 2'
+  );
+}
+
+async function testManagerInterferesDeals1DAndDraws1() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'kick',
+    reversalId: 'manager-interferes',
+    defenderFortitude: 15,
+    arsenalCount: 10,
+    defenderArsenalCount: 3,
+  });
+  const arsenalBefore = attacker.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 1,
+    'Manager Interferes deals 1D to attacker Arsenal'
+  );
+  assert(
+    defender.hand.length === 2,
+    'Manager Interferes draws 1 card from hand plus 1 from draw segment'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Manager Interferes ends attacker turn'
+  );
+}
+
+async function playMrSocko(engine, RawDeal, instanceId = 'socko-play', pick = null) {
+  const socko = cloneCard(RawDeal, 'mr-socko', instanceId);
+  const player = engine.players[0];
+  player.hand.push(socko);
+  player.fortitude = Math.max(player.fortitude, 25);
+  await engine.playCard(0, socko.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  if (engine.cardEffectFlow?.type === 'pickArsenalOrRingsideToHand') {
+    let pickId = pick?.instanceId;
+    let pickZone = pick?.zone;
+    if (!pickId) {
+      if (player.ringside.length > 0) {
+        pickId = player.ringside[0].instanceId;
+        pickZone = 'ringside';
+      } else if (player.arsenal.length > 0) {
+        pickId = player.arsenal[0].instanceId;
+        pickZone = 'arsenal';
+      }
+    }
+    if (pickId && pickZone) {
+      await engine.pickArsenalOrRingsideToHand(0, pickId, pickZone);
+    }
+  }
+
+  return socko;
+}
+
+async function testMrSockoPickFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const arsenalCard = cloneCard(RawDeal, 'chop', 'socko-ars-pick');
+  player.ringside = [];
+  player.arsenal = [arsenalCard];
+  const arsenalBefore = [...player.arsenal.map((c) => c.instanceId)];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const socko = await playMrSocko(engine, RawDeal, 'socko-ars');
+
+  assert(
+    player.hand.some((c) => c.instanceId === arsenalCard.instanceId),
+    'Mr. Socko puts chosen Arsenal card in hand'
+  );
+  assert(
+    !player.arsenal.some((c) => c.instanceId === arsenalCard.instanceId),
+    'Mr. Socko removes chosen card from Arsenal'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === socko.instanceId),
+    'Mr. Socko is in Ring actions'
+  );
+  const arsenalAfter = player.arsenal.map((c) => c.instanceId);
+  assert(
+    arsenalAfter.length === arsenalBefore.length - 1,
+    'Mr. Socko Arsenal count drops by 1 after pick'
+  );
+}
+
+async function testMrSockoPickFromRingside() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const ringsideCard = cloneCard(RawDeal, 'punch', 'socko-rs-pick');
+  player.ringside = [ringsideCard];
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'socko-ars-remain')];
+  const arsenalOrderBefore = player.arsenal.map((c) => c.instanceId);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playMrSocko(engine, RawDeal, 'socko-rs', {
+    instanceId: ringsideCard.instanceId,
+    zone: 'ringside',
+  });
+
+  assert(
+    player.hand.some((c) => c.instanceId === ringsideCard.instanceId),
+    'Mr. Socko puts chosen Ringside card in hand'
+  );
+  assert(
+    !player.ringside.some((c) => c.instanceId === ringsideCard.instanceId),
+    'Mr. Socko removes chosen card from Ringside'
+  );
+  assert(
+    player.arsenal.length === arsenalOrderBefore.length,
+    'Mr. Socko still shuffles Arsenal after Ringside pick'
+  );
+}
+
+async function testMrSockoEmptyZones() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  player.arsenal = [];
+  player.ringside = [];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const socko = await playMrSocko(engine, RawDeal, 'socko-empty');
+
+  assert(
+    engine.actionLog.some((e) => e.message.includes('no cards in Arsenal or Ringside')),
+    'Mr. Socko logs when both zones are empty'
+  );
+  assert(
+    player.ring.actions.some((c) => c.instanceId === socko.instanceId),
+    'Mr. Socko still enters Ring when zones are empty'
+  );
+}
+
+async function testMrSockoRingPassiveDamage() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const socko = cloneCard(RawDeal, 'mr-socko', 'socko-passive');
+  player.ring.actions.push(socko);
+
+  const punch = cloneCard(RawDeal, 'punch', 'socko-punch');
+  assert(
+    engine._peekManeuverDamage(player, opponent, punch) === 4,
+    'Mr. Socko in Ring gives all maneuvers +1D (Punch 3D + 1)'
+  );
+}
+
+async function testMrSockoPassivePersistsNextTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const socko = cloneCard(RawDeal, 'mr-socko', 'socko-persist');
+  player.ring.actions.push(socko);
+
+  engine.stateMachine.phase = RawDeal.PHASES.END_OF_TURN;
+  engine.stateMachine.activePlayer = 0;
+  await engine._runAutoPhases();
+
+  const kick = cloneCard(RawDeal, 'kick', 'socko-kick');
+  assert(
+    engine._peekManeuverDamage(player, opponent, kick) === 6,
+    'Mr. Socko +1D persists on following turn (Kick 5D + 1)'
+  );
+}
+
+async function testMandibleClawDiscountWithSockoInRing() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const socko = cloneCard(RawDeal, 'mr-socko', 'socko-discount');
+  player.ring.actions.push(socko);
+
+  const mandible = RawDeal.CARDS['mandible-claw'];
+  const cost = RawDeal.CardUtils.playFortitudeCost(mandible, 'maneuver', player);
+
+  assert(cost === 24, 'Mandible Claw costs 24F when Mr. Socko is in Ring (30F - 6F)');
+}
+
+async function playPowerOfDarkness(engine, RawDeal, instanceId = 'pod-play') {
+  const pod = cloneCard(RawDeal, 'power-of-darkness', instanceId);
+  const player = engine.players[0];
+  player.hand.push(pod);
+  player.fortitude = Math.max(player.fortitude, 15);
+  await engine.playCard(0, pod.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return pod;
+}
+
+async function testPowerOfDarknessAppliesTurnBonuses() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playPowerOfDarkness(engine, RawDeal, 'pod-bonuses');
+
+  assert(
+    engine.turnDamageBonus[0].all === 5,
+    'Power of Darkness gives +5D to all maneuvers for the turn'
+  );
+  assert(
+    attacker.turnState?.turnOpponentReversalTax === 20,
+    'Power of Darkness gives +20F to opponent reversals for the turn'
+  );
+  assert(
+    attacker.ring.actions.some((c) => c.id === 'power-of-darkness'),
+    'Power of Darkness is in Ring actions'
+  );
+}
+
+async function testPowerOfDarknessDamageAllManeuvers() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('undertaker', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'pod-punch');
+  const kick = cloneCard(RawDeal, 'kick', 'pod-kick');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playPowerOfDarkness(engine, RawDeal, 'pod-damage');
+
+  assert(
+    engine._peekManeuverDamage(player, opponent, punch) === 8,
+    'Power of Darkness +5D applies to first maneuver (Punch 3D + 5)'
+  );
+  assert(
+    engine._peekManeuverDamage(player, opponent, kick) === 10,
+    'Power of Darkness +5D applies to second maneuver (Kick 5D + 5)'
+  );
+}
+
+async function testPowerOfDarknessReversalTaxPersists() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch1 = cloneCard(RawDeal, 'punch', 'pod-punch-tax-1');
+  const punch2 = cloneCard(RawDeal, 'punch', 'pod-punch-tax-2');
+  const stepAside = cloneCard(RawDeal, 'step-aside', 'pod-step');
+
+  attacker.fortitude = 20;
+  defender.hand = [stepAside];
+  defender.fortitude = 0;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playPowerOfDarkness(engine, RawDeal, 'pod-tax');
+
+  attacker.hand.push(punch1);
+  await engine.playCard(0, punch1.instanceId, 'maneuver');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'First boosted maneuver opens reversal window'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, stepAside.instanceId),
+    'Power of Darkness blocks first maneuver reversal below +20F tax'
+  );
+  await engine.passPriority(1);
+
+  attacker.hand.push(punch2);
+  await engine.playCard(0, punch2.instanceId, 'maneuver');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Second maneuver still opens reversal window'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, stepAside.instanceId),
+    'Power of Darkness reversal tax persists for second maneuver'
+  );
+}
+
+async function testPowerOfDarknessActionReversalTax() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const hmmm = cloneCard(RawDeal, 'hmmm', 'pod-hmmm');
+  const noChance = cloneCard(RawDeal, 'no-chance-in-hell', 'pod-nch');
+
+  attacker.fortitude = 20;
+  defender.hand = [noChance];
+  defender.fortitude = 31;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playPowerOfDarkness(engine, RawDeal, 'pod-action-tax');
+
+  attacker.hand.push(hmmm);
+  await engine.playCard(0, hmmm.instanceId, 'action');
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY,
+    'Follow-up action opens reversal window'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, noChance.instanceId),
+    'Power of Darkness blocks action reversal below +20F tax (12F + 20F)'
+  );
+
+  defender.fortitude = 32;
+  assert(
+    engine.canPlayReversalFromHand(1, noChance.instanceId),
+    'Power of Darkness allows action reversal at 32F (12F + 20F)'
   );
 }
 
@@ -3938,6 +4514,283 @@ async function testStaggerProtectsExactly7D() {
   );
 }
 
+function stripReversalsFromOpponentArsenal(opponent, RawDeal, prefix) {
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `${prefix}-safe-ars-${i}`));
+  }
+}
+
+async function playSubmissionSuccessfully(engine, RawDeal, instanceId = 'mh-chin-lock') {
+  const chinLock = cloneCard(RawDeal, 'chin-lock', instanceId);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand.push(chinLock);
+  player.fortitude = Math.max(player.fortitude, 5);
+  stripReversalsFromOpponentArsenal(opponent, RawDeal, instanceId);
+  await engine.playCard(0, chinLock.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return chinLock;
+}
+
+async function passReversalWindowIfOpen(engine, RawDeal, defenderIndex = 1) {
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(defenderIndex);
+  }
+}
+
+async function testMaintainHoldNotPlayableWithoutSubmission() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-no-sub');
+  player.hand = [mh];
+  player.fortitude = 15;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  assert(
+    !engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Maintain Hold not playable without a successful Submission'
+  );
+}
+
+async function testMaintainHoldNotPlayableAfterHandReversal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const chinLock = cloneCard(RawDeal, 'chin-lock', 'mh-chin-rev');
+  const breakHold = cloneCard(RawDeal, 'break-the-hold', 'mh-break');
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-after-rev');
+
+  attacker.hand = [chinLock, mh];
+  attacker.fortitude = 15;
+  defender.hand = [breakHold];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `mh-rev-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, chinLock.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, breakHold.instanceId);
+
+  assert(
+    !attacker.turnState?.canPlayAfterSuccessfulSubmission,
+    'Hand-reversed Submission does not enable Maintain Hold'
+  );
+  assert(
+    !engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Maintain Hold not playable after Submission reversed from hand'
+  );
+}
+
+async function testMaintainHoldPlayableAfterSubmission() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-playable');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playSubmissionSuccessfully(engine, RawDeal, 'mh-chin-ok');
+
+  player.hand.push(mh);
+  player.fortitude = 15;
+
+  assert(
+    engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Maintain Hold playable after successful Submission'
+  );
+}
+
+async function testMaintainHoldNotPlayableAfterStrike() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-no-strike');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playKickSuccessfully(engine, RawDeal, 'mh-kick-only');
+
+  player.hand.push(mh);
+  player.fortitude = 15;
+
+  assert(
+    !engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Maintain Hold not playable after Strike maneuver'
+  );
+}
+
+async function testMaintainHoldEndsTurnAndLocks() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-lock');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playSubmissionSuccessfully(engine, RawDeal, 'mh-chin-lock');
+  player.hand.push(mh);
+  player.fortitude = 15;
+
+  const turnBefore = engine.stateMachine.turnNumber;
+  await engine.playCard(0, mh.instanceId, 'action');
+  await passReversalWindowIfOpen(engine, RawDeal);
+
+  assert(
+    player.ring.actions.some((c) => c.instanceId === mh.instanceId),
+    'Maintain Hold is in Ring actions'
+  );
+  assert(
+    engine.maintainedSubmissionFlow?.active && engine.maintainedSubmissionFlow?.abilityActive,
+    'Maintain Hold flow is active'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Maintain Hold ends the turn'
+  );
+  assert(
+    engine.stateMachine.turnNumber === turnBefore,
+    'Maintain Hold ends the turn without advancing the turn counter yet'
+  );
+  assert(
+    !engine.canPlayCard(0, mh.instanceId, 'action') &&
+      !engine.canPlayCard(1, mh.instanceId, 'action'),
+    'Both players locked from playing cards while hold is maintained'
+  );
+}
+
+async function testMaintainHoldReappliesOnMaintainerTurn() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-reapply');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const chinLock = await playSubmissionSuccessfully(engine, RawDeal, 'mh-chin-reapply');
+  player.hand.push(mh);
+  player.fortitude = 15;
+
+  await engine.playCard(0, mh.instanceId, 'action');
+  await passReversalWindowIfOpen(engine, RawDeal);
+
+  const reappliedLogs = engine.actionLog.filter((e) =>
+    e.message.includes('applies again')
+  );
+  const chinDamageEntries = engine.damageLog.filter((e) => e.card === chinLock.name);
+
+  assert(reappliedLogs.length >= 1, 'Maintain Hold re-applies Submission on maintainer turn');
+  assert(chinDamageEntries.length >= 2, 'Maintained Submission damage applied more than once');
+}
+
+async function testMaintainHoldHandReversalDisables() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-hand-rev');
+  const breakHold = cloneCard(RawDeal, 'break-the-hold', 'mh-break-maint');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const chinLock = await playSubmissionSuccessfully(engine, RawDeal, 'mh-chin-maint');
+  attacker.hand.push(mh);
+  attacker.fortitude = 15;
+  defender.hand = [breakHold];
+  defender.fortitude = 10;
+
+  await engine.playCard(0, mh.instanceId, 'action');
+  await passReversalWindowIfOpen(engine, RawDeal);
+
+  await engine.endTurn(1);
+
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY &&
+      engine.reversalWindow?.kind === 'maintained',
+    'Maintained Submission opens reversal window on maintainer turn'
+  );
+
+  await engine.playReversalFromHand(1, breakHold.instanceId);
+
+  assert(
+    !engine.maintainedSubmissionFlow?.abilityActive,
+    'Maintain Hold ability disabled after hand reversal'
+  );
+  assert(
+    attacker.ring.maneuvers.some((c) => c.instanceId === chinLock.instanceId),
+    'Maintained Submission stays in Ring after reversal'
+  );
+  assert(
+    attacker.ring.actions.some((c) => c.instanceId === mh.instanceId),
+    'Maintain Hold stays in Ring after reversal'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Maintained hand reversal ends maintainer turn'
+  );
+  assert(
+    !engine.maintainedSubmissionFlow?.active,
+    'Maintain Hold lock lifted after maintained reversal'
+  );
+}
+
+async function testMaintainHoldFinisherSetup() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const walls = cloneCard(RawDeal, 'walls-of-jericho', 'mh-walls');
+  const mh = cloneCard(RawDeal, 'maintain-hold', 'mh-finisher');
+
+  player.hand = [walls];
+  player.fortitude = 35;
+  stripReversalsFromOpponentArsenal(opponent, RawDeal, 'mh-walls');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, walls.instanceId, 'maneuver');
+  await passReversalWindowIfOpen(engine, RawDeal);
+
+  player.hand.push(mh);
+
+  assert(
+    engine.canPlayCard(0, mh.instanceId, 'action'),
+    'Walls of Jericho enables Maintain Hold as if Submission'
+  );
+}
+
 async function testStaggerEffectConsumedByAction() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -4438,6 +5291,24 @@ async function main() {
   await testNotYetEmptyHandSkipsEffect();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
+  await testPedigreeBonusAfterStrike();
+  await testPedigreeNoBonusWithoutStrike();
+  await testPedigreeNoBonusAfterReversedStrike();
+  await testPedigreeReversesBackBodyDrop();
+  await testPedigreeCannotReverseOtherManeuver();
+  await testChynaInterferesReversesAnyManeuver();
+  await testChynaInterferesDeals3DAndDraws2();
+  await testManagerInterferesDeals1DAndDraws1();
+  await testMrSockoPickFromArsenal();
+  await testMrSockoPickFromRingside();
+  await testMrSockoEmptyZones();
+  await testMrSockoRingPassiveDamage();
+  await testMrSockoPassivePersistsNextTurn();
+  await testMandibleClawDiscountWithSockoInRing();
+  await testPowerOfDarknessAppliesTurnBonuses();
+  await testPowerOfDarknessDamageAllManeuvers();
+  await testPowerOfDarknessReversalTaxPersists();
+  await testPowerOfDarknessActionReversalTax();
   await testJfpGrappleReversalTaxFromArsenal();
   await testJfpGrappleDamageBonus();
   await testJfpSelfReverseOpensChoice();
@@ -4476,6 +5347,14 @@ async function main() {
   await testSpitAtOpponentDiscardFour();
   await testSpitAtOpponentDiscardsWholeHandWhenThreeOrLess();
   await testSpitAtOpponentPlayableWithEmptyOpponentHand();
+  await testMaintainHoldNotPlayableWithoutSubmission();
+  await testMaintainHoldNotPlayableAfterHandReversal();
+  await testMaintainHoldPlayableAfterSubmission();
+  await testMaintainHoldNotPlayableAfterStrike();
+  await testMaintainHoldEndsTurnAndLocks();
+  await testMaintainHoldReappliesOnMaintainerTurn();
+  await testMaintainHoldHandReversalDisables();
+  await testMaintainHoldFinisherSetup();
   await testStaggerNotPlayableWithoutManeuver();
   await testStaggerNotPlayableAfterHandReversal();
   await testStaggerPlayableAfterSuccessfulManeuver();

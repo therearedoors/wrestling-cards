@@ -1,5 +1,6 @@
 const { resolveDecksForMatch } = require('./deckResolver');
 const { updateRawDealRoom } = require('../../utils/room');
+const { isDevelopment } = require('../../utils/env');
 
 const activeGames = new Map();
 
@@ -123,6 +124,18 @@ class RoomGame {
       case 'confirmArsenalSearch':
         ok = await engine.confirmArsenalSearch(seat, action.instanceIds || []);
         break;
+      case 'selectArsenalOrRingsidePick':
+        ok = engine.selectArsenalOrRingsidePick(seat, action.instanceId, action.zone);
+        break;
+      case 'confirmArsenalOrRingsidePick':
+        if (action.instanceId && action.zone) {
+          engine.selectArsenalOrRingsidePick(seat, action.instanceId, action.zone);
+        }
+        ok = await engine.confirmArsenalOrRingsidePick(seat);
+        break;
+      case 'pickArsenalOrRingsideToHand':
+        ok = await engine.pickArsenalOrRingsideToHand(seat, action.instanceId, action.zone);
+        break;
       case 'toggleRemoveOpponentRingSelect':
         ok = engine.toggleRemoveOpponentRingSelect(
           seat,
@@ -134,6 +147,13 @@ class RoomGame {
         ok = await engine.confirmRemoveOpponentRingCard(seat);
         break;
       case 'devCommand': {
+        if (!isDevelopment()) {
+          return {
+            ok: true,
+            devResult: { ok: false, message: 'Dev console is only available in development' },
+            mutates: false,
+          };
+        }
         const { loadRawDeal } = require('./bootstrap');
         const RawDeal = loadRawDeal();
         const devResult = RawDeal.DevCommands.execute(engine, action.line, { mySeat: seat });

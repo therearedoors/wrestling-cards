@@ -145,6 +145,10 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceName}: drag to reorder ${whose} ${count} Arsenal card${count === 1 ? '' : 's'} (left = next to draw). ${shuffleHint}`;
     },
 
+    arsenalOrRingsidePick(sourceName) {
+      return `${sourceName}: choose 1 card from your Arsenal or Ringside to put in your hand.`;
+    },
+
     arsenalSearch(sourceName, purpose, n, picked) {
       if (purpose === 'toHand') {
         return `${sourceName}: choose 1 card from your Arsenal to put in your hand.`;
@@ -324,6 +328,18 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceName}: rearranged top ${count} card${cardSuffix(count)} of ${whose} Arsenal.`;
     },
 
+    pickedFromArsenalToHand(sourceName, cardName) {
+      return `${sourceName}: put ${cardName} from your Arsenal into your hand.`;
+    },
+
+    pickedFromRingsideToHand(sourceName, cardName) {
+      return `${sourceName}: put ${cardName} from Ringside into your hand.`;
+    },
+
+    noArsenalOrRingsideToPick(sourceName) {
+      return `${sourceName}: no cards in Arsenal or Ringside to take.`;
+    },
+
     markingOutEmptyOwnArsenal(sourceName) {
       return `${sourceName}: your Arsenal is empty — no card to put in hand.`;
     },
@@ -366,6 +382,28 @@ window.RawDeal = window.RawDeal || {};
 
     reversalFromHand(reversalName, playedName) {
       return `${reversalName} reversed ${playedName} from hand!`;
+    },
+
+    maintainHoldPlayed(submissionName) {
+      return `Maintain Hold: maintaining ${submissionName}.`;
+    },
+
+    maintainHoldReapplied(submissionName, damage) {
+      return `Maintain Hold: ${submissionName} applies again (${damage}D).`;
+    },
+
+    maintainHoldReversedFromHand(reversalName, submissionName) {
+      return `${reversalName} reversed maintained ${submissionName} from hand — Maintain Hold disabled.`;
+    },
+
+    maintainHoldDisabled(reason) {
+      if (reason === 'handReversal') {
+        return 'Maintain Hold ability disabled (reversed from hand).';
+      }
+      if (reason === 'arsenalReversal') {
+        return 'Maintain Hold ability disabled (reversed from Arsenal).';
+      }
+      return 'Maintain Hold ability disabled.';
     },
 
     grappleDamageBonus(sourceName) {
@@ -471,6 +509,10 @@ window.RawDeal = window.RawDeal || {};
 
     nextManeuverReversalTax(sourceName, value) {
       return `${sourceName}: opponent's reversal to your next maneuver is +${value}F.`;
+    },
+
+    turnOpponentReversalTax(sourceName, value) {
+      return `${sourceName}: opponent's reversals are +${value}F for the rest of this turn.`;
     },
 
     blockOpponentReversals(sourceName) {
