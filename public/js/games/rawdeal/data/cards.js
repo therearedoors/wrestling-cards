@@ -1418,6 +1418,8 @@ window.RawDeal.CARDS = {
     text: "Trademark Finisher / Reversal: Special (Maneuver) When successfully played, +2D if played after a Strike maneuver. May only reverse the maneuver titled Back Body Drop. Unique SV: 3",
     flavor: "",
     hybrid: true,
+    damageBonusAfterLastSubtype: {"subtype": "strike", "value": 2},
+    reversesOnlyManeuver: "back-body-drop",
     reversalEffects: [{"op": "dealDamage"}],
     set: "premiere",
   },

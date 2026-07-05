@@ -367,6 +367,12 @@ def parse_cards(text: str):
         ring_discount = infer_discount_when_ring_card(entry.get('text', ''))
         if ring_discount:
             entry.update(ring_discount)
+        reverses_only = infer_reverses_only_maneuver(entry.get('text', ''), cards)
+        if reverses_only:
+            entry.update(reverses_only)
+        after_subtype_bonus = infer_damage_bonus_after_last_subtype(entry.get('text', ''))
+        if after_subtype_bonus:
+            entry.update(after_subtype_bonus)
 
     return cards
 
@@ -439,6 +445,29 @@ def infer_ring_passive_effects(text):
     if 'while' in blob and 'in your ring area' in blob and 'all your maneuvers are +1d' in blob:
         return {'ringPassiveEffects': [{'op': 'maneuverDamageBonus', 'value': 1}]}
     return None
+
+
+def infer_damage_bonus_after_last_subtype(text):
+    blob = text.lower()
+    m = re.search(r'\+(\d+)d if played after a (strike|grapple|submission) maneuver', blob)
+    if m:
+        return {
+            'damageBonusAfterLastSubtype': {
+                'subtype': m.group(2),
+                'value': int(m.group(1)),
+            }
+        }
+    return None
+
+
+def infer_reverses_only_maneuver(text, cards):
+    m = re.search(r'may only reverse the maneuver titled ([^.]+)', text, re.I)
+    if not m:
+        return None
+    ref_id = _resolve_referenced_card_id(m.group(1).strip(), cards)
+    if not ref_id:
+        return None
+    return {'reversesOnlyManeuver': ref_id}
 
 
 def infer_discount_when_ring_card(text):
@@ -912,6 +941,8 @@ def emit_cards(cards):
                     'grantsMaintainHoldAfterPlay',
                     'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
                     'discountWhenRingCard',
+                    'damageBonusAfterLastSubtype',
+                    'reversesOnlyManeuver',
                     'actionEffects', 'maneuverEffects', 'reversalEffects',
                     'ringPassiveEffects', 'set']:
             if key in card and card[key] is not None:
