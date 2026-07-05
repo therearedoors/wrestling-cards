@@ -144,3 +144,4 @@ vite.config.ts.timestamp-*
 databases.yml
 app.yml
 Dockerfile
+docker-compose.yml
