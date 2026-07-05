@@ -8,7 +8,7 @@
             <p id="rd-waiting-text" class="rd-setup-note">Connecting to room…</p>
             <p class="rd-setup-links">
                 <a href="/games">Back to Lobby</a>
-                <% if (!devMode) { %>
+                <% if (devModeAvailable && !devMode) { %>
                     · <a id="rd-dev-mode-link" href="#">Dev Mode</a>
                 <% } %>
             </p>

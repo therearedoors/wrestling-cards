@@ -23,7 +23,7 @@
             </p>
             <p class="rd-setup-links">
                 <a href="/decks">Edit Decks</a>
-                <% if (!devMode) { %>
+                <% if (devModeAvailable && !devMode) { %>
                     · <a href="/practice?dev=1">Dev Mode</a>
                 <% } %>
             </p>
