@@ -119,6 +119,15 @@ window.RawDeal.CardUtils = {
     if (player?.turnState?.nextCardFortitudeDiscount) {
       cost = Math.max(0, cost - player.turnState.nextCardFortitudeDiscount);
     }
+    const ringDiscount = card.discountWhenRingCard;
+    if (player && ringDiscount?.cardId && ringDiscount.fortitude) {
+      const inRing = ['maneuvers', 'reversals', 'actions'].some((area) =>
+        player.ring[area]?.some((c) => c.id === ringDiscount.cardId)
+      );
+      if (inRing) {
+        cost = Math.max(0, cost - ringDiscount.fortitude);
+      }
+    }
     return cost;
   },
 

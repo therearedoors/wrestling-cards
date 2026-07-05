@@ -53,6 +53,10 @@
   const arsenalSearchModal = arsenalSearchModalRoot
     ? new window.RawDeal.ArsenalSearchModal(arsenalSearchModalRoot)
     : null;
+  const arsenalOrRingsideModalRoot = document.getElementById('rd-arsenal-ringside-modal');
+  const arsenalOrRingsideModal = arsenalOrRingsideModalRoot
+    ? new window.RawDeal.ArsenalOrRingsideModal(arsenalOrRingsideModalRoot)
+    : null;
   const opponentRingModalRoot = document.getElementById('rd-opponent-ring-modal');
   const opponentRingSelectModal = opponentRingModalRoot
     ? new window.RawDeal.OpponentRingSelectModal(opponentRingModalRoot)
@@ -115,6 +119,7 @@
       superstarAbilityModal,
       arsenalReorderModal,
       arsenalSearchModal,
+      arsenalOrRingsideModal,
       opponentRingSelectModal
     );
 
@@ -190,6 +195,10 @@
 
     board.onConfirmArsenalSearch = (instanceIds) => {
       emitAction({ type: 'confirmArsenalSearch', instanceIds });
+    };
+
+    board.onArsenalOrRingsideSelect = (instanceId, zone) => {
+      emitAction({ type: 'pickArsenalOrRingsideToHand', instanceId, zone });
     };
 
     board.onPlayReversal = (instanceId) => {

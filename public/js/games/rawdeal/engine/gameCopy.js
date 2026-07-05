@@ -145,6 +145,10 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceName}: drag to reorder ${whose} ${count} Arsenal card${count === 1 ? '' : 's'} (left = next to draw). ${shuffleHint}`;
     },
 
+    arsenalOrRingsidePick(sourceName) {
+      return `${sourceName}: choose 1 card from your Arsenal or Ringside to put in your hand.`;
+    },
+
     arsenalSearch(sourceName, purpose, n, picked) {
       if (purpose === 'toHand') {
         return `${sourceName}: choose 1 card from your Arsenal to put in your hand.`;
@@ -322,6 +326,18 @@ window.RawDeal = window.RawDeal || {};
     rearrangedTopArsenal(sourceName, count, target) {
       const whose = whoseArsenal(target);
       return `${sourceName}: rearranged top ${count} card${cardSuffix(count)} of ${whose} Arsenal.`;
+    },
+
+    pickedFromArsenalToHand(sourceName, cardName) {
+      return `${sourceName}: put ${cardName} from your Arsenal into your hand.`;
+    },
+
+    pickedFromRingsideToHand(sourceName, cardName) {
+      return `${sourceName}: put ${cardName} from Ringside into your hand.`;
+    },
+
+    noArsenalOrRingsideToPick(sourceName) {
+      return `${sourceName}: no cards in Arsenal or Ringside to take.`;
     },
 
     markingOutEmptyOwnArsenal(sourceName) {
