@@ -176,6 +176,7 @@ async function createHandReversalTest(RawDeal, options = {}) {
     afterIrishWhip = false,
     effectiveDamage = null,
     defenderFortitude = 0,
+    defenderArsenalCount = 5,
   } = options;
 
   const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
@@ -201,6 +202,9 @@ async function createHandReversalTest(RawDeal, options = {}) {
 
   for (let i = 0; i < arsenalCount; i++) {
     attacker.arsenal.push(cloneCard(RawDeal, 'chop', `atk-arsenal-${i}`));
+  }
+  for (let i = 0; i < defenderArsenalCount; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `def-arsenal-${i}`));
   }
 
   defender.hand.push(reversal);
@@ -1467,6 +1471,94 @@ async function testPedigreeCannotReverseOtherManeuver() {
   assert(
     !engine.canPlayReversalFromHand(1, pedigree.instanceId),
     'Pedigree cannot reverse maneuvers other than Back Body Drop'
+  );
+}
+
+async function testChynaInterferesReversesAnyManeuver() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, maneuver, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'punch',
+    reversalId: 'chyna-interferes',
+    defenderFortitude: 10,
+  });
+
+  assert(
+    engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Chyna Interferes can reverse any maneuver from hand'
+  );
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === reversal.instanceId),
+    'Chyna Interferes lands in Ring reversals'
+  );
+  assert(
+    attacker.ringside.some((c) => c.instanceId === maneuver.instanceId),
+    'Reversed maneuver goes to attacker Ringside'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Chyna Interferes ends attacker turn'
+  );
+}
+
+async function testChynaInterferesDeals3DAndDraws2() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'punch',
+    reversalId: 'chyna-interferes',
+    defenderFortitude: 10,
+    arsenalCount: 10,
+    defenderArsenalCount: 5,
+  });
+  const arsenalBefore = attacker.arsenal.length;
+  const defenderArsenalBefore = defender.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 3,
+    'Chyna Interferes deals 3D to attacker Arsenal'
+  );
+  assert(
+    defender.hand.length === 3,
+    'Chyna Interferes draws 2 cards from hand plus 1 from draw segment'
+  );
+  assert(
+    defender.arsenal.length === defenderArsenalBefore - 3,
+    'Chyna Interferes draw comes from defender Arsenal'
+  );
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('drew 2')),
+    'Chyna Interferes logs draw 2'
+  );
+}
+
+async function testManagerInterferesDeals1DAndDraws1() {
+  const RawDeal = loadRawDeal();
+  const { engine, attacker, defender, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'kick',
+    reversalId: 'manager-interferes',
+    defenderFortitude: 15,
+    arsenalCount: 10,
+    defenderArsenalCount: 3,
+  });
+  const arsenalBefore = attacker.arsenal.length;
+
+  await engine.playReversalFromHand(1, reversal.instanceId);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 1,
+    'Manager Interferes deals 1D to attacker Arsenal'
+  );
+  assert(
+    defender.hand.length === 2,
+    'Manager Interferes draws 1 card from hand plus 1 from draw segment'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Manager Interferes ends attacker turn'
   );
 }
 
@@ -5204,6 +5296,9 @@ async function main() {
   await testPedigreeNoBonusAfterReversedStrike();
   await testPedigreeReversesBackBodyDrop();
   await testPedigreeCannotReverseOtherManeuver();
+  await testChynaInterferesReversesAnyManeuver();
+  await testChynaInterferesDeals3DAndDraws2();
+  await testManagerInterferesDeals1DAndDraws1();
   await testMrSockoPickFromArsenal();
   await testMrSockoPickFromRingside();
   await testMrSockoEmptyZones();
