@@ -3220,7 +3220,14 @@ window.RawDeal.GameEngine = class GameEngine {
         return false;
       }
 
-      if (cardFlow.selectedIds.length >= maxSelect) return false;
+      if (cardFlow.selectedIds.length >= maxSelect) {
+        if (maxSelect === 1) {
+          cardFlow.selectedIds = [instanceId];
+          this._notify();
+          return true;
+        }
+        return false;
+      }
 
       cardFlow.selectedIds.push(instanceId);
       this._notify();

@@ -3341,6 +3341,118 @@ async function createRecoveryTest(RawDeal, { ringsideCards = [], arsenalCount = 
   return { engine, player, recovery };
 }
 
+async function createPeoplesEyebrowTest(RawDeal, { ringsideCards = [], arsenalCount = 5 } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const eyebrow = cloneCard(RawDeal, 'peoples-eyebrow', 'eyebrow-test');
+
+  player.hand = [eyebrow];
+  player.ringside = [...ringsideCards];
+  player.arsenal = [];
+  for (let i = 0; i < arsenalCount; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `eyebrow-arsenal-${i}`));
+  }
+  player.fortitude = 7;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, eyebrow };
+}
+
+async function testPeoplesEyebrowTakeTwoThenShuffleTwo() {
+  const RawDeal = loadRawDeal();
+  const rs1 = cloneCard(RawDeal, 'punch', 'eyebrow-rs-1');
+  const rs2 = cloneCard(RawDeal, 'kick', 'eyebrow-rs-2');
+  const rs3 = cloneCard(RawDeal, 'elbow', 'eyebrow-rs-3');
+  const rs4 = cloneCard(RawDeal, 'chop', 'eyebrow-rs-4');
+  const { engine, player, eyebrow } = await createPeoplesEyebrowTest(RawDeal, {
+    ringsideCards: [rs1, rs2, rs3, rs4],
+    arsenalCount: 3,
+  });
+
+  const arsenalBefore = player.arsenal.length;
+  const handBefore = player.hand.length;
+
+  await engine.playCard(0, eyebrow.instanceId, 'action');
+
+  assert(
+    engine.cardEffectFlow?.type === 'returnFromRingside',
+    "People's Eyebrow opens Ringside return modal first"
+  );
+  const takePrompt = engine._publicSelectionPrompt(0);
+  assert(takePrompt?.mode === 'ringsideModal', "People's Eyebrow uses Ringside modal to take cards");
+  assert(takePrompt.selectCount === 2, "People's Eyebrow takes 2 when Ringside has 4");
+
+  engine.toggleSuperstarAbilitySelection(0, rs1.instanceId);
+  engine.toggleSuperstarAbilitySelection(0, rs2.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, [rs1.instanceId, rs2.instanceId]);
+
+  assert(player.hand.some((c) => c.instanceId === rs1.instanceId), 'First taken card is in hand');
+  assert(player.hand.some((c) => c.instanceId === rs2.instanceId), 'Second taken card is in hand');
+  assert(player.ringside.length === 2, 'Two cards remain in Ringside after taking 2');
+
+  assert(
+    engine.cardEffectFlow?.type === 'shuffleRingsideIntoArsenal',
+    "People's Eyebrow opens shuffle modal after taking cards"
+  );
+  const shufflePrompt = engine._publicSelectionPrompt(0);
+  assert(shufflePrompt?.selectCount === 2, "People's Eyebrow shuffles 2 when 2 remain in Ringside");
+
+  engine.toggleSuperstarAbilitySelection(0, rs3.instanceId);
+  engine.toggleSuperstarAbilitySelection(0, rs4.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, [rs3.instanceId, rs4.instanceId]);
+
+  assert(player.arsenal.length === arsenalBefore + 2, 'Two cards are shuffled into Arsenal');
+  assert(!player.ringside.some((c) => c.instanceId === rs3.instanceId), 'Shuffled card leaves Ringside');
+  assert(!player.ringside.some((c) => c.instanceId === rs4.instanceId), 'Second shuffled card leaves Ringside');
+  assert(player.hand.length === handBefore - 1 + 2, 'Net hand gain is +2 after playing the action');
+  assert(
+    player.ring.actions.some((c) => c.instanceId === eyebrow.instanceId),
+    "People's Eyebrow is in Ring actions"
+  );
+  assert(!engine.cardEffectFlow, "People's Eyebrow effect completes");
+}
+
+async function testPeoplesEyebrowTakeOneWhenOnlyOneInRingside() {
+  const RawDeal = loadRawDeal();
+  const rs1 = cloneCard(RawDeal, 'punch', 'eyebrow-one-rs');
+  const { engine, player, eyebrow } = await createPeoplesEyebrowTest(RawDeal, {
+    ringsideCards: [rs1],
+    arsenalCount: 2,
+  });
+
+  await engine.playCard(0, eyebrow.instanceId, 'action');
+
+  const takePrompt = engine._publicSelectionPrompt(0);
+  assert(takePrompt?.selectCount === 1, "People's Eyebrow takes only 1 when Ringside has 1");
+
+  engine.toggleSuperstarAbilitySelection(0, rs1.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(0, rs1.instanceId);
+
+  assert(player.hand.some((c) => c.instanceId === rs1.instanceId), 'Only Ringside card is taken to hand');
+  assert(player.ringside.length === 0, 'Ringside is empty after taking the only card');
+  assert(!engine.cardEffectFlow, "People's Eyebrow skips shuffle when Ringside is empty");
+}
+
+async function testPeoplesEyebrowEmptyRingsideSkipsBothSteps() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, eyebrow } = await createPeoplesEyebrowTest(RawDeal, {
+    ringsideCards: [],
+    arsenalCount: 2,
+  });
+
+  const arsenalBefore = player.arsenal.length;
+
+  await engine.playCard(0, eyebrow.instanceId, 'action');
+
+  assert(!engine.cardEffectFlow, "People's Eyebrow skips both steps when Ringside is empty");
+  assert(player.arsenal.length === arsenalBefore, 'Arsenal unchanged when Ringside is empty');
+  assert(player.hand.length === 0, 'Only the played action leaves hand');
+}
+
 async function testRecoveryShuffleTwoThenDraw() {
   const RawDeal = loadRawDeal();
   const rs1 = cloneCard(RawDeal, 'punch', 'rec-rs-1');
@@ -5337,6 +5449,9 @@ async function main() {
   await testRollOutDiscardZero();
   await testRollOutCapByHand();
   await testRollOutDiscardCappedReturnsOne();
+  await testPeoplesEyebrowTakeTwoThenShuffleTwo();
+  await testPeoplesEyebrowTakeOneWhenOnlyOneInRingside();
+  await testPeoplesEyebrowEmptyRingsideSkipsBothSteps();
   await testRecoveryShuffleTwoThenDraw();
   await testRecoveryShuffleOneWhenOnlyOneInRingside();
   await testRecoveryEmptyRingsideSkipsShuffle();
