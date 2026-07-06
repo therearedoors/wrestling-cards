@@ -336,6 +336,23 @@ window.RawDeal.EffectPipeline = {
           { exact: step.exact !== false }
         );
 
+      case 'takeRingsideToHand': {
+        const max = step.count || 2;
+        if (player.ringside.length === 0) {
+          engine.actionLog.push({
+            message: window.RawDeal.GameCopy.log.noRingsideToReturn(sourceName),
+          });
+          return false;
+        }
+        const toTake = Math.min(max, player.ringside.length);
+        return engine._beginReturnFromRingsidePrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          toTake
+        );
+      }
+
       case 'returnFromRingside': {
         const count = pipeline.discardedCount || 0;
         if (count === 0) return false;

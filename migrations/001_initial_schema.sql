@@ -23,4 +23,4 @@ BEGIN
 
   SELECT id INTO userId FROM users WHERE username = _username;
 END $$
-DELIMITER ;
+DELIMITER;

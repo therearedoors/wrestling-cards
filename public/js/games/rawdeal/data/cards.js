@@ -1450,6 +1450,10 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action Take any 2 cards from your Ringside pile and put them into your hand. Then take any 2 cards from your Ringside pile and shuffle them back into your Arsenal. Unique",
     flavor: "",
+    actionEffects: [
+      {"op": "takeRingsideToHand", "count": 2},
+      {"op": "shuffleRingsideUpTo", "max": 2, "exact": true},
+    ],
     set: "premiere",
   },
   'peoples-elbow': {
