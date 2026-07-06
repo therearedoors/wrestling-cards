@@ -33,32 +33,78 @@ window.RawDeal.SuperstarAbilityModal = class SuperstarAbilityModal {
   }
 
   _selectedIds(prompt) {
-    return prompt.selectedIds || [];
+    if (prompt.selectedIds?.length) {
+      return prompt.selectedIds;
+    }
+    return prompt.selectedId ? [prompt.selectedId] : [];
   }
 
   _isSelected(prompt, instanceId) {
-    if (prompt.upTo || this._selectCount(prompt) > 1) {
-      return this._selectedIds(prompt).includes(instanceId);
-    }
-    return prompt.selectedId === instanceId;
+    return this._selectedIds(prompt).includes(instanceId);
   }
 
   _canConfirm(prompt) {
+    const selected = this._selectedIds(prompt);
     if (prompt.upTo) {
       const max = prompt.maxSelect ?? this._selectCount(prompt);
-      return this._selectedIds(prompt).length <= max;
+      return selected.length <= max;
     }
-    if (this._selectCount(prompt) > 1) {
-      return this._selectedIds(prompt).length === this._selectCount(prompt);
-    }
-    return !!prompt.selectedId;
+    return selected.length === this._selectCount(prompt);
   }
 
   _selectionForConfirm(prompt) {
+    const selected = this._selectedIds(prompt);
     if (prompt.upTo || this._selectCount(prompt) > 1) {
-      return [...this._selectedIds(prompt)];
+      return [...selected];
     }
-    return prompt.selectedId;
+    return selected[0];
+  }
+
+  _toggleLocalSelection(instanceId) {
+    if (!this._prompt) return;
+
+    const prompt = this._prompt;
+    const selectCount = this._selectCount(prompt);
+    const maxSelect = prompt.maxSelect ?? prompt.selectCount ?? selectCount;
+    const upTo = !!prompt.upTo;
+    let selected = [...this._selectedIds(prompt)];
+
+    if (selected.includes(instanceId)) {
+      if (upTo) {
+        selected = selected.filter((id) => id !== instanceId);
+      }
+    } else if (upTo) {
+      if (selected.length < maxSelect) {
+        selected.push(instanceId);
+      }
+    } else if (selectCount === 1) {
+      selected = [instanceId];
+    } else if (selected.length < selectCount) {
+      selected.push(instanceId);
+    }
+
+    this._prompt = {
+      ...prompt,
+      selectedIds: selected,
+      selectedId: selectCount === 1 && !upTo ? selected[0] || null : prompt.selectedId,
+    };
+    this._syncSelectionUi();
+  }
+
+  _syncSelectionUi() {
+    const prompt = this._prompt;
+    if (!prompt) return;
+
+    if (this.confirmBtn) {
+      this.confirmBtn.disabled = !this._canConfirm(prompt);
+    }
+
+    if (!this.cardsEl) return;
+
+    for (const el of this.cardsEl.querySelectorAll('[data-instance-id]')) {
+      const selected = this._isSelected(prompt, el.dataset.instanceId);
+      el.classList.toggle('rd-card--selected', selected);
+    }
   }
 
   show(prompt) {
@@ -80,33 +126,29 @@ window.RawDeal.SuperstarAbilityModal = class SuperstarAbilityModal {
       this.passBtn.disabled = !showPass;
     }
 
-    if (this.confirmBtn) {
-      this.confirmBtn.disabled = !this._canConfirm(prompt);
-    }
-
     if (this.cardsEl) {
       window.RawDeal.CardRenderer.clearContainer(this.cardsEl);
       const row = document.createElement('div');
       row.className = 'rd-hand';
 
       for (const card of prompt.cards || []) {
-        const selected = this._isSelected(prompt, card.instanceId);
         const el = window.RawDeal.CardRenderer.createCardEl(card, {
           small: true,
           clickable: true,
           onClick: (e) => {
             e.stopPropagation();
+            this._toggleLocalSelection(card.instanceId);
             if (this.onToggleSelect) this.onToggleSelect(card.instanceId);
           },
         });
-        if (selected) {
-          el.classList.add('rd-card--selected');
-        }
         row.appendChild(el);
       }
 
       this.cardsEl.appendChild(row);
+      this._syncSelectionUi();
       this._updateScroll();
+    } else {
+      this._syncSelectionUi();
     }
   }
 
