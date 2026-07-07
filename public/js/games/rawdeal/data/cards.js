@@ -1638,6 +1638,12 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher"],
+    reversalEffects: [
+      {"op": "topArsenalToRingside", "count": 4},
+      {"op": "opponentDiscardFromHand", "count": 1},
+      {"op": "nextTurnDamageBonus", "value": 2},
+      {"op": "nextTurnOpponentReversalTax", "value": 25},
+    ],
     set: "premiere",
   },
   'mankind': {

@@ -208,6 +208,15 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceName}: all maneuvers +${all}D for the rest of this turn.`;
     },
 
+    nextTurnDamageAll(sourceName, all) {
+      return `${sourceName}: all maneuvers +${all}D next turn.`;
+    },
+
+    nextTurnDamageSubtype(sourceName, subtype, value) {
+      const label = maneuverLabel(subtype);
+      return `${sourceName}: ${label} maneuvers +${value}D next turn.`;
+    },
+
     turnDamageSubtype(sourceName, subtype, value) {
       const label = maneuverLabel(subtype);
       return `${sourceName}: ${label} maneuvers +${value}D for the rest of this turn.`;
@@ -438,6 +447,14 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceCardName}: put ${topName} from Arsenal into Ringside.`;
     },
 
+    topArsenalToRingside(sourceName, count, names) {
+      return `${sourceName}: placed top ${count} Arsenal card${cardSuffix(count)} in Ringside (${names}).`;
+    },
+
+    topArsenalPartial(sourceName, moved, requested) {
+      return `${sourceName}: placed ${moved} of top ${requested} Arsenal cards in Ringside.`;
+    },
+
     reversalSvDraw(maneuverName, sv, who, drawn) {
       return `${maneuverName} reversed (SV ${sv}): ${who} ${drawn} card${cardSuffix(drawn)}.`;
     },
@@ -529,6 +546,10 @@ window.RawDeal = window.RawDeal || {};
 
     turnOpponentReversalTax(sourceName, value) {
       return `${sourceName}: opponent's reversals are +${value}F for the rest of this turn.`;
+    },
+
+    nextTurnOpponentReversalTax(sourceName, value) {
+      return `${sourceName}: opponent's reversals are +${value}F next turn.`;
     },
 
     blockOpponentReversals(sourceName) {

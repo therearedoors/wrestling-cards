@@ -18,6 +18,8 @@ window.RawDeal.GameEngine = class GameEngine {
     this.winReason = null;
     this.nextManeuverBonus = [0, 0];
     this.turnDamageBonus = [this._emptyTurnDamageBonus(), this._emptyTurnDamageBonus()];
+    this.pendingTurnDamageBonus = [this._emptyTurnDamageBonus(), this._emptyTurnDamageBonus()];
+    this.pendingTurnOpponentReversalTax = [0, 0];
     this.damageLog = [];
     this.actionLog = [];
     this.abilityFlow = null;
@@ -245,6 +247,53 @@ window.RawDeal.GameEngine = class GameEngine {
       this.actionLog.push({
         message: this._gc().log.turnDamageSubtype(sourceName, subtype, value),
       });
+    }
+  }
+
+  _addNextTurnDamageBonus(player, { all = 0, subtype, value = 0, sourceName }) {
+    const idx = this._playerIndex(player);
+    const bonuses = this.pendingTurnDamageBonus[idx];
+
+    if (all) {
+      bonuses.all += all;
+      this.actionLog.push({
+        message: this._gc().log.nextTurnDamageAll(sourceName, all),
+      });
+    }
+
+    if (subtype && value) {
+      bonuses[subtype] = (bonuses[subtype] || 0) + value;
+      this.actionLog.push({
+        message: this._gc().log.nextTurnDamageSubtype(sourceName, subtype, value),
+      });
+    }
+  }
+
+  _addNextTurnOpponentReversalTax(player, value, sourceName) {
+    const idx = this._playerIndex(player);
+    this.pendingTurnOpponentReversalTax[idx] += value;
+    this.actionLog.push({
+      message: this._gc().log.nextTurnOpponentReversalTax(sourceName, value),
+    });
+  }
+
+  _applyPendingTurnBonuses(player, playerIndex) {
+    const pendingDamage = this.pendingTurnDamageBonus[playerIndex];
+    if (pendingDamage.all || pendingDamage.strike || pendingDamage.grapple || pendingDamage.submission) {
+      const bonuses = this.turnDamageBonus[playerIndex];
+      bonuses.all += pendingDamage.all;
+      bonuses.strike += pendingDamage.strike;
+      bonuses.grapple += pendingDamage.grapple;
+      bonuses.submission += pendingDamage.submission;
+      this.pendingTurnDamageBonus[playerIndex] = this._emptyTurnDamageBonus();
+    }
+
+    const pendingTax = this.pendingTurnOpponentReversalTax[playerIndex];
+    if (pendingTax) {
+      if (!player.turnState) player.turnState = this._emptyTurnState();
+      player.turnState.turnOpponentReversalTax =
+        (player.turnState.turnOpponentReversalTax || 0) + pendingTax;
+      this.pendingTurnOpponentReversalTax[playerIndex] = 0;
     }
   }
 
@@ -817,6 +866,7 @@ window.RawDeal.GameEngine = class GameEngine {
         }
         this.turnDamageBonus[this.stateMachine.activePlayer] = this._emptyTurnDamageBonus();
         active.turnState = this._emptyTurnState();
+        this._applyPendingTurnBonuses(active, this.stateMachine.activePlayer);
         this._syncFortitude(active);
         this.stateMachine.transition(EVENTS.REFRESH_DONE);
         continue;
@@ -3122,24 +3172,40 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  async _topArsenalToRingside(player, sourceCard) {
-    if (player.arsenal.length === 0) return;
+  async _topArsenalToRingside(player, sourceCard, count = 1) {
+    const playerIndex = this._playerIndex(player);
+    const moved = [];
+    const requested = count;
 
-    const top = player.arsenal.pop();
-    this._notify();
+    for (let i = 0; i < count && player.arsenal.length > 0; i++) {
+      const top = player.arsenal.pop();
+      this._notify();
 
-    await this.onArsenalToRingside({
-      card: top,
-      sourceManeuver: sourceCard,
-      playerSeat: this._playerIndex(player),
-      onReveal: () => {
-        player.ringside.push(top);
-        this.actionLog.push({
-          message: this._gc().log.putArsenalInRingside(sourceCard.name, top.name),
-        });
-        this._notify();
-      },
+      await this.onArsenalToRingside({
+        card: top,
+        sourceManeuver: sourceCard,
+        playerSeat: playerIndex,
+        onReveal: () => {
+          player.ringside.push(top);
+          moved.push(top);
+          this._notify();
+        },
+      });
+    }
+
+    if (moved.length === 0) return;
+
+    const names = moved.map((c) => c.name).join(', ');
+    const sourceName = sourceCard.name;
+    this.actionLog.push({
+      message:
+        moved.length === 1
+          ? this._gc().log.putArsenalInRingside(sourceName, names)
+          : moved.length === requested
+            ? this._gc().log.topArsenalToRingside(sourceName, moved.length, names)
+            : this._gc().log.topArsenalPartial(sourceName, moved.length, requested),
     });
+    this._notify();
   }
 
   async _resolveDamage(attacker, opponent, maneuver, damage, { allowArsenalReversals = true } = {}) {
