@@ -1701,6 +1701,7 @@ window.RawDeal.CARDS = {
     text: "Maneuver: Grapple May not be reversed. When successfully played, opponent must discard 2 cards. Unique",
     flavor: "",
     unique: true,
+    unreversible: true,
     maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 2}],
     set: "premiere",
   },
