@@ -301,6 +301,14 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'nextTurnDamageBonus': {
+        engine._addNextTurnDamageBonus(player, {
+          all: step.value || 0,
+          sourceName,
+        });
+        return false;
+      }
+
       case 'pickArsenalOrRingsideToHand':
         return engine._beginPickArsenalOrRingsidePrompt(
           player,
@@ -316,6 +324,11 @@ window.RawDeal.EffectPipeline = {
         engine.actionLog.push({
           message: window.RawDeal.GameCopy.log.turnOpponentReversalTax(sourceName, value),
         });
+        return false;
+      }
+
+      case 'nextTurnOpponentReversalTax': {
+        engine._addNextTurnOpponentReversalTax(player, step.value || 0, sourceName);
         return false;
       }
 
@@ -378,7 +391,7 @@ window.RawDeal.EffectPipeline = {
         return engine._beginDrawOrOpponentChoice(player, pipeline.playerIndex, sourceName, step.count || 2);
 
       case 'topArsenalToRingside': {
-        await engine._topArsenalToRingside(player, { name: sourceName });
+        await engine._topArsenalToRingside(player, { name: sourceName }, step.count || 1);
         return false;
       }
 
