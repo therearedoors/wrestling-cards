@@ -5900,6 +5900,110 @@ async function testUndertakerSitsUpFromArsenalNoHandEffects() {
   );
 }
 
+async function testTreeOfWoeCannotBeReversedFromHand() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('hhh', 'mankind');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const treeOfWoe = cloneCard(RawDeal, 'tree-of-woe', 'tow-unrev-hand');
+  const niceDay = cloneCard(RawDeal, 'have-a-nice-day', 'tow-nice-day');
+
+  defender.hand = [niceDay];
+  defender.fortitude = 5;
+  defender.arsenal = [];
+  for (let i = 0; i < 12; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `tow-unrev-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  attacker.hand.push(treeOfWoe);
+  attacker.fortitude = 18;
+  await engine.playCard(0, treeOfWoe.instanceId, 'maneuver');
+
+  assert(!engine.reversalWindow, 'Tree of Woe skips reversal priority');
+  assert(
+    !engine.canPlayReversalFromHand(1, niceDay.instanceId),
+    'Have a Nice Day cannot reverse Tree of Woe from hand'
+  );
+}
+
+async function testTreeOfWoeCannotBeReversedFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('hhh', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const treeOfWoe = cloneCard(RawDeal, 'tree-of-woe', 'tow-unrev-ars');
+  const niceDay = cloneCard(RawDeal, 'have-a-nice-day', 'tow-ars-nice-day');
+
+  defender.fortitude = 5;
+  defender.arsenal = [];
+  for (let i = 0; i < 9; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `tow-ars-chop-${i}`));
+  }
+  defender.arsenal.push(niceDay);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  attacker.hand.push(treeOfWoe);
+  attacker.fortitude = 18;
+  await engine.playCard(0, treeOfWoe.instanceId, 'maneuver');
+
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(lastDamage?.card === 'Tree of Woe', 'Tree of Woe is the last damage log entry');
+  assert(lastDamage?.result === 'hit', 'Have a Nice Day does not reverse Tree of Woe from Arsenal');
+  assert(lastDamage?.cardsOverturned === 10, 'Tree of Woe overturns 10 Arsenal cards');
+}
+
+async function testTreeOfWoeForcesOpponentDiscardTwo() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('hhh', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const treeOfWoe = cloneCard(RawDeal, 'tree-of-woe', 'tow-discard');
+  const discardA = cloneCard(RawDeal, 'punch', 'tow-disc-a');
+  const discardB = cloneCard(RawDeal, 'kick', 'tow-disc-b');
+
+  defender.hand = [discardA, discardB, cloneCard(RawDeal, 'chop', 'tow-disc-c')];
+  defender.arsenal = [];
+  for (let i = 0; i < 12; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `tow-disc-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  attacker.hand.push(treeOfWoe);
+  attacker.fortitude = 18;
+  await engine.playCard(0, treeOfWoe.instanceId, 'maneuver');
+
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Tree of Woe opens opponent discard prompt after successful play'
+  );
+
+  await engine.selectForCardEffect(1, discardA.instanceId);
+  await engine.selectForCardEffect(1, discardB.instanceId);
+
+  assert(
+    defender.hand.length === 1,
+    'Tree of Woe forces opponent to discard 2 cards'
+  );
+  assert(
+    defender.ringside.some((c) => c.instanceId === discardA.instanceId) &&
+      defender.ringside.some((c) => c.instanceId === discardB.instanceId),
+    'Tree of Woe sends discarded cards to opponent Ringside'
+  );
+}
+
 async function testHaveANiceDayReversesStrikeGrappleSubmission() {
   const RawDeal = loadRawDeal();
 
@@ -6667,6 +6771,9 @@ async function main() {
   await testHaveANiceDayFromHandForcesOpponentDiscardEntireHand();
   await testHaveANiceDayEgoBoostOnForcedDiscardAll();
   await testHaveANiceDayFromArsenalNoHandEffects();
+  await testTreeOfWoeCannotBeReversedFromHand();
+  await testTreeOfWoeCannotBeReversedFromArsenal();
+  await testTreeOfWoeForcesOpponentDiscardTwo();
   await testDiversionSetsUnreversibleOnNextManeuver();
   await testDiversionProtectsManeuverFromHand();
   await testDiversionProtectsManeuverFromArsenal();
