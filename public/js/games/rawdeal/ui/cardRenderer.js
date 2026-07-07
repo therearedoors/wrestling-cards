@@ -19,12 +19,13 @@ window.RawDeal.CardRenderer = {
     };
   },
 
+  _escapeAttr(value) {
+    return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  },
+
   _nameAttr(displayName) {
     if (!displayName.truncated) return '';
-    const full = String(displayName.full)
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;');
-    return ` title="${full}"`;
+    return ` title="${this._escapeAttr(displayName.full)}"`;
   },
 
   createCardEl(card, options = {}) {
@@ -129,10 +130,11 @@ window.RawDeal.CardRenderer = {
           stats += `<span class="rd-card__zone-stat">Reversal</span>`;
         }
 
+        const zoneTitle = zone?.title ? ` title="${this._escapeAttr(zone.title)}"` : '';
         const tag = playZones ? 'button' : 'div';
         const attrs = playZones
-          ? `type="button" data-play-as="${type}"${disabled ? ' disabled' : ''}`
-          : `data-play-as="${type}"`;
+          ? `type="button" data-play-as="${type}"${disabled ? ' disabled' : ''}${zoneTitle}`
+          : `data-play-as="${type}"${zoneTitle}`;
         return `<${tag} class="${classes}" ${attrs}>
           <span class="rd-card__zone-kind">${utils.typeLabel(card, type)}</span>
           ${stats}

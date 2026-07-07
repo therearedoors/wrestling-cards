@@ -651,7 +651,15 @@ window.RawDeal.Board = class Board {
       const useHybridPlayZones = isHybrid && !selectable;
 
       const playZones = useHybridPlayZones
-        ? this._buildHybridPlayZones(card, { canManeuver, canAction, canReversal })
+        ? this._buildHybridPlayZones(card, {
+            canManeuver,
+            canAction,
+            canReversal,
+            meetsManeuverReq,
+            affordableManeuver,
+            meetsActionReq,
+            affordableAction,
+          })
         : null;
 
       const el = window.RawDeal.CardRenderer.createCardEl(card, {
@@ -688,22 +696,17 @@ window.RawDeal.Board = class Board {
       if (
         canPlay &&
         !abilityPrompt &&
+        !isHybrid &&
         utils.canPlayFromHandAs(card, 'maneuver') &&
         !meetsManeuverReq
       ) {
         el.classList.add('rd-card--blocked');
-        if (card.requiresRingCard) {
-          const reqCard = window.RawDeal.CARDS?.[card.requiresRingCard];
-          el.title = `Requires ${reqCard?.name || card.requiresRingCard} in your Ring area`;
-        } else if (card.requiresPlayed === 'irish-whip') {
-          el.title = 'Requires Irish Whip this turn';
-        } else {
-          el.title = 'Maneuver requirement not met';
-        }
+        el.title = this._maneuverBlockTitle(card);
       }
       if (
         canPlay &&
         !abilityPrompt &&
+        !isHybrid &&
         utils.canPlayFromHandAs(card, 'action') &&
         affordableAction &&
         !meetsActionReq &&
@@ -733,7 +736,43 @@ window.RawDeal.Board = class Board {
     });
   }
 
-  _buildHybridPlayZones(card, { canManeuver, canAction, canReversal = false }) {
+  _maneuverBlockTitle(card) {
+    if (card.requiresRingCard) {
+      const reqCard = window.RawDeal.CARDS?.[card.requiresRingCard];
+      return `Requires ${reqCard?.name || card.requiresRingCard} in your Ring area`;
+    }
+    if (card.requiresPlayed === 'irish-whip') {
+      return 'Requires Irish Whip this turn';
+    }
+    return 'Maneuver requirement not met';
+  }
+
+  _hybridZoneBlockTitle(card, type, { meetsManeuverReq, affordableManeuver, meetsActionReq, affordableAction }) {
+    if (type === 'maneuver') {
+      if (!meetsManeuverReq) return this._maneuverBlockTitle(card);
+      if (!affordableManeuver) return 'Not enough Fortitude for maneuver';
+    }
+    if (type === 'action') {
+      if (!meetsActionReq && card.requiresLowerFortitudeThanOpponent) {
+        return 'Playable only when your Fortitude is less than opponent’s';
+      }
+      if (!affordableAction) return 'Not enough Fortitude for action';
+    }
+    return '';
+  }
+
+  _buildHybridPlayZones(
+    card,
+    {
+      canManeuver,
+      canAction,
+      canReversal = false,
+      meetsManeuverReq = true,
+      affordableManeuver = true,
+      meetsActionReq = true,
+      affordableAction = true,
+    } = {}
+  ) {
     const zones = {};
     const utils = window.RawDeal.CardUtils;
 
@@ -757,6 +796,12 @@ window.RawDeal.Board = class Board {
       const playable = type === 'maneuver' ? canManeuver : type === 'action' ? canAction : false;
       zones[type] = {
         playable,
+        title: playable ? '' : this._hybridZoneBlockTitle(card, type, {
+          meetsManeuverReq,
+          affordableManeuver,
+          meetsActionReq,
+          affordableAction,
+        }),
         onClick: playable
           ? () => {
               if (this.onPlayCard) this.onPlayCard(card.instanceId, type);
