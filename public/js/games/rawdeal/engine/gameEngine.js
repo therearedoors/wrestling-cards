@@ -1331,13 +1331,25 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async _opponentTopArsenalToRingside(opponent, sourceName, count = 5) {
+    const opponentIndex = this._playerIndex(opponent);
     const moved = [];
     const requested = count;
+    const sourceCard = { name: sourceName };
 
     for (let i = 0; i < count && opponent.arsenal.length > 0; i++) {
       const top = opponent.arsenal.pop();
-      opponent.ringside.push(top);
-      moved.push(top);
+      this._notify();
+
+      await this.onArsenalToRingside({
+        card: top,
+        sourceManeuver: sourceCard,
+        playerSeat: opponentIndex,
+        onReveal: () => {
+          opponent.ringside.push(top);
+          moved.push(top);
+          this._notify();
+        },
+      });
     }
 
     if (moved.length > 0) {
@@ -1348,9 +1360,8 @@ window.RawDeal.GameEngine = class GameEngine {
             ? this._gc().log.opponentTopArsenalToRingside(sourceName, moved.length, names)
             : this._gc().log.opponentTopArsenalPartial(sourceName, moved.length, requested),
       });
+      this._notify();
     }
-
-    this._notify();
   }
 
   _beginDrawOrOpponentChoice(player, playerIndex, sourceName, count) {
