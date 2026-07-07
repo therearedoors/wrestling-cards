@@ -5191,6 +5191,205 @@ async function playDiversion(engine, RawDeal, instanceId = 'div-play') {
   return diversion;
 }
 
+async function playManeuverSuccessfully(engine, RawDeal, cardId, instanceId) {
+  const card = cloneCard(RawDeal, cardId, instanceId);
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  player.hand.push(card);
+  player.fortitude = Math.max(player.fortitude, card.fortitude || 0);
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 12; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `${instanceId}-safe-ars-${i}`));
+  }
+  await engine.playCard(0, card.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return card;
+}
+
+async function testAustinElbowSmashNotPlayableAtTurnStart() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const elbowSmash = cloneCard(RawDeal, 'austin-elbow-smash', 'aes-no-setup');
+
+  player.hand = [elbowSmash];
+  player.fortitude = 10;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  assert(
+    !engine.canPlayCard(0, elbowSmash.instanceId, 'maneuver'),
+    'Austin Elbow Smash not playable without a prior 5D+ maneuver'
+  );
+}
+
+async function testAustinElbowSmashNotPlayableAfterLowDamageManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const elbowSmash = cloneCard(RawDeal, 'austin-elbow-smash', 'aes-low-d');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'punch', 'aes-punch-3d');
+  player.hand.push(elbowSmash);
+  player.fortitude = 10;
+
+  assert(
+    player.turnState?.lastSuccessfulManeuverDamage === 3,
+    'Punch records 3D as last successful maneuver damage'
+  );
+  assert(
+    !engine.canPlayCard(0, elbowSmash.instanceId, 'maneuver'),
+    'Austin Elbow Smash not playable after a maneuver below 5D'
+  );
+}
+
+async function testAustinElbowSmashNotPlayableAfterHandReversal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const kick = cloneCard(RawDeal, 'kick', 'aes-kick-rev');
+  const elbow = cloneCard(RawDeal, 'elbow-to-the-face', 'aes-elbow-rev');
+  const elbowSmash = cloneCard(RawDeal, 'austin-elbow-smash', 'aes-after-rev');
+
+  attacker.hand = [kick, elbowSmash];
+  attacker.fortitude = 10;
+  defender.hand = [elbow];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `aes-rev-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, kick.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, elbow.instanceId);
+
+  assert(
+    attacker.turnState?.lastSuccessfulManeuverDamage == null,
+    'Hand-reversed maneuver does not record successful damage'
+  );
+  assert(
+    !engine.canPlayCard(0, elbowSmash.instanceId, 'maneuver'),
+    'Austin Elbow Smash not playable after maneuver reversed from hand'
+  );
+}
+
+async function testAustinElbowSmashPlayableAfter5DManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const elbowSmash = cloneCard(RawDeal, 'austin-elbow-smash', 'aes-playable');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'kick', 'aes-kick-5d');
+  player.hand.push(elbowSmash);
+  player.fortitude = 10;
+
+  assert(
+    player.turnState?.lastSuccessfulManeuverDamage === 5,
+    'Kick records 5D as last successful maneuver damage'
+  );
+  assert(
+    engine.canPlayCard(0, elbowSmash.instanceId, 'maneuver'),
+    'Austin Elbow Smash playable after a 5D maneuver'
+  );
+}
+
+async function testAustinElbowSmashCannotBeReversedFromHand() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const elbowSmash = cloneCard(RawDeal, 'austin-elbow-smash', 'aes-unrev-hand');
+  const chyna = cloneCard(RawDeal, 'chyna-interferes', 'aes-chyna');
+
+  defender.hand = [chyna];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 12; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `aes-unrev-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'kick', 'aes-kick-unrev');
+  attacker.hand.push(elbowSmash);
+  attacker.fortitude = 10;
+  await engine.playCard(0, elbowSmash.instanceId, 'maneuver');
+
+  assert(
+    !engine.reversalWindow,
+    'Austin Elbow Smash skips reversal priority'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(1, chyna.instanceId),
+    'Chyna Interferes cannot reverse Austin Elbow Smash from hand'
+  );
+}
+
+async function testAustinElbowSmashCannotBeReversedFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const elbowSmash = cloneCard(RawDeal, 'austin-elbow-smash', 'aes-unrev-ars');
+  const manager = cloneCard(RawDeal, 'manager-interferes', 'aes-manager-ars');
+
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 12; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `aes-kick-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'kick', 'aes-kick-mgr');
+  attacker.hand.push(elbowSmash);
+  attacker.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 9; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `aes-mgr-chop-${i}`));
+  }
+  defender.arsenal.push(manager);
+  await engine.playCard(0, elbowSmash.instanceId, 'maneuver');
+
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(
+    lastDamage?.card === 'Austin Elbow Smash',
+    'Austin Elbow Smash is the last damage log entry'
+  );
+  assert(
+    lastDamage?.result === 'hit',
+    'Manager Interferes does not reverse Austin Elbow Smash from Arsenal'
+  );
+  assert(lastDamage?.cardsOverturned === 10, 'Austin Elbow Smash overturns 10 Arsenal cards');
+}
+
 async function testDiversionSetsUnreversibleOnNextManeuver() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -5716,6 +5915,12 @@ async function main() {
   await testStaggerDoesNotProtectHighDamageManeuver();
   await testStaggerProtectsExactly7D();
   await testStaggerEffectConsumedByAction();
+  await testAustinElbowSmashNotPlayableAtTurnStart();
+  await testAustinElbowSmashNotPlayableAfterLowDamageManeuver();
+  await testAustinElbowSmashNotPlayableAfterHandReversal();
+  await testAustinElbowSmashPlayableAfter5DManeuver();
+  await testAustinElbowSmashCannotBeReversedFromHand();
+  await testAustinElbowSmashCannotBeReversedFromArsenal();
   await testDiversionSetsUnreversibleOnNextManeuver();
   await testDiversionProtectsManeuverFromHand();
   await testDiversionProtectsManeuverFromArsenal();
