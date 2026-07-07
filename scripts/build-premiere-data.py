@@ -350,6 +350,12 @@ def parse_cards(text: str):
         after_submission = infer_requires_after_successful_submission(rules)
         if after_submission:
             entry.update(after_submission)
+        after_min_damage = infer_requires_after_maneuver_min_damage(rules)
+        if after_min_damage:
+            entry.update(after_min_damage)
+        unreversible = infer_unreversible(rules)
+        if unreversible:
+            entry.update(unreversible)
         maintain_hold_setup = infer_grants_maintain_hold_after_play(rules)
         if maintain_hold_setup:
             entry.update(maintain_hold_setup)
@@ -486,6 +492,21 @@ def infer_requires_after_successful_maneuver(rules):
     blob = rules.lower()
     if 'play after a successfully played maneuver' in blob:
         return {'requiresAfterSuccessfulManeuver': True}
+    return None
+
+
+def infer_requires_after_maneuver_min_damage(rules):
+    blob = rules.lower()
+    m = re.search(r'after a (?:maneuver that does )?(\d+)d or greater(?: maneuver)?', blob)
+    if m:
+        return {'requiresAfterManeuverMinDamage': int(m.group(1))}
+    return None
+
+
+def infer_unreversible(rules):
+    blob = rules.lower()
+    if 'may not be reversed' in blob:
+        return {'unreversible': True}
     return None
 
 
@@ -945,7 +966,9 @@ def emit_cards(cards):
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
                     'unique', 'hybrid', 'reverses', 'maxDamage', 'requiresPlayed',
                     'requiresAfterSuccessfulManeuver',
+                    'requiresAfterManeuverMinDamage',
                     'requiresAfterSuccessfulSubmission',
+                    'unreversible',
                     'grantsMaintainHoldAfterPlay',
                     'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
                     'discountWhenRingCard',
