@@ -3437,6 +3437,113 @@ async function testPeoplesEyebrowTakeOneWhenOnlyOneInRingside() {
   assert(!engine.cardEffectFlow, "People's Eyebrow skips shuffle when Ringside is empty");
 }
 
+async function createPeoplesElbowTest(RawDeal, { ringCards = [] } = {}) {
+  const { engine, player, opponent } = await createTestEngine(RawDeal);
+
+  player.hand = [];
+  player.arsenal = [];
+  for (let i = 0; i < 6; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `elbow-arsenal-${i}`));
+  }
+  opponent.hand = [];
+
+  for (const { card, area } of ringCards) {
+    player.ring[area].push(card);
+  }
+
+  return { engine, player, opponent };
+}
+
+async function testPeoplesElbowManeuverRequiresRockBottom() {
+  const RawDeal = loadRawDeal();
+  const elbow = cloneCard(RawDeal, 'peoples-elbow', 'elbow-no-rb');
+  const { engine } = await createPeoplesElbowTest(RawDeal);
+
+  engine.players[0].hand = [elbow];
+
+  assert(
+    !engine.canPlayCard(0, elbow.instanceId, 'maneuver'),
+    "People's Elbow maneuver requires Rock Bottom in Ring"
+  );
+  assert(
+    engine.canPlayCard(0, elbow.instanceId, 'action'),
+    "People's Elbow action does not require Rock Bottom"
+  );
+}
+
+async function testPeoplesElbowManeuverWithRockBottomInRing() {
+  const RawDeal = loadRawDeal();
+  const elbow = cloneCard(RawDeal, 'peoples-elbow', 'elbow-maneuver');
+  const rockBottom = cloneCard(RawDeal, 'rock-bottom', 'rb-ring');
+  const { engine, player, opponent } = await createPeoplesElbowTest(RawDeal, {
+    ringCards: [{ card: rockBottom, area: 'maneuvers' }],
+  });
+
+  player.hand = [elbow];
+  const arsenalBefore = opponent.arsenal.length;
+
+  assert(
+    engine.canPlayCard(0, elbow.instanceId, 'maneuver'),
+    "People's Elbow maneuver is playable with Rock Bottom in Ring"
+  );
+
+  await engine.playCard(0, elbow.instanceId, 'maneuver');
+
+  assert(
+    player.ring.maneuvers.some((c) => c.instanceId === elbow.instanceId),
+    "People's Elbow enters Ring as maneuver"
+  );
+  assert(
+    opponent.arsenal.length === arsenalBefore - 10,
+    "People's Elbow maneuver deals 10 damage"
+  );
+}
+
+async function testPeoplesElbowManeuverWithRockBottomInReversals() {
+  const RawDeal = loadRawDeal();
+  const elbow = cloneCard(RawDeal, 'peoples-elbow', 'elbow-rb-rev');
+  const rockBottom = cloneCard(RawDeal, 'rock-bottom', 'rb-reversal');
+  const { engine } = await createPeoplesElbowTest(RawDeal, {
+    ringCards: [{ card: rockBottom, area: 'reversals' }],
+  });
+
+  engine.players[0].hand = [elbow];
+
+  assert(
+    engine.canPlayCard(0, elbow.instanceId, 'maneuver'),
+    "People's Elbow maneuver counts Rock Bottom in reversals Ring area"
+  );
+}
+
+async function testPeoplesElbowActionShufflesIntoArsenalAndDrawsTwo() {
+  const RawDeal = loadRawDeal();
+  const elbow = cloneCard(RawDeal, 'peoples-elbow', 'elbow-action');
+  const { engine, player } = await createPeoplesElbowTest(RawDeal);
+
+  player.hand = [elbow];
+  const arsenalBefore = player.arsenal.length;
+
+  await engine.playCard(0, elbow.instanceId, 'action');
+
+  assert(
+    player.arsenal.some((c) => c.instanceId === elbow.instanceId),
+    "People's Elbow action shuffles itself into Arsenal"
+  );
+  assert(
+    player.arsenal.length === arsenalBefore - 1,
+    "People's Elbow action shuffles into Arsenal then draws 2 (net -1 in Arsenal)"
+  );
+  assert(
+    !player.ring.actions.some((c) => c.instanceId === elbow.instanceId),
+    "People's Elbow action does not remain in Ring actions"
+  );
+  assert(player.hand.length === 2, "People's Elbow action draws 2 cards");
+  assert(
+    engine.actionLog.some((entry) => entry.message.includes('shuffled into Arsenal')),
+    "People's Elbow action logs shuffle into Arsenal"
+  );
+}
+
 async function testPeoplesEyebrowEmptyRingsideSkipsBothSteps() {
   const RawDeal = loadRawDeal();
   const { engine, player, eyebrow } = await createPeoplesEyebrowTest(RawDeal, {
@@ -5452,6 +5559,10 @@ async function main() {
   await testPeoplesEyebrowTakeTwoThenShuffleTwo();
   await testPeoplesEyebrowTakeOneWhenOnlyOneInRingside();
   await testPeoplesEyebrowEmptyRingsideSkipsBothSteps();
+  await testPeoplesElbowManeuverRequiresRockBottom();
+  await testPeoplesElbowManeuverWithRockBottomInRing();
+  await testPeoplesElbowManeuverWithRockBottomInReversals();
+  await testPeoplesElbowActionShufflesIntoArsenalAndDrawsTwo();
   await testRecoveryShuffleTwoThenDraw();
   await testRecoveryShuffleOneWhenOnlyOneInRingside();
   await testRecoveryEmptyRingsideSkipsShuffle();

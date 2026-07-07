@@ -1021,6 +1021,17 @@ window.RawDeal.GameEngine = class GameEngine {
       return;
     }
 
+    if (firstOp === 'shuffleSelfToArsenalAndDraw') {
+      const draws = card.actionEffects[0].count || 2;
+      this._shuffleCardIntoArsenal(player, card);
+      this._shuffle(player.arsenal);
+      this.actionLog.push({
+        message: this._gc().log.actionShuffledSelfToArsenal(card.name),
+      });
+      this._drawCardsForEffect(player, card.name, draws);
+      return;
+    }
+
     player.ring.actions.push(card);
     this.actionLog.push({
       message: this._gc().log.actionPlayed(card.name),
