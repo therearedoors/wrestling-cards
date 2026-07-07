@@ -692,7 +692,14 @@ window.RawDeal.Board = class Board {
         !meetsManeuverReq
       ) {
         el.classList.add('rd-card--blocked');
-        el.title = 'Requires Irish Whip this turn';
+        if (card.requiresRingCard) {
+          const reqCard = window.RawDeal.CARDS?.[card.requiresRingCard];
+          el.title = `Requires ${reqCard?.name || card.requiresRingCard} in your Ring area`;
+        } else if (card.requiresPlayed === 'irish-whip') {
+          el.title = 'Requires Irish Whip this turn';
+        } else {
+          el.title = 'Maneuver requirement not met';
+        }
       }
       if (
         canPlay &&
