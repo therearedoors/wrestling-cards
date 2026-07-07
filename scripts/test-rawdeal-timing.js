@@ -4060,6 +4060,133 @@ async function testComebackMultiplayerManualRemoval() {
   assert(!engine.cardEffectFlow, 'Comeback effect completes after balancing');
 }
 
+async function createHellfireTest(RawDeal, { engineMode = 'goldfish' } = {}) {
+  const engine = new RawDeal.GameEngine({ engineMode });
+  await engine.startGame('kane', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const hellfire = cloneCard(RawDeal, 'hellfire-brimstone', 'hellfire-test');
+
+  player.hand = [hellfire, cloneCard(RawDeal, 'chop', 'hf-active-1')];
+  opponent.hand = [
+    cloneCard(RawDeal, 'punch', 'hf-opp-1'),
+    cloneCard(RawDeal, 'kick', 'hf-opp-2'),
+  ];
+  player.fortitude = 6;
+  opponent.arsenal = [];
+  for (let i = 0; i < 7; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'elbow', `hf-opp-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  return { engine, player, opponent, hellfire };
+}
+
+async function testHellfireDiscardsAllHandsAndMovesTopFiveArsenal() {
+  const RawDeal = loadRawDeal();
+  const { engine, player, opponent, hellfire } = await createHellfireTest(RawDeal);
+
+  const opponentArsenalBefore = opponent.arsenal.length;
+  const opponentRingsideBefore = opponent.ringside.length;
+
+  await engine.playCard(0, hellfire.instanceId, 'action');
+
+  assert(player.hand.length === 0, 'Hellfire discards active player hand');
+  assert(opponent.hand.length === 0, 'Hellfire discards opponent hand');
+  assert(
+    player.ring.actions.some((c) => c.instanceId === hellfire.instanceId),
+    'Hellfire remains in Ring actions'
+  );
+  assert(
+    opponent.arsenal.length === opponentArsenalBefore - 5,
+    'Hellfire moves top 5 opponent Arsenal cards to Ringside'
+  );
+  assert(
+    opponent.ringside.length === opponentRingsideBefore + 2 + 5,
+    'Hellfire adds discarded hand cards plus top 5 Arsenal to opponent Ringside'
+  );
+  assert(!engine.cardEffectFlow, 'Hellfire effect completes');
+}
+
+async function testHellfireMovesFewerThanFiveWhenArsenalShort() {
+  const RawDeal = loadRawDeal();
+  const { engine, opponent, hellfire } = await createHellfireTest(RawDeal);
+
+  opponent.arsenal = [
+    cloneCard(RawDeal, 'chop', 'hf-short-1'),
+    cloneCard(RawDeal, 'punch', 'hf-short-2'),
+  ];
+  const ringsideBefore = opponent.ringside.length;
+
+  await engine.playCard(0, hellfire.instanceId, 'action');
+
+  assert(opponent.arsenal.length === 0, 'Hellfire empties short opponent Arsenal');
+  assert(
+    opponent.ringside.length === ringsideBefore + 2 + 2,
+    'Hellfire moves hand discards plus only available Arsenal cards'
+  );
+}
+
+async function testHellfireEgoBoostOnOpponentDiscardAll() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('kane', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const hellfire = cloneCard(RawDeal, 'hellfire-brimstone', 'hf-ego');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'hf-ego-boost');
+
+  attacker.hand = [hellfire];
+  attacker.fortitude = 6;
+  defender.hand = [egoBoost, cloneCard(RawDeal, 'kick', 'hf-opp-kick')];
+  defender.arsenal = [];
+  for (let i = 0; i < 4; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `hf-ego-arsenal-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, hellfire.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Hellfire offers Ego Boost when opponent must discard entire hand'
+  );
+
+  await engine.selectChoice(1, 'egoBoost');
+  assert(
+    defender.ringside.some((c) => c.id === 'ego-boost'),
+    'Hellfire Ego Boost discards Ego Boost to Ringside'
+  );
+
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Hellfire opponent discard prompt remains after Ego Boost'
+  );
+
+  await engine.selectForCardEffect(1, 'hf-opp-kick');
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Hellfire Ego Boost draw opens after opponent finishes discarding'
+  );
+
+  engine.adjustDrawCount(1, 2);
+  await engine.confirmDrawCount(1);
+
+  assert(defender.hand.length === 2, 'Hellfire Ego Boost draws 2 after global discard');
+  assert(defender.arsenal.length === 0, 'Hellfire still moves top 4 Arsenal cards after discard phase');
+  assert(!engine.cardEffectFlow, 'Hellfire completes after Ego Boost draw');
+}
+
 async function testEgoBoostNextCardMinusFiveF() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -5604,6 +5731,9 @@ async function main() {
   await testComebackGoldfishOpponentHigherRemovesHighestDamage();
   await testComebackIgnoresRingActions();
   await testComebackMultiplayerManualRemoval();
+  await testHellfireDiscardsAllHandsAndMovesTopFiveArsenal();
+  await testHellfireMovesFewerThanFiveWhenArsenalShort();
+  await testHellfireEgoBoostOnOpponentDiscardAll();
   await testEgoBoostNextCardMinusFiveF();
   await testEgoBoostNextCardAppliesToAction();
   await testEgoBoostReactionReplacesOneOfFour();

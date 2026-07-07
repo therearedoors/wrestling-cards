@@ -382,6 +382,23 @@ window.RawDeal.EffectPipeline = {
         return false;
       }
 
+      case 'discardAllHands':
+        return await engine._beginDiscardAllHands(
+          player,
+          pipeline.playerIndex,
+          opponent,
+          pipeline.opponentIndex,
+          sourceName
+        );
+
+      case 'opponentTopArsenalToRingside':
+        await engine._opponentTopArsenalToRingside(
+          opponent,
+          sourceName,
+          step.count || 5
+        );
+        return false;
+
       case 'opponentDiscardFromHand':
         return await engine._beginOpponentDiscardFromHandEffect(
           player,
