@@ -421,6 +421,15 @@ window.RawDeal.EffectPipeline = {
           { resumePipeline: true }
         );
 
+      case 'opponentDiscardEntireHand':
+        return await engine._beginOpponentDiscardFromHandEffect(
+          player,
+          opponent,
+          sourceName,
+          opponent.hand.length,
+          { resumePipeline: true }
+        );
+
       case 'shuffleHandIntoArsenal':
         return engine._beginShuffleHandIntoArsenalPrompt(
           player,

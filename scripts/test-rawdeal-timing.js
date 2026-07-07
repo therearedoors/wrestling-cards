@@ -5900,6 +5900,179 @@ async function testUndertakerSitsUpFromArsenalNoHandEffects() {
   );
 }
 
+async function testHaveANiceDayReversesStrikeGrappleSubmission() {
+  const RawDeal = loadRawDeal();
+
+  for (const maneuverId of ['punch', 'double-leg-takedown', 'sleeper']) {
+    const { engine, reversal } = await createHandReversalTest(RawDeal, {
+      maneuverId,
+      reversalId: 'have-a-nice-day',
+      defenderFortitude: 5,
+    });
+    assert(
+      engine.canPlayReversalFromHand(1, reversal.instanceId),
+      `Have a Nice Day can reverse ${maneuverId} from hand`
+    );
+  }
+}
+
+async function testHaveANiceDayCannotReverseHighRisk() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'austin-elbow-smash',
+    reversalId: 'have-a-nice-day',
+    defenderFortitude: 5,
+    effectiveDamage: 10,
+  });
+
+  assert(
+    !engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Have a Nice Day cannot reverse High Risk maneuvers'
+  );
+}
+
+async function testHaveANiceDayFromHandForcesOpponentDiscardEntireHand() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('mankind', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'hand-punch');
+  const niceDay = cloneCard(RawDeal, 'have-a-nice-day', 'hand-rev');
+
+  attacker.hand = [punch];
+  for (let i = 0; i < 4; i++) {
+    attacker.hand.push(cloneCard(RawDeal, 'chop', `hand-atk-${i}`));
+  }
+  attacker.fortitude = 10;
+  defender.hand = [niceDay];
+  defender.fortitude = 5;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  const discardCount = attacker.hand.length;
+  const ringsideBefore = attacker.ringside.length;
+  const played = await engine.playReversalFromHand(1, niceDay.instanceId);
+
+  assert(played, 'Have a Nice Day plays from hand');
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Have a Nice Day opens opponent discard prompt'
+  );
+
+  for (const card of [...attacker.hand]) {
+    await engine.selectForCardEffect(0, card.instanceId);
+  }
+
+  assert(
+    attacker.hand.length === 0,
+    'Have a Nice Day forces opponent to discard entire hand'
+  );
+  assert(
+    attacker.ringside.length === ringsideBefore + discardCount + 1,
+    'Have a Nice Day sends reversed maneuver and all discarded hand cards to Ringside'
+  );
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === niceDay.instanceId),
+    'Have a Nice Day lands in Ring reversals'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Have a Nice Day ends attacker turn'
+  );
+}
+
+async function testHaveANiceDayEgoBoostOnForcedDiscardAll() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('mankind', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'hand-ego-punch');
+  const niceDay = cloneCard(RawDeal, 'have-a-nice-day', 'hand-ego-rev');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'hand-ego');
+
+  attacker.hand = [punch, egoBoost, cloneCard(RawDeal, 'kick', 'hand-ego-kick')];
+  attacker.fortitude = 10;
+  defender.hand = [niceDay];
+  defender.fortitude = 5;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, niceDay.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Have a Nice Day offers Ego Boost before opponent discards entire hand'
+  );
+
+  await engine.selectChoice(0, 'egoBoost');
+  assert(
+    attacker.ringside.some((c) => c.id === 'ego-boost'),
+    'Have a Nice Day Ego Boost discards Ego Boost to Ringside'
+  );
+
+  await engine.selectForCardEffect(0, 'hand-ego-kick');
+
+  assert(
+    attacker.hand.length === 0,
+    'Have a Nice Day empties opponent hand after Ego Boost and remaining discard'
+  );
+}
+
+async function testHaveANiceDayFromArsenalNoHandEffects() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'ars-punch');
+  const niceDay = cloneCard(RawDeal, 'have-a-nice-day', 'ars-rev');
+
+  attacker.hand = [punch];
+  for (let i = 0; i < 4; i++) {
+    attacker.hand.push(cloneCard(RawDeal, 'chop', `ars-atk-${i}`));
+  }
+  attacker.fortitude = 10;
+  defender.fortitude = 5;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'kick', `ars-fill-${i}`));
+  }
+  defender.arsenal.push(niceDay);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  const handBefore = attacker.hand.length;
+
+  assert(
+    attacker.hand.length === handBefore,
+    'Arsenal Have a Nice Day does not force opponent hand discard'
+  );
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(
+    lastDamage?.result === 'reversed',
+    'Arsenal Have a Nice Day reverses the maneuver'
+  );
+  assert(
+    lastDamage?.reversedBy === 'Have a Nice Day!',
+    'Arsenal Have a Nice Day reverses from defender Arsenal'
+  );
+  assert(
+    !engine.effectPipelineFlow,
+    'Arsenal Have a Nice Day does not run hand-only reversal effects'
+  );
+}
+
 async function testUndertakersFlyingClotheslineArsenalReversalNoDamageBonus() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -6489,6 +6662,11 @@ async function main() {
   await testUndertakerSitsUpFromHandMovesFourArsenalAndForcesDiscard();
   await testUndertakerSitsUpNextTurnBonusesApplyAfterRefresh();
   await testUndertakerSitsUpFromArsenalNoHandEffects();
+  await testHaveANiceDayReversesStrikeGrappleSubmission();
+  await testHaveANiceDayCannotReverseHighRisk();
+  await testHaveANiceDayFromHandForcesOpponentDiscardEntireHand();
+  await testHaveANiceDayEgoBoostOnForcedDiscardAll();
+  await testHaveANiceDayFromArsenalNoHandEffects();
   await testDiversionSetsUnreversibleOnNextManeuver();
   await testDiversionProtectsManeuverFromHand();
   await testDiversionProtectsManeuverFromArsenal();
