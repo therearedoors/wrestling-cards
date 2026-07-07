@@ -30,6 +30,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.opponentDiscardResumeMeta = null;
     this.discardAllHandsFlow = null;
     this.reversedManeuverDamage = null;
+    this.reversedManeuverHandReversalDamageBonus = 0;
     this.maintainedSubmissionFlow = null;
     this._pendingMaintainedSubmissionWindow = false;
     this.animationEvents = [];
@@ -2824,6 +2825,7 @@ window.RawDeal.GameEngine = class GameEngine {
 
     this._applyStunValueDraw(attacker, played);
     this.reversedManeuverDamage = this.reversalWindow.damage;
+    this.reversedManeuverHandReversalDamageBonus = played.handReversalDamageBonus || 0;
     this.reversalWindow = null;
 
     if (reversal.reversalEffects?.length) {
@@ -2843,20 +2845,23 @@ window.RawDeal.GameEngine = class GameEngine {
 
   async _finishHandReversalTurn() {
     this.reversedManeuverDamage = null;
+    this.reversedManeuverHandReversalDamageBonus = 0;
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
     this._notify();
     await this._runAutoPhases();
   }
 
   async _applyReversalFromHandDamage(reversalPlayer, attacker, reversal, damage) {
-    if (damage <= 0) return { gameOver: false };
+    const bonus = this.reversedManeuverHandReversalDamageBonus || 0;
+    const totalDamage = damage + bonus;
+    if (totalDamage <= 0) return { gameOver: false };
 
-    const damageResult = await this._resolveDamage(reversalPlayer, attacker, reversal, damage, {
+    const damageResult = await this._resolveDamage(reversalPlayer, attacker, reversal, totalDamage, {
       allowArsenalReversals: false,
     });
     this.damageLog.push({
       card: reversal.name,
-      damage,
+      damage: totalDamage,
       result: damageResult.result,
       reversedBy: null,
       cardsOverturned: damageResult.cardsOverturned,

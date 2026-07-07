@@ -1623,6 +1623,8 @@ window.RawDeal.CARDS = {
     text: "High Risk (Maneuver) Can only be played after a 5D or greater maneuver. Reversals to this maneuver are +6D. Unique SV: 2",
     flavor: "",
     unique: true,
+    requiresAfterManeuverMinDamage: 5,
+    handReversalDamageBonus: 6,
     set: "premiere",
   },
   'undertaker-sits-up': {
