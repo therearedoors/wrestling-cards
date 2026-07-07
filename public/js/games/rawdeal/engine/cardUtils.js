@@ -237,16 +237,6 @@ window.RawDeal.CardUtils = {
     if (withinCap(reverses.includes('strike') && subtype === 'strike')) return true;
     if (withinCap(reverses.includes('grapple') && subtype === 'grapple')) return true;
     if (withinCap(reverses.includes('submission') && subtype === 'submission')) return true;
-    if (
-      withinCap(
-        reverses.includes('strike') &&
-          reverses.includes('grapple') &&
-          reverses.includes('submission') &&
-          ['strike', 'grapple', 'submission', 'high-risk'].includes(subtype)
-      )
-    ) {
-      return true;
-    }
     return false;
   },
 
