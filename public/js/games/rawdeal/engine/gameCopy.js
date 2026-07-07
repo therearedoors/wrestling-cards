@@ -284,6 +284,18 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceName}: opponent discarded ${names} to Ringside.`;
     },
 
+    discardedEntireHand(sourceName, who, names) {
+      return `${sourceName}: ${who} discarded entire hand (${names}) to Ringside.`;
+    },
+
+    opponentTopArsenalToRingside(sourceName, count, names) {
+      return `${sourceName}: opponent placed top ${count} Arsenal card${cardSuffix(count)} in Ringside (${names}).`;
+    },
+
+    opponentTopArsenalPartial(sourceName, moved, requested) {
+      return `${sourceName}: opponent placed ${moved} of top ${requested} Arsenal cards in Ringside.`;
+    },
+
     drewOneCard(sourceName) {
       return `${sourceName}: drew 1 card.`;
     },
