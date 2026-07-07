@@ -1670,6 +1670,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     reverses: ["strike", "grapple", "submission"],
+    reversalEffects: [{"op": "opponentDiscardEntireHand"}],
     set: "premiere",
   },
   'double-arm-ddt': {
