@@ -1468,7 +1468,8 @@ window.RawDeal.CARDS = {
     text: "Trademark Finisher / Action (Maneuver) As a maneuver, this card can only be played if the card titled Rock Bottom is in your Ring area. As an action, place this card back in your Arsenal, shuffle, then draw 2 cards. Doing this will not cause any damage to opponent. Unique SV: 3",
     flavor: "",
     hybrid: true,
-    actionEffects: [{"op": "draw", "count": 2}],
+    requiresRingCard: "rock-bottom",
+    actionEffects: [{"op": "shuffleSelfToArsenalAndDraw", "count": 2}],
     set: "premiere",
   },
   'kanes-tombstone-piledriver': {
