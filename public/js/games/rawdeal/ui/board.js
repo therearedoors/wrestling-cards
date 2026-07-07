@@ -741,6 +741,9 @@ window.RawDeal.Board = class Board {
       const reqCard = window.RawDeal.CARDS?.[card.requiresRingCard];
       return `Requires ${reqCard?.name || card.requiresRingCard} in your Ring area`;
     }
+    if (card.requiresAfterManeuverMinDamage != null) {
+      return `Requires a maneuver that does ${card.requiresAfterManeuverMinDamage}D or greater this turn`;
+    }
     if (card.requiresPlayed === 'irish-whip') {
       return 'Requires Irish Whip this turn';
     }
