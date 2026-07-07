@@ -244,6 +244,10 @@ window.RawDeal = window.RawDeal || {};
       return `${cardName} (action): discarded to draw ${draws} card${cardSuffix(draws)}.`;
     },
 
+    actionShuffledSelfToArsenal(cardName) {
+      return `${cardName} (action): shuffled into Arsenal.`;
+    },
+
     actionPlayed(cardName) {
       return `${cardName} played as an action.`;
     },

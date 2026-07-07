@@ -41,7 +41,13 @@ window.RawDeal.CardUtils = {
   },
 
   meetsPlayRequirement(player, card, playAs = 'maneuver') {
-    if (playAs !== 'maneuver' || !card.requiresPlayed) return true;
+    if (playAs !== 'maneuver') return true;
+
+    if (card.requiresRingCard && !this.hasRingCard(player, card.requiresRingCard)) {
+      return false;
+    }
+
+    if (!card.requiresPlayed) return true;
     const state = player.turnState || {};
     if (card.requiresPlayed === 'irish-whip') return !!state.irishWhipPlayed;
     return true;
@@ -62,6 +68,13 @@ window.RawDeal.CardUtils = {
       }
     }
     return entries;
+  },
+
+  hasRingCard(player, cardId) {
+    if (!player?.ring || !cardId) return false;
+    return ['maneuvers', 'reversals', 'actions'].some((area) =>
+      player.ring[area]?.some((c) => c.id === cardId)
+    );
   },
 
   meetsActionPlayRequirement(player, opponent, card) {
@@ -103,9 +116,17 @@ window.RawDeal.CardUtils = {
     return card.actionEffects?.some((step) => step.op === 'discardSelfToDraw');
   },
 
+  _hasShuffleSelfToArsenalAndDraw(card) {
+    return card.actionEffects?.some((step) => step.op === 'shuffleSelfToArsenalAndDraw');
+  },
+
   /** Fortitude required to play from hand. Hybrid discard-to-draw actions cost 0. */
   playFortitudeCost(card, playAs = 'maneuver', player = null) {
-    if (playAs === 'action' && this.isHybrid(card) && this._hasDiscardSelfToDraw(card)) {
+    if (
+      playAs === 'action' &&
+      this.isHybrid(card) &&
+      (this._hasDiscardSelfToDraw(card) || this._hasShuffleSelfToArsenalAndDraw(card))
+    ) {
       return 0;
     }
 
@@ -145,10 +166,15 @@ window.RawDeal.CardUtils = {
   },
 
   actionHint(card) {
-    const step = card.actionEffects?.find((s) => s.op === 'discardSelfToDraw');
-    if (step) {
-      const n = step.count || 1;
+    const discardStep = card.actionEffects?.find((s) => s.op === 'discardSelfToDraw');
+    if (discardStep) {
+      const n = discardStep.count || 1;
       return `Discard · Draw ${n}`;
+    }
+    const shuffleStep = card.actionEffects?.find((s) => s.op === 'shuffleSelfToArsenalAndDraw');
+    if (shuffleStep) {
+      const n = shuffleStep.count || 2;
+      return `Shuffle · Draw ${n}`;
     }
     return 'Action';
   },
