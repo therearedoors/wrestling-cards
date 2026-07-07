@@ -5595,6 +5595,145 @@ async function testAustinElbowSmashCannotBeReversedFromArsenal() {
   assert(lastDamage?.cardsOverturned === 10, 'Austin Elbow Smash overturns 10 Arsenal cards');
 }
 
+async function testUndertakersFlyingClotheslineNotPlayableAfterLowDamage() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('undertaker', 'austin');
+
+  const player = engine.players[0];
+  const clothesline = cloneCard(RawDeal, 'undertakers-flying-clothesline', 'utfc-low-d');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'punch', 'utfc-punch-3d');
+  player.hand.push(clothesline);
+  player.fortitude = 15;
+
+  assert(
+    !engine.canPlayCard(0, clothesline.instanceId, 'maneuver'),
+    'Undertaker’s Flying Clothesline not playable after a maneuver below 5D'
+  );
+}
+
+async function testUndertakersFlyingClotheslinePlayableAfter5DManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('undertaker', 'austin');
+
+  const player = engine.players[0];
+  const clothesline = cloneCard(RawDeal, 'undertakers-flying-clothesline', 'utfc-playable');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'kick', 'utfc-kick-5d');
+  player.hand.push(clothesline);
+  player.fortitude = 15;
+
+  assert(
+    player.turnState?.lastSuccessfulManeuverDamage === 5,
+    'Kick records 5D before Undertaker’s Flying Clothesline'
+  );
+  assert(
+    engine.canPlayCard(0, clothesline.instanceId, 'maneuver'),
+    'Undertaker’s Flying Clothesline playable after a 5D maneuver'
+  );
+}
+
+async function testUndertakersFlyingClotheslineHandReversalDamageBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const setup = cloneCard(RawDeal, 'clothesline', 'utfc-setup');
+  const clothesline = cloneCard(RawDeal, 'undertakers-flying-clothesline', 'utfc-cl');
+  const chyna = cloneCard(RawDeal, 'chyna-interferes', 'utfc-chyna');
+
+  attacker.hand = [setup, clothesline];
+  attacker.fortitude = 15;
+  attacker.arsenal = [];
+  for (let i = 0; i < 12; i++) {
+    attacker.arsenal.push(cloneCard(RawDeal, 'chop', `utfc-atk-ars-${i}`));
+  }
+  defender.hand = [chyna];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 12; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `utfc-def-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, setup.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  attacker.fortitude = 15;
+
+  const arsenalBefore = attacker.arsenal.length;
+  await engine.playCard(0, clothesline.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, chyna.instanceId);
+
+  const reversalDamage = engine.damageLog.find((entry) => entry.card === 'Chyna Interferes');
+  assert(
+    reversalDamage?.damage === 9,
+    'Hand reversal vs Undertaker’s Flying Clothesline deals +6D (Chyna 3D + 6)'
+  );
+  assert(
+    attacker.arsenal.length === arsenalBefore - 11,
+    'Hand reversal overturns 9D with +6D bonus plus 2 SV draws from Arsenal'
+  );
+}
+
+async function testUndertakersFlyingClotheslineArsenalReversalNoDamageBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const setup = cloneCard(RawDeal, 'clothesline', 'utfc-ars-setup');
+  const clothesline = cloneCard(RawDeal, 'undertakers-flying-clothesline', 'utfc-ars-cl');
+  const chyna = cloneCard(RawDeal, 'chyna-interferes', 'utfc-ars-chyna');
+
+  attacker.hand = [setup, clothesline];
+  attacker.fortitude = 15;
+  attacker.arsenal = [];
+  defender.arsenal = [];
+  for (let i = 0; i < 2; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `utfc-def-bottom-${i}`));
+  }
+  defender.arsenal.push(chyna);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, setup.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  attacker.fortitude = 15;
+  await engine.playCard(0, clothesline.instanceId, 'maneuver');
+
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(
+    lastDamage?.card === 'Undertaker’s Flying Clothesline',
+    'Arsenal reversal targets Undertaker’s Flying Clothesline'
+  );
+  assert(
+    lastDamage?.result === 'reversed',
+    'Arsenal Chyna Interferes reverses Undertaker’s Flying Clothesline'
+  );
+  assert(
+    !engine.damageLog.some((entry) => entry.card === 'Chyna Interferes'),
+    'Arsenal reversal does not deal hand reversal damage with +6D bonus'
+  );
+}
+
 async function testDiversionSetsUnreversibleOnNextManeuver() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -6131,6 +6270,10 @@ async function main() {
   await testAustinElbowSmashPlayableAfter5DManeuver();
   await testAustinElbowSmashCannotBeReversedFromHand();
   await testAustinElbowSmashCannotBeReversedFromArsenal();
+  await testUndertakersFlyingClotheslineNotPlayableAfterLowDamage();
+  await testUndertakersFlyingClotheslinePlayableAfter5DManeuver();
+  await testUndertakersFlyingClotheslineHandReversalDamageBonus();
+  await testUndertakersFlyingClotheslineArsenalReversalNoDamageBonus();
   await testDiversionSetsUnreversibleOnNextManeuver();
   await testDiversionProtectsManeuverFromHand();
   await testDiversionProtectsManeuverFromArsenal();
