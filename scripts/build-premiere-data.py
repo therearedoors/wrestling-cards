@@ -742,6 +742,12 @@ def infer_reversal_effects(types_list, rules, damage):
     elif m := re.search(r'if played from your hand.*?draw (\d+)', blob):
         effects.append({'op': 'draw', 'count': int(m.group(1))})
 
+    if 'if played from your hand' in blob:
+        if m := re.search(r'opponent must discard (\d+)', blob):
+            effects.append({'op': 'opponentDiscardFromHand', 'count': int(m.group(1))})
+        if m := re.search(r'top (\d+) cards? from (?:his |their )?arsenal', blob):
+            effects.append({'op': 'opponentTopArsenalToRingside', 'count': int(m.group(1))})
+
     return effects or None
 
 

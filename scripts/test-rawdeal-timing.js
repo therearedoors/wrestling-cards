@@ -177,9 +177,10 @@ async function createHandReversalTest(RawDeal, options = {}) {
     effectiveDamage = null,
     defenderFortitude = 0,
     defenderArsenalCount = 5,
+    engineMode = 'multiplayer',
   } = options;
 
-  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  const engine = new RawDeal.GameEngine({ engineMode });
   await engine.startGame('austin', 'rock');
 
   const attacker = engine.players[0];
@@ -1532,6 +1533,210 @@ async function testChynaInterferesDeals3DAndDraws2() {
   assert(
     engine.actionLog.some((entry) => entry.message.includes('drew 2')),
     'Chyna Interferes logs draw 2'
+  );
+}
+
+async function testDoubleDigitsReversesStrikeGrappleSubmission() {
+  const RawDeal = loadRawDeal();
+
+  for (const maneuverId of ['punch', 'double-leg-takedown', 'sleeper']) {
+    const { engine, reversal } = await createHandReversalTest(RawDeal, {
+      maneuverId,
+      reversalId: 'double-digits',
+    });
+    assert(
+      engine.canPlayReversalFromHand(1, reversal.instanceId),
+      `Double Digits can reverse ${maneuverId} from hand`
+    );
+  }
+}
+
+async function testDoubleDigitsCannotReverseHighRisk() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'austin-elbow-smash',
+    reversalId: 'double-digits',
+    effectiveDamage: 10,
+  });
+
+  assert(
+    !engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Double Digits cannot reverse High Risk maneuvers'
+  );
+}
+
+async function testDoubleDigitsFromHandForcesDiscardAndArsenalToRingside() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'dd-punch');
+  const doubleDigits = cloneCard(RawDeal, 'double-digits', 'dd-rev');
+
+  attacker.hand = [punch];
+  for (let i = 0; i < 5; i++) {
+    attacker.hand.push(cloneCard(RawDeal, 'chop', `dd-atk-hand-${i}`));
+  }
+  attacker.fortitude = 10;
+  attacker.arsenal = [];
+  for (let i = 0; i < 10; i++) {
+    attacker.arsenal.push(cloneCard(RawDeal, 'kick', `dd-atk-ars-${i}`));
+  }
+  defender.hand = [doubleDigits];
+  defender.arsenal = defender.arsenal.filter((c) => !c.reverses?.length);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = attacker.arsenal.length;
+  const ringsideBefore = attacker.ringside.length;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  const handBefore = attacker.hand.length;
+  const discardTargets = attacker.hand.slice(0, 2);
+  const played = await engine.playReversalFromHand(1, doubleDigits.instanceId);
+
+  assert(played, 'Double Digits plays from hand');
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Double Digits opens opponent discard prompt'
+  );
+
+  for (const card of discardTargets) {
+    await engine.selectForCardEffect(0, card.instanceId);
+  }
+
+  assert(
+    attacker.hand.length === handBefore - 2,
+    'Double Digits forces opponent to discard 2 from hand'
+  );
+  assert(
+    attacker.arsenal.length === arsenalBefore - 2,
+    'Double Digits moves top 2 opponent Arsenal cards to Ringside'
+  );
+  assert(
+    attacker.ringside.length === ringsideBefore + 5,
+    'Double Digits sends maneuver, 2 discards, and 2 Arsenal cards to Ringside'
+  );
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === doubleDigits.instanceId),
+    'Double Digits lands in Ring reversals'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Double Digits ends attacker turn'
+  );
+}
+
+async function testDoubleDigitsEgoBoostOnForcedDiscard() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'dd-punch');
+  const doubleDigits = cloneCard(RawDeal, 'double-digits', 'dd-rev');
+  const egoBoost = cloneCard(RawDeal, 'ego-boost', 'dd-ego');
+
+  attacker.hand = [punch];
+  for (let i = 0; i < 4; i++) {
+    attacker.hand.push(cloneCard(RawDeal, 'chop', `dd-atk-${i}`));
+  }
+  attacker.fortitude = 10;
+  attacker.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    attacker.arsenal.push(cloneCard(RawDeal, 'kick', `dd-ars-${i}`));
+  }
+  defender.hand = [doubleDigits];
+  defender.arsenal = defender.arsenal.filter((c) => !c.reverses?.length);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  attacker.hand.push(egoBoost);
+  const arsenalBefore = attacker.arsenal.length;
+  await engine.playReversalFromHand(1, doubleDigits.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'egoBoostOrDiscard',
+    'Double Digits offers Ego Boost before opponent discard'
+  );
+
+  await engine.selectChoice(0, 'egoBoost');
+  assert(
+    attacker.ringside.some((c) => c.id === 'ego-boost'),
+    'Ego Boost discarded via reaction to Double Digits'
+  );
+
+  const toDiscard = attacker.hand.filter((c) => c.id !== 'ego-boost').slice(0, 1);
+  await engine.selectForCardEffect(0, toDiscard[0].instanceId);
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Ego Boost draw opens after Double Digits forced discard'
+  );
+
+  engine.adjustDrawCount(0, 1);
+  await engine.confirmDrawCount(0);
+
+  assert(
+    attacker.arsenal.length === arsenalBefore - 3,
+    'Double Digits moves top 2 Arsenal to Ringside after Ego Boost draw 1'
+  );
+}
+
+async function testDoubleDigitsFromArsenalNoHandEffects() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'dd-ars-punch');
+  const doubleDigits = cloneCard(RawDeal, 'double-digits', 'dd-ars-rev');
+
+  attacker.hand = [punch];
+  for (let i = 0; i < 5; i++) {
+    attacker.hand.push(cloneCard(RawDeal, 'chop', `dd-ars-hand-${i}`));
+  }
+  attacker.fortitude = 10;
+  attacker.arsenal = [];
+  defender.arsenal = [];
+  for (let i = 0; i < 2; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `dd-ars-bottom-${i}`));
+  }
+  defender.arsenal.push(doubleDigits);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  const handBefore = attacker.hand.length;
+
+  assert(
+    attacker.hand.length === handBefore,
+    'Arsenal Double Digits does not force hand discards'
+  );
+  assert(
+    attacker.arsenal.length === 0,
+    'Arsenal Double Digits does not move attacker Arsenal cards'
+  );
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(
+    lastDamage?.result === 'reversed',
+    'Arsenal Double Digits reverses the maneuver'
+  );
+  assert(
+    lastDamage?.reversedBy === 'Double Digits',
+    'Arsenal Double Digits reverses from defender Arsenal'
+  );
+  assert(
+    !engine.effectPipelineFlow,
+    'Arsenal Double Digits does not run hand-only reversal effects'
   );
 }
 
@@ -5843,6 +6048,11 @@ async function main() {
   await testPedigreeCannotReverseOtherManeuver();
   await testChynaInterferesReversesAnyManeuver();
   await testChynaInterferesDeals3DAndDraws2();
+  await testDoubleDigitsReversesStrikeGrappleSubmission();
+  await testDoubleDigitsCannotReverseHighRisk();
+  await testDoubleDigitsFromHandForcesDiscardAndArsenalToRingside();
+  await testDoubleDigitsEgoBoostOnForcedDiscard();
+  await testDoubleDigitsFromArsenalNoHandEffects();
   await testManagerInterferesDeals1DAndDraws1();
   await testMrSockoPickFromArsenal();
   await testMrSockoPickFromRingside();
