@@ -1573,13 +1573,16 @@ window.RawDeal.CARDS = {
     num: 126,
     name: "Double Digits",
     types: ["reversal"],
-    subtype: "submission",
     fortitude: 0,
     damage: 0,
     text: "Reversal: Special Reverse any Strike, Grapple or Submission maneuver. End your opponent’s turn. If played from your hand, opponent must discard 2 cards, then take the top 2 cards from his Arsenal and put them into his Ringside pile. Unique",
     flavor: "",
     unique: true,
     reverses: ["strike", "grapple", "submission"],
+    reversalEffects: [
+      {"op": "opponentDiscardFromHand", "count": 2},
+      {"op": "opponentTopArsenalToRingside", "count": 2},
+    ],
     set: "premiere",
   },
   'undertaker': {
