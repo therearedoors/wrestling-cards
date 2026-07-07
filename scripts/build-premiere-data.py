@@ -356,6 +356,9 @@ def parse_cards(text: str):
         unreversible = infer_unreversible(rules)
         if unreversible:
             entry.update(unreversible)
+        hand_reversal_bonus = infer_hand_reversal_damage_bonus(rules)
+        if hand_reversal_bonus:
+            entry.update(hand_reversal_bonus)
         maintain_hold_setup = infer_grants_maintain_hold_after_play(rules)
         if maintain_hold_setup:
             entry.update(maintain_hold_setup)
@@ -507,6 +510,14 @@ def infer_unreversible(rules):
     blob = rules.lower()
     if 'may not be reversed' in blob:
         return {'unreversible': True}
+    return None
+
+
+def infer_hand_reversal_damage_bonus(rules):
+    blob = rules.lower()
+    m = re.search(r'reversals? to this maneuver are \+(\d+)d', blob)
+    if m:
+        return {'handReversalDamageBonus': int(m.group(1))}
     return None
 
 
@@ -975,6 +986,7 @@ def emit_cards(cards):
                     'requiresAfterManeuverMinDamage',
                     'requiresAfterSuccessfulSubmission',
                     'unreversible',
+                    'handReversalDamageBonus',
                     'grantsMaintainHoldAfterPlay',
                     'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
                     'discountWhenRingCard',
