@@ -5689,6 +5689,217 @@ async function testUndertakersFlyingClotheslineHandReversalDamageBonus() {
   );
 }
 
+async function testUndertakerSitsUpReversesAnyManeuver() {
+  const RawDeal = loadRawDeal();
+
+  for (const maneuverId of ['punch', 'clothesline', 'sleeper', 'undertakers-flying-clothesline']) {
+    const { engine, reversal } = await createHandReversalTest(RawDeal, {
+      maneuverId,
+      reversalId: 'undertaker-sits-up',
+      defenderFortitude: 15,
+      effectiveDamage: maneuverId === 'undertakers-flying-clothesline' ? 10 : undefined,
+    });
+    assert(
+      engine.canPlayReversalFromHand(1, reversal.instanceId),
+      `Undertaker Sits Up can reverse ${maneuverId} from hand`
+    );
+  }
+}
+
+async function testUndertakerSitsUpFromHandMovesFourArsenalAndForcesDiscard() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'utsu-punch');
+  const sitsUp = cloneCard(RawDeal, 'undertaker-sits-up', 'utsu-rev');
+
+  attacker.hand = [punch];
+  for (let i = 0; i < 4; i++) {
+    attacker.hand.push(cloneCard(RawDeal, 'chop', `utsu-atk-hand-${i}`));
+  }
+  attacker.fortitude = 10;
+  attacker.arsenal = [];
+  defender.hand = [sitsUp];
+  defender.fortitude = 15;
+  defender.arsenal = [];
+  for (let i = 0; i < 10; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'kick', `utsu-def-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const defenderArsenalBefore = defender.arsenal.length;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  const handBefore = attacker.hand.length;
+  const discardTarget = attacker.hand[0];
+  const played = await engine.playReversalFromHand(1, sitsUp.instanceId);
+
+  assert(played, 'Undertaker Sits Up plays from hand');
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Undertaker Sits Up opens opponent discard prompt'
+  );
+  assert(
+    defender.arsenal.length === defenderArsenalBefore - 4,
+    'Undertaker Sits Up moves top 4 Arsenal cards to Ringside'
+  );
+  assert(
+    defender.ringside.length === 4,
+    'Undertaker Sits Up places 4 Arsenal cards in Ringside'
+  );
+
+  await engine.selectForCardEffect(0, discardTarget.instanceId);
+
+  assert(
+    attacker.hand.length === handBefore - 1,
+    'Undertaker Sits Up forces opponent to discard 1 from hand'
+  );
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === sitsUp.instanceId),
+    'Undertaker Sits Up lands in Ring reversals'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Undertaker Sits Up ends attacker turn'
+  );
+}
+
+async function testUndertakerSitsUpNextTurnBonusesApplyAfterRefresh() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'utsu-bonus-punch');
+  const sitsUp = cloneCard(RawDeal, 'undertaker-sits-up', 'utsu-bonus-rev');
+  const kick = cloneCard(RawDeal, 'kick', 'utsu-bonus-kick');
+  const stepAside = cloneCard(RawDeal, 'step-aside', 'utsu-bonus-step');
+
+  attacker.hand = [punch];
+  for (let i = 0; i < 3; i++) {
+    attacker.hand.push(cloneCard(RawDeal, 'chop', `utsu-bonus-atk-${i}`));
+  }
+  attacker.fortitude = 10;
+  attacker.arsenal = [];
+  defender.hand = [sitsUp];
+  defender.fortitude = 15;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'kick', `utsu-bonus-def-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, sitsUp.instanceId);
+
+  assert(
+    engine.pendingTurnDamageBonus[1].all === 0,
+    'Undertaker Sits Up has not queued next-turn bonuses before discard resolves'
+  );
+
+  await engine.selectForCardEffect(0, attacker.hand[0].instanceId);
+
+  assert(
+    engine.turnDamageBonus[1].all === 2,
+    'Undertaker Sits Up applies +2D to all maneuvers on next turn'
+  );
+  assert(
+    defender.turnState?.turnOpponentReversalTax === 25,
+    'Undertaker Sits Up applies +25F to opponent reversals on next turn'
+  );
+  assert(
+    engine.pendingTurnDamageBonus[1].all === 0,
+    'Undertaker Sits Up clears pending damage bonus after refresh'
+  );
+  assert(
+    engine.pendingTurnOpponentReversalTax[1] === 0,
+    'Undertaker Sits Up clears pending reversal tax after refresh'
+  );
+
+  defender.hand.push(kick);
+  defender.fortitude = 20;
+  attacker.hand = [stepAside];
+  attacker.fortitude = 0;
+
+  await engine.playCard(1, kick.instanceId, 'maneuver');
+  assert(
+    engine._peekManeuverDamage(defender, attacker, kick) === 7,
+    'Undertaker Sits Up +2D boosts Kick from 5D to 7D'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(0, stepAside.instanceId),
+    'Undertaker Sits Up blocks Step Aside below +25F tax (0F + 25F)'
+  );
+}
+
+async function testUndertakerSitsUpFromArsenalNoHandEffects() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('undertaker', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'utsu-ars-punch');
+  const sitsUp = cloneCard(RawDeal, 'undertaker-sits-up', 'utsu-ars-rev');
+
+  attacker.hand = [punch];
+  for (let i = 0; i < 4; i++) {
+    attacker.hand.push(cloneCard(RawDeal, 'chop', `utsu-ars-atk-${i}`));
+  }
+  attacker.fortitude = 10;
+  attacker.arsenal = [];
+  defender.fortitude = 15;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'kick', `utsu-ars-fill-${i}`));
+  }
+  defender.arsenal.push(sitsUp);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  const handBefore = attacker.hand.length;
+
+  assert(
+    attacker.hand.length === handBefore,
+    'Arsenal Undertaker Sits Up does not force opponent discard'
+  );
+  assert(
+    defender.ringside.length === 0,
+    'Arsenal Undertaker Sits Up does not move own Arsenal to Ringside'
+  );
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(
+    lastDamage?.result === 'reversed',
+    'Arsenal Undertaker Sits Up reverses the maneuver'
+  );
+  assert(
+    lastDamage?.reversedBy === 'Undertaker Sits Up!',
+    'Arsenal Undertaker Sits Up reverses from defender Arsenal'
+  );
+  assert(
+    !engine.effectPipelineFlow,
+    'Arsenal Undertaker Sits Up does not run hand-only reversal effects'
+  );
+  assert(
+    engine.pendingTurnDamageBonus[1].all === 0,
+    'Arsenal Undertaker Sits Up does not queue next-turn damage bonus'
+  );
+  assert(
+    engine.pendingTurnOpponentReversalTax[1] === 0,
+    'Arsenal Undertaker Sits Up does not queue next-turn reversal tax'
+  );
+}
+
 async function testUndertakersFlyingClotheslineArsenalReversalNoDamageBonus() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -6274,6 +6485,10 @@ async function main() {
   await testUndertakersFlyingClotheslinePlayableAfter5DManeuver();
   await testUndertakersFlyingClotheslineHandReversalDamageBonus();
   await testUndertakersFlyingClotheslineArsenalReversalNoDamageBonus();
+  await testUndertakerSitsUpReversesAnyManeuver();
+  await testUndertakerSitsUpFromHandMovesFourArsenalAndForcesDiscard();
+  await testUndertakerSitsUpNextTurnBonusesApplyAfterRefresh();
+  await testUndertakerSitsUpFromArsenalNoHandEffects();
   await testDiversionSetsUnreversibleOnNextManeuver();
   await testDiversionProtectsManeuverFromHand();
   await testDiversionProtectsManeuverFromArsenal();
