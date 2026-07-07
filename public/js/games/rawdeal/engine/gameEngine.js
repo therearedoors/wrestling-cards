@@ -64,6 +64,7 @@ window.RawDeal.GameEngine = class GameEngine {
       nextCardFortitudeDiscount: 0,
       lastPlayedCardId: null,
       lastSuccessfulManeuverSubtype: null,
+      lastSuccessfulManeuverDamage: null,
       opponentReversalsBlocked: false,
       skipOpponentNextTurn: false,
       discardHandAtEndOfTurn: false,
@@ -133,9 +134,12 @@ window.RawDeal.GameEngine = class GameEngine {
     }
   }
 
-  _markManeuverSuccessfullyPlayed(player, played) {
+  _markManeuverSuccessfullyPlayed(player, played, damage = null) {
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.canPlayAfterSuccessfulManeuver = true;
+    if (damage != null) {
+      player.turnState.lastSuccessfulManeuverDamage = damage;
+    }
     if (played?.subtype) {
       player.turnState.lastSuccessfulManeuverSubtype = played.subtype;
     }
@@ -965,6 +969,10 @@ window.RawDeal.GameEngine = class GameEngine {
     this._expireNextCardManeuverBonusIfNotManeuver(player, mode);
     this._expireNextCardSubtypeBonusUnlessMatch(player, played, mode);
     this._handleNextCardUnreversibleOnPlay(player, opponent, played, mode);
+    if (mode === 'maneuver' && played.unreversible) {
+      if (!player.turnState) player.turnState = this._emptyTurnState();
+      player.turnState.activeManeuverUnreversible = true;
+    }
     if (!player.turnState) player.turnState = this._emptyTurnState();
     player.turnState.lastPlayedCardId = played.id;
     if (player.turnState.nextCardFortitudeDiscount) {
@@ -2606,7 +2614,7 @@ window.RawDeal.GameEngine = class GameEngine {
         player.turnState.activeManeuverUnreversible = false;
       }
       if (!isMaintainedReapplication) {
-        this._markManeuverSuccessfullyPlayed(player, played);
+        this._markManeuverSuccessfullyPlayed(player, played, damage);
       }
     }
 
@@ -2618,7 +2626,7 @@ window.RawDeal.GameEngine = class GameEngine {
       player.turnState.activeManeuverUnreversible = false;
     }
     if (!isMaintainedReapplication) {
-      this._markManeuverSuccessfullyPlayed(player, played);
+      this._markManeuverSuccessfullyPlayed(player, played, damage);
     }
     this.stateMachine.transition(window.RawDeal.EVENTS.DAMAGE_DONE);
     this._notify();

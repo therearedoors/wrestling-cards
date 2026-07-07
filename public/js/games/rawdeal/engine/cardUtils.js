@@ -47,6 +47,13 @@ window.RawDeal.CardUtils = {
       return false;
     }
 
+    if (card.requiresAfterManeuverMinDamage != null) {
+      const lastDamage = player.turnState?.lastSuccessfulManeuverDamage;
+      if (lastDamage == null || lastDamage < card.requiresAfterManeuverMinDamage) {
+        return false;
+      }
+    }
+
     if (!card.requiresPlayed) return true;
     const state = player.turnState || {};
     if (card.requiresPlayed === 'irish-whip') return !!state.irishWhipPlayed;

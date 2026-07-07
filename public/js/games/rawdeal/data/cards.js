@@ -1550,6 +1550,8 @@ window.RawDeal.CARDS = {
     text: "High Risk (Maneuver) May not be reversed. Can only be played after a maneuver that does 5D or greater. Unique",
     flavor: "",
     unique: true,
+    unreversible: true,
+    requiresAfterManeuverMinDamage: 5,
     set: "premiere",
   },
   'lou-thesz-press': {
