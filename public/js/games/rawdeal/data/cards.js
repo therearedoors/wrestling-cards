@@ -1495,6 +1495,10 @@ window.RawDeal.CARDS = {
     damage: 0,
     text: "Action All players discard all cards from their hands. Your opponent places the top 5 cards of his Arsenal into his Ringside pile. Unique",
     flavor: "",
+    actionEffects: [
+      {"op": "discardAllHands"},
+      {"op": "opponentTopArsenalToRingside", "count": 5},
+    ],
     set: "premiere",
   },
   'walls-of-jericho': {

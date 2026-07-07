@@ -28,6 +28,7 @@ window.RawDeal.GameEngine = class GameEngine {
     this.effectPipelineFlow = null;
     this.pendingEgoBoostDraws = [];
     this.opponentDiscardResumeMeta = null;
+    this.discardAllHandsFlow = null;
     this.reversedManeuverDamage = null;
     this.maintainedSubmissionFlow = null;
     this._pendingMaintainedSubmissionWindow = false;
@@ -1221,7 +1222,7 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  _beginDiscardFromHandPrompt(player, playerIndex, sourceName, count) {
+  _beginDiscardFromHandPrompt(player, playerIndex, sourceName, count, meta = {}) {
     if (player.hand.length === 0) {
       this.actionLog.push({
         message: this._gc().log.noHandToDiscard(sourceName),
@@ -1235,9 +1236,121 @@ window.RawDeal.GameEngine = class GameEngine {
       sourceName,
       count,
       selectedIds: [],
+      meta,
     };
     this._notify();
     return true;
+  }
+
+  _discardEntireHandToRingside(player, sourceName, whoLabel) {
+    const cards = [...player.hand];
+    player.hand = [];
+    for (const card of cards) {
+      player.ringside.push(card);
+    }
+    if (cards.length > 0) {
+      const names = cards.map((c) => c.name).join(', ');
+      this.actionLog.push({
+        message: this._gc().log.discardedEntireHand(sourceName, whoLabel, names),
+      });
+    }
+    this._notify();
+    return cards.length;
+  }
+
+  async _beginDiscardAllHands(activePlayer, activeIndex, opponent, opponentIndex, sourceName) {
+    this.discardAllHandsFlow = {
+      activeIndex,
+      opponentIndex,
+      sourceName,
+      phase: 'active',
+    };
+    return await this._advanceDiscardAllHands();
+  }
+
+  async _advanceDiscardAllHands() {
+    const flow = this.discardAllHandsFlow;
+    if (!flow) return false;
+
+    if (flow.phase === 'active') {
+      const player = this.players[flow.activeIndex];
+      const count = player.hand.length;
+      if (count === 0) {
+        flow.phase = 'opponent';
+        return await this._advanceDiscardAllHands();
+      }
+
+      const autoPick = this.engineMode === 'goldfish' || !player.isHuman;
+      if (autoPick) {
+        this._discardEntireHandToRingside(player, flow.sourceName, 'you');
+        flow.phase = 'opponent';
+        return await this._advanceDiscardAllHands();
+      }
+
+      const paused = this._beginDiscardFromHandPrompt(
+        player,
+        flow.activeIndex,
+        flow.sourceName,
+        count,
+        { discardAllHands: true, phase: 'active' }
+      );
+      return !!paused;
+    }
+
+    if (flow.phase === 'opponent') {
+      const opponent = this.players[flow.opponentIndex];
+      const count = opponent.hand.length;
+      if (count === 0) {
+        this.discardAllHandsFlow = null;
+        this.actionLog.push({
+          message: this._gc().log.opponentNoHandToDiscard(flow.sourceName),
+        });
+        this._notify();
+        return false;
+      }
+
+      return await this._beginOpponentControlledDiscard(
+        opponent,
+        flow.opponentIndex,
+        flow.sourceName,
+        count,
+        { resumePipeline: true, discardAllHands: true }
+      );
+    }
+
+    return false;
+  }
+
+  async _resumeDiscardAllHandsAfterActiveDiscard() {
+    if (!this.discardAllHandsFlow || this.discardAllHandsFlow.phase !== 'active') {
+      return false;
+    }
+    this.discardAllHandsFlow.phase = 'opponent';
+    const paused = await this._advanceDiscardAllHands();
+    return !!paused;
+  }
+
+  async _opponentTopArsenalToRingside(opponent, sourceName, count = 5) {
+    const moved = [];
+    const requested = count;
+
+    for (let i = 0; i < count && opponent.arsenal.length > 0; i++) {
+      const top = opponent.arsenal.pop();
+      opponent.ringside.push(top);
+      moved.push(top);
+    }
+
+    if (moved.length > 0) {
+      const names = moved.map((c) => c.name).join(', ');
+      this.actionLog.push({
+        message:
+          moved.length === requested
+            ? this._gc().log.opponentTopArsenalToRingside(sourceName, moved.length, names)
+            : this._gc().log.opponentTopArsenalPartial(sourceName, moved.length, requested),
+      });
+    }
+
+    this._notify();
   }
 
   _beginDrawOrOpponentChoice(player, playerIndex, sourceName, count) {
@@ -1755,6 +1868,14 @@ window.RawDeal.GameEngine = class GameEngine {
       const owner = this.players[meta.superstarAbilityOwnerIndex];
       if (owner) owner.superstarAbilityUsed = true;
       this._notify();
+      return false;
+    }
+
+    if (meta.discardAllHands) {
+      this.discardAllHandsFlow = null;
+      if (meta.resumePipeline && this.effectPipelineFlow?.paused) {
+        await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
+      }
       return false;
     }
 
@@ -2840,6 +2961,12 @@ window.RawDeal.GameEngine = class GameEngine {
       this.actionLog.push({
         message: this._gc().log.discardedToRingside(flow.sourceName, names),
       });
+      if (flow.meta?.discardAllHands && flow.meta.phase === 'active') {
+        this.cardEffectFlow = null;
+        this._notify();
+        const paused = await this._resumeDiscardAllHandsAfterActiveDiscard();
+        return !!paused;
+      }
       if (this.effectPipelineFlow) {
         this.effectPipelineFlow.discardedCount = toDiscard.length;
       }
