@@ -1729,6 +1729,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     requiresPlayed: "irish-whip",
+    unreversible: true,
     maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
