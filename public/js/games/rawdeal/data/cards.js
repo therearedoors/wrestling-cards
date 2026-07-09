@@ -1757,7 +1757,10 @@ window.RawDeal.CARDS = {
     text: "Action All your maneuvers are +3D for the rest of this turn. Draw 2 cards, or force opponent to discard 2 cards. Unique",
     flavor: "",
     unique: true,
-    actionEffects: [{"op": "turnDamageBonus", "value": 3}],
+    actionEffects: [
+      {"op": "turnDamageBonus", "value": 3},
+      {"op": "drawOrOpponentChoice", "count": 2},
+    ],
     set: "premiere",
   },
   'the-rock': {
