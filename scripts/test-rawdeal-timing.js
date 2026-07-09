@@ -6004,6 +6004,129 @@ async function testTreeOfWoeForcesOpponentDiscardTwo() {
   );
 }
 
+async function playIAmTheGame(engine, RawDeal, instanceId = 'iatg-play') {
+  const card = cloneCard(RawDeal, 'i-am-the-game', instanceId);
+  const player = engine.players[0];
+  player.hand.push(card);
+  player.fortitude = Math.max(player.fortitude, 3);
+  await engine.playCard(0, card.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  return card;
+}
+
+async function testIAmTheGameAppliesTurnDamageBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('hhh', 'austin');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playIAmTheGame(engine, RawDeal, 'iatg-bonus');
+
+  assert(
+    engine.turnDamageBonus[0].all === 3,
+    'I Am the Game gives +3D to all maneuvers for the turn'
+  );
+  assert(
+    engine.cardEffectFlow?.choiceId === 'drawOrOpponentDiscard',
+    'I Am the Game opens draw 2 or opponent discard 2 choice after damage bonus'
+  );
+}
+
+async function testIAmTheGameDrawTwoChoice() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('hhh', 'austin');
+
+  const player = engine.players[0];
+  player.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `iatg-draw-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = player.arsenal.length;
+  const handBefore = player.hand.length;
+  await playIAmTheGame(engine, RawDeal, 'iatg-draw');
+  await engine.selectChoice(0, 'draw');
+
+  assert(
+    player.arsenal.length === arsenalBefore - 2,
+    'I Am the Game draw choice takes 2 cards from Arsenal'
+  );
+  assert(
+    player.hand.length === handBefore + 2,
+    'I Am the Game draw choice adds 2 cards to hand'
+  );
+  assert(!engine.cardEffectFlow, 'I Am the Game completes after draw choice');
+}
+
+async function testIAmTheGameOpponentDiscardTwoChoice() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('hhh', 'austin');
+
+  const opponent = engine.players[1];
+  opponent.hand = [
+    cloneCard(RawDeal, 'punch', 'iatg-opp-1'),
+    cloneCard(RawDeal, 'kick', 'iatg-opp-2'),
+    cloneCard(RawDeal, 'chop', 'iatg-opp-3'),
+  ];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playIAmTheGame(engine, RawDeal, 'iatg-discard');
+  await engine.selectChoice(0, 'opponentDiscard');
+
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'I Am the Game opponent discard choice opens discard prompt'
+  );
+
+  await engine.selectForCardEffect(1, 'iatg-opp-1');
+  await engine.selectForCardEffect(1, 'iatg-opp-2');
+
+  assert(
+    opponent.hand.length === 1,
+    'I Am the Game opponent discard choice forces 2 cards from hand'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === 'iatg-opp-1') &&
+      opponent.ringside.some((c) => c.instanceId === 'iatg-opp-2'),
+    'I Am the Game sends discarded cards to opponent Ringside'
+  );
+  assert(!engine.cardEffectFlow, 'I Am the Game completes after opponent discard');
+}
+
+async function testIAmTheGameBoostsManeuverDamage() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('hhh', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'iatg-punch');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playIAmTheGame(engine, RawDeal, 'iatg-damage');
+  await engine.selectChoice(0, 'draw');
+
+  player.hand.push(punch);
+  player.fortitude = 10;
+  assert(
+    engine._peekManeuverDamage(player, opponent, punch) === 6,
+    'I Am the Game +3D boosts Punch from 3D to 6D'
+  );
+}
+
 async function testHaveANiceDayReversesStrikeGrappleSubmission() {
   const RawDeal = loadRawDeal();
 
@@ -6774,6 +6897,10 @@ async function main() {
   await testTreeOfWoeCannotBeReversedFromHand();
   await testTreeOfWoeCannotBeReversedFromArsenal();
   await testTreeOfWoeForcesOpponentDiscardTwo();
+  await testIAmTheGameAppliesTurnDamageBonus();
+  await testIAmTheGameDrawTwoChoice();
+  await testIAmTheGameOpponentDiscardTwoChoice();
+  await testIAmTheGameBoostsManeuverDamage();
   await testDiversionSetsUnreversibleOnNextManeuver();
   await testDiversionProtectsManeuverFromHand();
   await testDiversionProtectsManeuverFromArsenal();

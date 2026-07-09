@@ -849,7 +849,10 @@ def infer_action_effects(types_list, rules, name=''):
         return effects
 
     if 'i am the game' in card_name:
-        return [{'op': 'turnDamageBonus', 'value': 3}]
+        effects = [{'op': 'turnDamageBonus', 'value': 3}]
+        if 'draw 2 cards, or force opponent to discard 2' in blob:
+            effects.append({'op': 'drawOrOpponentChoice', 'count': 2})
+        return effects
 
     if 'open up a can' in card_name:
         effects = []
