@@ -1800,6 +1800,7 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     reverses: ["strike", "grapple", "submission"],
+    reversalEffects: [{"op": "shuffleRingsideUpTo", "max": 5, "exact": false}],
     set: "premiere",
   },
   'rock-bottom': {
