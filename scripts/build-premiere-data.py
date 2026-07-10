@@ -767,6 +767,12 @@ def infer_reversal_effects(types_list, rules, damage):
             effects.append({'op': 'topArsenalToRingside', 'count': int(m.group(1))})
         elif 'top 4 cards from your arsenal and put them in your ringside' in blob:
             effects.append({'op': 'topArsenalToRingside', 'count': 4})
+        if m := re.search(r'shuffle up to (\d+) cards? from your ringside', blob):
+            effects.append({
+                'op': 'shuffleRingsideUpTo',
+                'max': int(m.group(1)),
+                'exact': False,
+            })
 
     if 'next turn' in blob or 'next turn,' in blob:
         if m := re.search(r'all your maneuvers(?: next turn)? are \+(\d+)d', blob):
