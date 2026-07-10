@@ -6104,6 +6104,178 @@ async function testIAmTheGameOpponentDiscardTwoChoice() {
   assert(!engine.cardEffectFlow, 'I Am the Game completes after opponent discard');
 }
 
+async function testTakeThatMoveReversesStrikeGrappleSubmission() {
+  const RawDeal = loadRawDeal();
+
+  for (const maneuverId of ['punch', 'double-leg-takedown', 'sleeper']) {
+    const { engine, reversal } = await createHandReversalTest(RawDeal, {
+      maneuverId,
+      reversalId: 'take-that-move',
+      defenderFortitude: 4,
+    });
+    assert(
+      engine.canPlayReversalFromHand(1, reversal.instanceId),
+      `Take That Move can reverse ${maneuverId} from hand`
+    );
+  }
+}
+
+async function testTakeThatMoveCannotReverseHighRisk() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'austin-elbow-smash',
+    reversalId: 'take-that-move',
+    defenderFortitude: 4,
+    effectiveDamage: 10,
+  });
+
+  assert(
+    !engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Take That Move cannot reverse High Risk maneuvers'
+  );
+}
+
+async function testTakeThatMoveFromHandShufflesUpToFiveFromRingside() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'ttm-punch');
+  const takeThat = cloneCard(RawDeal, 'take-that-move', 'ttm-rev');
+  const rs1 = cloneCard(RawDeal, 'kick', 'ttm-rs-1');
+  const rs2 = cloneCard(RawDeal, 'chop', 'ttm-rs-2');
+  const rs3 = cloneCard(RawDeal, 'elbow', 'ttm-rs-3');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 10;
+  defender.hand = [takeThat];
+  defender.fortitude = 4;
+  defender.ringside = [rs1, rs2, rs3];
+  defender.arsenal = [];
+  for (let i = 0; i < 6; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'punch', `ttm-def-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = defender.arsenal.length;
+  const ringsideBefore = defender.ringside.length;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, takeThat.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.type === 'shuffleRingsideIntoArsenal',
+    'Take That Move opens Ringside shuffle modal from hand'
+  );
+  assert(engine.cardEffectFlow.exact === false, 'Take That Move uses up-to shuffle mode');
+  assert(engine.cardEffectFlow.maxSelect === 3, 'Take That Move caps at available Ringside cards');
+
+  engine.toggleSuperstarAbilitySelection(1, rs1.instanceId);
+  engine.toggleSuperstarAbilitySelection(1, rs2.instanceId);
+  await engine.confirmSuperstarAbilityPrompt(1, [rs1.instanceId, rs2.instanceId]);
+
+  assert(
+    defender.ringside.length === ringsideBefore - 2,
+    'Take That Move shuffles selected Ringside cards away'
+  );
+  assert(
+    defender.arsenal.length === arsenalBefore + 1,
+    'Take That Move shuffles 2 into Arsenal then draws 1 on new turn (net +1)'
+  );
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === takeThat.instanceId),
+    'Take That Move lands in Ring reversals'
+  );
+  assert(
+    engine.stateMachine.activePlayer === 1,
+    'Take That Move ends attacker turn'
+  );
+}
+
+async function testTakeThatMoveFromHandEmptyRingsideSkipsShuffle() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'ttm-empty-punch');
+  const takeThat = cloneCard(RawDeal, 'take-that-move', 'ttm-empty-rev');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 10;
+  defender.hand = [takeThat];
+  defender.fortitude = 4;
+  defender.ringside = [];
+  defender.arsenal = [];
+  for (let i = 0; i < 6; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'punch', `ttm-empty-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = defender.arsenal.length;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, takeThat.instanceId);
+
+  assert(!engine.cardEffectFlow, 'Take That Move skips shuffle when Ringside is empty');
+  assert(
+    defender.arsenal.length === arsenalBefore - 1,
+    'Take That Move still ends turn with only draw segment after empty Ringside'
+  );
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === takeThat.instanceId),
+    'Take That Move still reverses when Ringside is empty'
+  );
+}
+
+async function testTakeThatMoveFromArsenalNoHandEffects() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'ttm-ars-punch');
+  const takeThat = cloneCard(RawDeal, 'take-that-move', 'ttm-ars-rev');
+  const rs1 = cloneCard(RawDeal, 'kick', 'ttm-ars-rs');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 10;
+  defender.fortitude = 4;
+  defender.ringside = [rs1];
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `ttm-ars-fill-${i}`));
+  }
+  defender.arsenal.push(takeThat);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const ringsideBefore = defender.ringside.length;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  assert(
+    defender.ringside.length === ringsideBefore,
+    'Arsenal Take That Move does not shuffle Ringside into Arsenal'
+  );
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(lastDamage?.result === 'reversed', 'Arsenal Take That Move reverses the maneuver');
+  assert(
+    lastDamage?.reversedBy === 'Take That Move, Shine It Up Real Nice, Turn That Sumb*tch Sideways, and Stick It Straight Up Your Roody Poo Candy A%$!',
+    'Arsenal Take That Move reverses from defender Arsenal'
+  );
+  assert(!engine.effectPipelineFlow, 'Arsenal Take That Move does not run hand-only effects');
+}
+
 async function testIAmTheGameBoostsManeuverDamage() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -6901,6 +7073,11 @@ async function main() {
   await testIAmTheGameDrawTwoChoice();
   await testIAmTheGameOpponentDiscardTwoChoice();
   await testIAmTheGameBoostsManeuverDamage();
+  await testTakeThatMoveReversesStrikeGrappleSubmission();
+  await testTakeThatMoveCannotReverseHighRisk();
+  await testTakeThatMoveFromHandShufflesUpToFiveFromRingside();
+  await testTakeThatMoveFromHandEmptyRingsideSkipsShuffle();
+  await testTakeThatMoveFromArsenalNoHandEffects();
   await testDiversionSetsUnreversibleOnNextManeuver();
   await testDiversionProtectsManeuverFromHand();
   await testDiversionProtectsManeuverFromArsenal();
