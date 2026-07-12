@@ -840,8 +840,8 @@ def infer_maneuver_effects(types_list, rules):
         effects.append({'op': 'discardFromOpponentHand', 'mode': 'chosen'})
 
     if 'when successfully played' in blob and 'you may draw 1 card' in blob:
-        if not any(e.get('op') == 'draw' for e in effects):
-            effects.append({'op': 'draw', 'count': 1})
+        if not any(e.get('op') in ('draw', 'drawUpTo') for e in effects):
+            effects.append({'op': 'drawUpTo', 'max': 1})
 
     if (
         'when successfully played' in blob
