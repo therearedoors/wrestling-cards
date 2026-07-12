@@ -968,7 +968,7 @@ window.RawDeal.GameEngine = class GameEngine {
           }
         }
 
-        const drawCount = active.superstar.id === 'mankind' ? 2 : 1;
+        const drawCount = active.superstar.drawSegmentCount ?? 1;
         for (let d = 0; d < drawCount; d++) {
           this._drawCard(active);
         }
@@ -1268,8 +1268,9 @@ window.RawDeal.GameEngine = class GameEngine {
   _peekManeuverDamage(player, opponent, played) {
     const idx = this._playerIndex(player);
     let damage = played.damage || 0;
-    if (opponent.superstar.id === 'mankind' && damage > 0) {
-      damage = Math.max(0, damage - 1);
+    const damageReduction = opponent.superstar.damageTakenReduction ?? 0;
+    if (damageReduction > 0 && damage > 0) {
+      damage = Math.max(0, damage - damageReduction);
     }
     damage += this.nextManeuverBonus[idx];
 
@@ -2121,19 +2122,6 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   async _finishOpponentControlledDiscard(meta = {}) {
-    if (meta.afterComplete === 'cleanBreak') {
-      const reversalPlayer = this.players[meta.reversalPlayerIndex];
-      const drawn = this._drawCard(reversalPlayer);
-      if (drawn) {
-        this.actionLog.push({
-          message: this._gc().log.drewOneCard(meta.sourceName),
-        });
-      }
-      this._notify();
-      await this._runAutoPhases();
-      return false;
-    }
-
     if (meta.superstarAbilityOwnerIndex !== undefined) {
       const owner = this.players[meta.superstarAbilityOwnerIndex];
       if (owner) owner.superstarAbilityUsed = true;
@@ -3140,8 +3128,6 @@ window.RawDeal.GameEngine = class GameEngine {
         reversal.id === 'irish-whip' && played.id === 'irish-whip';
       const grantJockeyingChoice =
         reversal.id === 'jockeying-for-position' && played.id === 'jockeying-for-position';
-      const cleanBreakVsJfp =
-        reversal.id === 'clean-break' && played.id === 'jockeying-for-position';
 
       this.actionLog.push({
         message: this._gc().log.actionReversedNoEffect(reversal.name, played.name),
@@ -3150,25 +3136,18 @@ window.RawDeal.GameEngine = class GameEngine {
       this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
       this._notify();
 
-      if (cleanBreakVsJfp) {
-        const attackerIndex = this._playerIndex(attacker);
-        const paused = await this._beginOpponentControlledDiscard(
-          attacker,
-          attackerIndex,
+      if (reversal.reversalEffects?.length) {
+        const paused = await this._startEffectPipeline(
+          player,
           reversal.name,
-          4,
-          {
-            afterComplete: 'cleanBreak',
-            reversalPlayerIndex: reversalPlayerIndex,
-            sourceName: reversal.name,
-          }
+          reversal.reversalEffects,
+          'postActionReversal',
+          reversal
         );
-        if (paused) {
-          return true;
-        }
+        if (paused) return true;
+      } else {
+        await this._runAutoPhases();
       }
-
-      await this._runAutoPhases();
 
       if (grantIrishWhipSetup) {
         this._applyIrishWhipSetup(player, reversal);
@@ -3796,8 +3775,17 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  _shaneOMacCardsInRing(player) {
-    return (player.ring?.actions || []).filter((c) => c.id === 'shane-omac');
+  _ringCardsWithPreDrawEffects(player) {
+    const entries = [];
+    if (!player?.ring) return entries;
+    for (const area of ['maneuvers', 'reversals', 'actions']) {
+      for (const card of player.ring[area] || []) {
+        if (card.preDrawRingEffects?.length) {
+          entries.push(card);
+        }
+      }
+    }
+    return entries;
   }
 
   async _flipOpponentTopArsenalToRingside(opponent, opponentIndex, sourceCard, { emptyLog, successLog }) {
@@ -3834,18 +3822,23 @@ window.RawDeal.GameEngine = class GameEngine {
     );
   }
 
-  async _applyShaneOMacPreDrawRingEffects(player, playerIndex) {
-    const shaneCards = this._shaneOMacCardsInRing(player);
-    if (shaneCards.length === 0) return;
+  async _applyPreDrawRingEffects(player, playerIndex) {
+    const ringCards = this._ringCardsWithPreDrawEffects(player);
+    if (ringCards.length === 0) return;
 
     const opponent = this.players[1 - playerIndex];
     const opponentIndex = 1 - playerIndex;
 
-    for (const shane of shaneCards) {
-      await this._flipOpponentTopArsenalToRingside(opponent, opponentIndex, shane, {
-        emptyLog: () => this._gc().log.shaneOMacEmptyArsenal(shane.name),
-        successLog: (topName) => this._gc().log.shaneOMacOverturned(shane.name, topName),
-      });
+    for (const sourceCard of ringCards) {
+      for (const effect of sourceCard.preDrawRingEffects) {
+        if (effect.op === 'opponentTopArsenalToRingside') {
+          await this._flipOpponentTopArsenalToRingside(opponent, opponentIndex, sourceCard, {
+            emptyLog: () => this._gc().log.shaneOMacEmptyArsenal(sourceCard.name),
+            successLog: (topName) =>
+              this._gc().log.shaneOMacOverturned(sourceCard.name, topName),
+          });
+        }
+      }
     }
   }
 
@@ -3853,7 +3846,7 @@ window.RawDeal.GameEngine = class GameEngine {
     if (player.superstar.id === 'kane') {
       await this._applyKanePreDrawAbility(player, playerIndex);
     }
-    await this._applyShaneOMacPreDrawRingEffects(player, playerIndex);
+    await this._applyPreDrawRingEffects(player, playerIndex);
   }
 
   async _handlePreDrawSuperstarAbilities(player, playerIndex) {
