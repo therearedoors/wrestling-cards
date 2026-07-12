@@ -723,6 +723,23 @@ def infer_maneuver_effects(types_list, rules):
         effects.append({'op': 'revealOpponentHand', 'selectCount': 1})
         effects.append({'op': 'discardFromOpponentHand', 'mode': 'chosen'})
 
+    if 'when successfully played' in blob and 'you may draw 1 card' in blob:
+        if not any(e.get('op') == 'draw' for e in effects):
+            effects.append({'op': 'draw', 'count': 1})
+
+    if (
+        'when successfully played' in blob
+        and re.search(r'shuffle (\d+) cards? from your ringside', blob)
+        and 'shuffle up to' not in blob
+    ):
+        m = re.search(r'shuffle (\d+) cards? from your ringside', blob)
+        if m:
+            effects.append({
+                'op': 'shuffleRingsideUpTo',
+                'max': int(m.group(1)),
+                'exact': True,
+            })
+
     return effects or None
 
 
