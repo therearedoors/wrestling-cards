@@ -383,6 +383,7 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Grapple When successfully played, you may draw 1 card.",
     flavor: "",
+    maneuverEffects: [{"op": "drawUpTo", "max": 1}],
     set: "premiere",
   },
   'fireman-s-carry': {
