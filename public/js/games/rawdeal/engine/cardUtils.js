@@ -81,6 +81,10 @@ window.RawDeal.CardUtils = {
       return !!player.turnState?.canPlayAfterSuccessfulManeuver;
     }
 
+    if (card.requiresAfterSuccessfulSubmission) {
+      return !!player.turnState?.canPlayAfterSuccessfulSubmission;
+    }
+
     if (!card.requiresLowerFortitudeThanOpponent) return true;
     if (!opponent) return false;
     return player.fortitude < opponent.fortitude;
@@ -114,6 +118,15 @@ window.RawDeal.CardUtils = {
     }
     if (player?.turnState?.nextCardFortitudeDiscount) {
       cost = Math.max(0, cost - player.turnState.nextCardFortitudeDiscount);
+    }
+    const ringDiscount = card.discountWhenRingCard;
+    if (player && ringDiscount?.cardId && ringDiscount.fortitude) {
+      const inRing = ['maneuvers', 'reversals', 'actions'].some((area) =>
+        player.ring[area]?.some((c) => c.id === ringDiscount.cardId)
+      );
+      if (inRing) {
+        cost = Math.max(0, cost - ringDiscount.fortitude);
+      }
     }
     return cost;
   },
@@ -154,14 +167,25 @@ window.RawDeal.CardUtils = {
   canReverseManeuver(reversalCard, maneuver, defenderFortitude, effectiveDamage = null, options = {}) {
     const canReverse =
       this.hasType(reversalCard, 'reversal') ||
-      (reversalCard.reverses && reversalCard.reverses.length > 0);
-    if (!canReverse || !reversalCard.reverses) return false;
+      (reversalCard.reverses && reversalCard.reverses.length > 0) ||
+      !!reversalCard.reversesOnlyManeuver;
+    if (!canReverse) return false;
 
     const { afterIrishWhip = false, reversalFortitudeTax = 0 } = options;
     const reversalCost = (reversalCard.fortitude || 0) + reversalFortitudeTax;
     if (defenderFortitude < reversalCost) return false;
 
     const damage = effectiveDamage ?? (maneuver.damage || 0);
+
+    if (reversalCard.reversesOnlyManeuver) {
+      return (
+        maneuver.id === reversalCard.reversesOnlyManeuver &&
+        this.passesReversalDamageCap(reversalCard, damage)
+      );
+    }
+
+    if (!reversalCard.reverses) return false;
+
     const reverses = reversalCard.reverses;
     const withinCap = (match) => match && this.passesReversalDamageCap(reversalCard, damage);
 
@@ -194,13 +218,14 @@ window.RawDeal.CardUtils = {
   },
 
   /** Whether a reversal can stop an action played from hand. */
-  canReverseAction(reversalCard, actionCard, defenderFortitude) {
+  canReverseAction(reversalCard, actionCard, defenderFortitude, options = {}) {
     const canReverse =
       this.hasType(reversalCard, 'reversal') ||
       (reversalCard.reverses && reversalCard.reverses.length > 0);
     if (!canReverse || !this.hasType(actionCard, 'action')) return false;
 
-    const reversalCost = reversalCard.fortitude || 0;
+    const { reversalFortitudeTax = 0 } = options;
+    const reversalCost = (reversalCard.fortitude || 0) + reversalFortitudeTax;
     if (defenderFortitude < reversalCost) return false;
 
     const reverses = reversalCard.reverses || [];

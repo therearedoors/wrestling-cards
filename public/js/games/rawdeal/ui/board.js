@@ -10,6 +10,7 @@ window.RawDeal.Board = class Board {
     superstarAbilityModal = null,
     arsenalReorderModal = null,
     arsenalSearchModal = null,
+    arsenalOrRingsideModal = null,
     opponentRingSelectModal = null
   ) {
     this.root = rootEl;
@@ -20,6 +21,7 @@ window.RawDeal.Board = class Board {
     this.superstarAbilityModal = superstarAbilityModal;
     this.arsenalReorderModal = arsenalReorderModal;
     this.arsenalSearchModal = arsenalSearchModal;
+    this.arsenalOrRingsideModal = arsenalOrRingsideModal;
     this.opponentRingSelectModal = opponentRingSelectModal;
     if (this.choiceModal) {
       this.choiceModal.onSelect = (optionId) => {
@@ -84,6 +86,14 @@ window.RawDeal.Board = class Board {
       };
       this.arsenalSearchModal.onConfirm = (instanceIds) => {
         if (this.onConfirmArsenalSearch) this.onConfirmArsenalSearch(instanceIds);
+      };
+    }
+    if (this.arsenalOrRingsideModal) {
+      this.arsenalOrRingsideModal.onSelect = (instanceId, zone) => {
+        if (this.onArsenalOrRingsideSelect) this.onArsenalOrRingsideSelect(instanceId, zone);
+      };
+      this.arsenalOrRingsideModal.onConfirm = (instanceId, zone) => {
+        if (this.onConfirmArsenalOrRingside) this.onConfirmArsenalOrRingside(instanceId, zone);
       };
     }
     if (this.opponentRingSelectModal) {
@@ -372,6 +382,7 @@ window.RawDeal.Board = class Board {
     this._renderChoiceModal(activePrompt);
     this._renderArsenalReorderModal(activePrompt);
     this._renderArsenalSearchModal(activePrompt);
+    this._renderArsenalOrRingsideModal(activePrompt);
     this._renderOpponentRingSelectModal(activePrompt);
     this._renderHandReveal(state.handReveal);
     this._renderSuperstarAbilityModal(
@@ -464,6 +475,15 @@ window.RawDeal.Board = class Board {
     }
   }
 
+  _renderArsenalOrRingsideModal(prompt) {
+    if (!this.arsenalOrRingsideModal) return;
+    if (prompt?.mode === 'arsenalOrRingsideModal') {
+      this.arsenalOrRingsideModal.show(prompt);
+    } else {
+      this.arsenalOrRingsideModal.hide();
+    }
+  }
+
   _renderOpponentRingSelectModal(prompt) {
     if (!this.opponentRingSelectModal) return;
     if (prompt?.mode === 'opponentRingModal') {
@@ -495,7 +515,8 @@ window.RawDeal.Board = class Board {
       prompt.mode !== 'ringsideModal' &&
       prompt.mode !== 'opponentRingModal' &&
       prompt.mode !== 'arsenalReorder' &&
-      prompt.mode !== 'arsenalSearch';
+      prompt.mode !== 'arsenalSearch' &&
+      prompt.mode !== 'arsenalOrRingsideModal';
     panel.classList.toggle('hidden', !active);
     if (active) {
       text.textContent = prompt.message;
@@ -568,11 +589,15 @@ window.RawDeal.Board = class Board {
     if (reversalWindow.canRespond) {
       if (reversalWindow.kind === 'action') {
         text.textContent = `Opponent played ${m.name} as an Action — play a Reversal from hand or Pass.`;
+      } else if (reversalWindow.kind === 'maintained') {
+        text.textContent = `Opponent is maintaining ${m.name} (${m.damage}D) — play a Reversal from hand or Pass.`;
       } else {
         text.textContent = `Opponent played ${m.name} (${m.damage}D) — play a Reversal from hand or Pass.`;
       }
     } else if (reversalWindow.kind === 'action') {
       text.textContent = `Waiting for opponent to respond to ${m.name} (Action)…`;
+    } else if (reversalWindow.kind === 'maintained') {
+      text.textContent = `Waiting for opponent to respond to maintained ${m.name}…`;
     } else {
       text.textContent = `Waiting for opponent to respond to ${m.name}…`;
     }
@@ -595,7 +620,7 @@ window.RawDeal.Board = class Board {
         isReversalCard &&
         reversalWindow.maneuver &&
         (reversalWindow.kind === 'action'
-          ? this._canReverseAction(card, reversalWindow.maneuver, player)
+          ? this._canReverseAction(card, reversalWindow.maneuver, player, reversalWindow)
           : this._canReverseManeuver(card, reversalWindow.maneuver, player, reversalWindow));
       const maneuverCost = utils.playFortitudeCost(card, 'maneuver', player);
       const actionCost = utils.playFortitudeCost(card, 'action', player);
@@ -752,11 +777,14 @@ window.RawDeal.Board = class Board {
     );
   }
 
-  _canReverseAction(card, action, player) {
+  _canReverseAction(card, action, player, reversalWindow = null) {
     return window.RawDeal.CardUtils.canReverseAction(
       card,
       { id: action.id, types: action.types || ['action'] },
-      player.fortitude
+      player.fortitude,
+      {
+        reversalFortitudeTax: reversalWindow?.maneuver?.reversalFortitudeTax ?? 0,
+      }
     );
   }
 

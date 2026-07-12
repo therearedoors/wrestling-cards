@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot-webroot:/var/www/certbot
+      - certbot-certs:/etc/letsencrypt
+    depends_on:
+      - app
+
+  app:
+    build: .
+    restart: unless-stopped
+    # ports:           # Comment this out - Nginx will handle external access
+    #   - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - MYSQL_USER=testuser
+      - MYSQL_HOST=mysql
+      - MYSQL_PASSWORD=mysql1235
+      - MYSQL_DATABASE=wrestling-cards
+      - MYSQL_PORT=3306
+      - JWT_SECRET=asgf97fq9g9G9G9GFA90saf0ag083h0ahg
+      - REDIS_HOST=redis
+    depends_on:
+      - mysql
+      - redis
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql1235
+      MYSQL_DATABASE: wrestling-cards
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: mysql1235
+    volumes:
+      - mysql-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+volumes:
+  mysql-data:
+  redis-data:
+  certbot-webroot:
+  certbot-certs:

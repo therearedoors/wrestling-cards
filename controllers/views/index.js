@@ -1,3 +1,5 @@
+const { isDevModeAllowed, isDevelopment } = require('../../utils/env');
+
 exports.getRegisterPage = (req, res) => {
   if (req.cookies.token) {
     return res.redirect('/');
@@ -25,7 +27,8 @@ exports.getPracticePage = (req, res) => {
   }
   res.render('games/rawdeal/goldfish', {
     authorized: true,
-    devMode: req.query.dev === '1',
+    devMode: isDevModeAllowed(req),
+    devModeAvailable: isDevelopment(),
   });
 };
 
@@ -49,6 +52,7 @@ exports.getRoomPage = (req, res) => {
   }
   res.render('games/rawdeal/room', {
     authorized: true,
-    devMode: req.query.dev === '1',
+    devMode: isDevModeAllowed(req),
+    devModeAvailable: isDevelopment(),
   });
 };
