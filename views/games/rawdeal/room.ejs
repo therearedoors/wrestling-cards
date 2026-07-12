@@ -8,7 +8,7 @@
             <p id="rd-waiting-text" class="rd-setup-note">Connecting to room…</p>
             <p class="rd-setup-links">
                 <a href="/games">Back to Lobby</a>
-                <% if (!devMode) { %>
+                <% if (devModeAvailable && !devMode) { %>
                     · <a id="rd-dev-mode-link" href="#">Dev Mode</a>
                 <% } %>
             </p>
@@ -140,6 +140,24 @@
                     </div>
                 </div>
 
+                <div id="rd-arsenal-ringside-modal" class="rd-arsenal-ringside-modal hidden" role="dialog" aria-modal="true">
+                    <div class="rd-arsenal-ringside-modal__backdrop" aria-hidden="true"></div>
+                    <div class="rd-arsenal-ringside-modal__panel">
+                        <p class="rd-arsenal-ringside-modal__message" data-rd-arsenal-ringside-message></p>
+                        <div class="rd-arsenal-ringside-modal__zone">
+                            <p class="rd-arsenal-ringside-modal__zone-title">Arsenal</p>
+                            <div class="rd-arsenal-ringside-modal__scroll" data-rd-arsenal-ringside-arsenal-cards></div>
+                        </div>
+                        <div class="rd-arsenal-ringside-modal__zone">
+                            <p class="rd-arsenal-ringside-modal__zone-title">Ringside</p>
+                            <div class="rd-arsenal-ringside-modal__scroll" data-rd-arsenal-ringside-ringside-cards></div>
+                        </div>
+                        <div class="rd-arsenal-ringside-modal__actions">
+                            <button type="button" class="rd-btn rd-btn--primary rd-arsenal-ringside-modal__confirm" data-rd-arsenal-ringside-confirm disabled>Confirm</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="rd-arsenal-search-modal" class="rd-arsenal-search-modal hidden" role="dialog" aria-modal="true">
                     <div class="rd-arsenal-search-modal__backdrop" aria-hidden="true"></div>
                     <div class="rd-arsenal-search-modal__panel">
@@ -229,6 +247,10 @@
 <script src="/js/games/rawdeal/data/decks.js"></script>
 <script src="/js/games/rawdeal/engine/constants.js"></script>
 <script src="/js/games/rawdeal/engine/cardUtils.js"></script>
+<script src="/js/games/rawdeal/engine/stateMachine.js"></script>
+<script src="/js/games/rawdeal/engine/gameCopy.js"></script>
+<script src="/js/games/rawdeal/engine/effectPipeline.js"></script>
+<script src="/js/games/rawdeal/engine/gameEngine.js"></script>
 <script src="/js/games/rawdeal/ui/cardRenderer.js"></script>
 <script src="/js/games/rawdeal/ui/cardPreview.js"></script>
 <script src="/js/games/rawdeal/ui/animations.js"></script>
@@ -239,6 +261,7 @@
 <script src="/vendor/sortable.min.js"></script>
 <script src="/js/games/rawdeal/ui/arsenalReorderModal.js"></script>
 <script src="/js/games/rawdeal/ui/arsenalSearchModal.js"></script>
+<script src="/js/games/rawdeal/ui/arsenalOrRingsideModal.js"></script>
 <script src="/js/games/rawdeal/ui/pileViewModal.js"></script>
 <script src="/js/games/rawdeal/ui/board.js"></script>
 <% if (devMode) { %>
