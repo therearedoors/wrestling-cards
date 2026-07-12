@@ -1086,6 +1086,82 @@ async function testShaneOMacNoEffectWhenNotInRing() {
   );
 }
 
+async function testMankindDrawsTwoCardsDuringDrawSegment() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const player = engine.players[0];
+  const drawA = cloneCard(RawDeal, 'chop', 'mankind-draw-a');
+  const drawB = cloneCard(RawDeal, 'chop', 'mankind-draw-b');
+  const drawC = cloneCard(RawDeal, 'punch', 'mankind-draw-c');
+
+  player.hand = [];
+  player.arsenal = [drawA, drawB, drawC];
+  player.preDrawSuperstarResolved = true;
+  engine.stateMachine.phase = RawDeal.PHASES.DRAW;
+  engine.stateMachine.activePlayer = 0;
+
+  const handBefore = player.hand.length;
+  const arsenalBefore = player.arsenal.length;
+
+  await engine._runAutoPhases();
+
+  assert(
+    player.hand.length === handBefore + 2,
+    'Mankind draws 2 cards during draw segment'
+  );
+  assert(
+    player.arsenal.length === arsenalBefore - 2,
+    'Mankind Arsenal loses 2 cards drawn during draw segment'
+  );
+}
+
+async function testMankindDamageTakenReduction() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('mankind', 'austin');
+
+  const mankind = engine.players[0];
+  const opponent = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'mankind-punch');
+
+  assert(
+    engine._peekManeuverDamage(opponent, mankind, punch) === 2,
+    'Mankind takes -1D from opponent maneuvers (Punch 3D -> 2D)'
+  );
+}
+
+function testGetStunValueParsesFromCardTextAndCatalog() {
+  const RawDeal = loadRawDeal();
+
+  const fromText = {
+    id: 'test-sv-card',
+    text: 'Trademark Finisher Unique SV: 3',
+  };
+  assert(
+    RawDeal.CardUtils.getStunValue(fromText) === 3,
+    'getStunValue parses SV from card text'
+  );
+
+  const fromCatalog = { id: 'stone-cold-stunner' };
+  assert(
+    RawDeal.CardUtils.getStunValue(fromCatalog) === 3,
+    'getStunValue falls back to catalog stunValue'
+  );
+}
+
+function testPowerOfDarknessIsActionOnly() {
+  const RawDeal = loadRawDeal();
+  const pod = RawDeal.CARDS['power-of-darkness'];
+
+  assert(
+    pod.types.length === 1 && pod.types[0] === 'action',
+    'Power of Darkness is action-only'
+  );
+  assert(!pod.hybrid, 'Power of Darkness is not marked hybrid');
+}
+
 async function testShaneOMacPlayedToRingActions() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -8252,6 +8328,10 @@ async function main() {
   await testShaneOMacPreDrawSkipsWhenOpponentArsenalEmpty();
   await testShaneOMacNoEffectWhenNotInRing();
   await testShaneOMacPlayedToRingActions();
+  await testMankindDrawsTwoCardsDuringDrawSegment();
+  await testMankindDamageTakenReduction();
+  testGetStunValueParsesFromCardTextAndCatalog();
+  testPowerOfDarknessIsActionOnly();
   await testJerichoSuperstarAbilityForcesOpponentDiscard();
   await testJerichoAbilityWhenOpponentHandEmpty();
   await testAtomicDropNextCardManeuverBonus();
