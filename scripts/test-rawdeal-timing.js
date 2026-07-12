@@ -1752,6 +1752,7 @@ async function testManagerInterferesDeals1DAndDraws1() {
   const arsenalBefore = attacker.arsenal.length;
 
   await engine.playReversalFromHand(1, reversal.instanceId);
+  await passCounterReversalWindow(engine);
 
   assert(
     attacker.arsenal.length === arsenalBefore - 1,
@@ -6884,6 +6885,554 @@ async function testY2JOpponentDiscardUpToBranch() {
   );
 }
 
+function fillHeelRing(player, RawDeal, count, prefix = 'heel-ring', options = {}) {
+  const { actionsOnly = false } = options;
+  const heelActionIds = [
+    'view-of-villainy',
+    'distract-the-ref',
+    'spit-at-opponent',
+    'deluding-yourself',
+  ];
+  const heelIds = actionsOnly
+    ? heelActionIds
+    : ['chair-shot', 'choke-hold', 'spit-at-opponent', 'manager-interferes'];
+  player.ring = { maneuvers: [], reversals: [], actions: [] };
+  for (let i = 0; i < count; i++) {
+    const id = heelIds[i % heelIds.length];
+    const area = actionsOnly
+      ? 'actions'
+      : i % 3 === 0
+        ? 'maneuvers'
+        : i % 3 === 1
+          ? 'reversals'
+          : 'actions';
+    player.ring[area].push(cloneCard(RawDeal, id, `${prefix}-${i}`));
+  }
+}
+
+function uiCanReverseManeuver(RawDeal, card, maneuver, player, reversalWindow, players) {
+  const heelPlayerIndex =
+    reversalWindow?.heelPlayerIndex ?? reversalWindow?.attackerIndex;
+  const attacker =
+    heelPlayerIndex != null && players ? players[heelPlayerIndex] : null;
+  const maneuverCard = {
+    id: maneuver.id,
+    name: maneuver.name,
+    subtype: maneuver.subtype,
+    damage: maneuver.damage,
+    alignment: maneuver.alignment,
+    types: maneuver.types,
+  };
+  return RawDeal.CardUtils.canReverseManeuver(
+    card,
+    maneuverCard,
+    player.fortitude,
+    maneuver.damage,
+    {
+      afterIrishWhip: reversalWindow?.maneuver?.afterIrishWhip ?? false,
+      reversalFortitudeTax: reversalWindow?.maneuver?.reversalFortitudeTax ?? 0,
+      attacker,
+    }
+  );
+}
+
+async function passCounterReversalWindow(engine) {
+  if (engine.reversalWindow?.kind === 'opponentReversal') {
+    await engine.passPriority(engine.reversalWindow.attackerIndex);
+  }
+}
+
+async function testDisqualificationPlayableWithFiveHeelActionsInRing() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const chairShot = cloneCard(RawDeal, 'chair-shot', 'dq-act-chair');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-act-rev');
+
+  heel.hand = [chairShot];
+  heel.fortitude = 12;
+  fillHeelRing(heel, RawDeal, 5, 'dq-act-ring', { actionsOnly: true });
+  face.hand = [dq];
+  face.fortitude = 12;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+
+  await engine.playCard(1, chairShot.instanceId, 'maneuver');
+
+  assert(
+    engine.canPlayReversalFromHand(0, dq.instanceId),
+    'Disqualification playable vs heel maneuver with 5 heel action cards in Ring'
+  );
+}
+
+async function testDisqualificationUiEligibilityMatchesEngine() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const chairShot = cloneCard(RawDeal, 'chair-shot', 'dq-ui-chair');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-ui-rev');
+
+  heel.hand = [chairShot];
+  heel.fortitude = 12;
+  fillHeelRing(heel, RawDeal, 5, 'dq-ui-ring', { actionsOnly: true });
+  face.hand = [dq];
+  face.fortitude = 12;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+
+  await engine.playCard(1, chairShot.instanceId, 'maneuver');
+
+  const publicState = engine.getPublicState(0);
+  const reversalWindow = publicState.reversalWindow;
+  const engineEligible = engine.canPlayReversalFromHand(0, dq.instanceId);
+  const uiEligible = uiCanReverseManeuver(
+    RawDeal,
+    dq,
+    reversalWindow.maneuver,
+    face,
+    reversalWindow,
+    publicState.players
+  );
+
+  assert(engineEligible, 'Engine marks Disqualification playable for UI mirror setup');
+  assert(uiEligible, 'UI mirror marks Disqualification playable');
+  assert(
+    engineEligible === uiEligible,
+    'UI Disqualification eligibility matches engine'
+  );
+  assert(
+    reversalWindow.maneuver.alignment === 'heel',
+    'Public reversal window exposes heel alignment for Chair Shot'
+  );
+  assert(
+    reversalWindow.opponentHeelInRing >= 5,
+    'Public reversal window exposes opponent heel count in Ring'
+  );
+}
+
+async function testDisqualificationCountersHeelReversalFromHand() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'dq-cr-punch');
+  const manager = cloneCard(RawDeal, 'manager-interferes', 'dq-cr-manager');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-cr-rev');
+
+  face.hand = [punch, dq];
+  face.fortitude = 12;
+  heel.hand = [manager];
+  heel.fortitude = 12;
+  fillHeelRing(heel, RawDeal, 5, 'dq-cr-ring');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, manager.instanceId);
+
+  assert(
+    engine.reversalWindow?.kind === 'opponentReversal',
+    'Heel reversal from hand opens counter-reversal window for original attacker'
+  );
+  assert(
+    engine.canPlayReversalFromHand(0, dq.instanceId),
+    'Disqualification playable during heel reversal counter window'
+  );
+
+  await engine.playReversalFromHand(0, dq.instanceId);
+
+  assert(engine.winner === 0, 'Disqualification countering heel reversal awards win to face');
+  assert(
+    engine.winReason === RawDeal.WIN_REASONS.DISQUALIFICATION,
+    'Counter-reversal Disqualification uses disqualification win reason'
+  );
+}
+
+async function testDisqualificationRingsideDuringHeelReversalDamage() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({
+    engineMode: 'multiplayer',
+    onDamageStep: async ({ onReveal }) => {
+      if (onReveal) onReveal();
+    },
+  });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'dq-hrd-punch');
+  const manager = cloneCard(RawDeal, 'manager-interferes', 'dq-hrd-manager');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-hrd-card');
+
+  face.hand = [punch];
+  face.fortitude = 10;
+  face.arsenal = [];
+  for (let i = 0; i < 12; i++) {
+    face.arsenal.push(cloneCard(RawDeal, 'chop', `dq-hrd-fill-${i}`));
+  }
+  face.arsenal.push(dq);
+
+  heel.hand = [manager];
+  heel.fortitude = 12;
+  fillHeelRing(heel, RawDeal, 5, 'dq-hrd-heel-ring');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, manager.instanceId);
+  await engine.passPriority(0);
+
+  assert(engine.winner === 0, 'Disqualification in Ringside during heel reversal damage wins');
+  assert(
+    engine.winReason === RawDeal.WIN_REASONS.DISQUALIFICATION,
+    'Heel reversal damage Ringside Disqualification uses disqualification win reason'
+  );
+}
+
+async function testDisqualificationPlayableAgainstHeelWith5HeelInRing() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const chairShot = cloneCard(RawDeal, 'chair-shot', 'dq-chair');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-rev');
+
+  heel.hand = [chairShot];
+  heel.fortitude = 12;
+  fillHeelRing(heel, RawDeal, 5, 'dq-heel-ring');
+  face.hand = [dq];
+  face.fortitude = 12;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+
+  await engine.playCard(1, chairShot.instanceId, 'maneuver');
+
+  assert(
+    engine.canPlayReversalFromHand(0, dq.instanceId),
+    'Disqualification playable vs heel maneuver with 5 heel cards in Ring'
+  );
+}
+
+async function testDisqualificationNotPlayableWithFewerThan5HeelInRing() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const chairShot = cloneCard(RawDeal, 'chair-shot', 'dq-low-chair');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-low-rev');
+
+  heel.hand = [chairShot];
+  heel.fortitude = 12;
+  fillHeelRing(heel, RawDeal, 4, 'dq-low-ring');
+  face.hand = [dq];
+  face.fortitude = 12;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+
+  await engine.playCard(1, chairShot.instanceId, 'maneuver');
+
+  assert(
+    !engine.canPlayReversalFromHand(0, dq.instanceId),
+    'Disqualification not playable with fewer than 5 heel cards in Ring'
+  );
+}
+
+async function testDisqualificationNotPlayableAgainstNonHeelManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'dq-face-punch');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-face-rev');
+
+  heel.hand = [punch];
+  heel.fortitude = 10;
+  fillHeelRing(heel, RawDeal, 5, 'dq-face-ring');
+  face.hand = [dq];
+  face.fortitude = 12;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+
+  await engine.playCard(1, punch.instanceId, 'maneuver');
+
+  assert(
+    !engine.canPlayReversalFromHand(0, dq.instanceId),
+    'Disqualification not playable against non-heel maneuver'
+  );
+}
+
+async function testDisqualificationFromHandWinsGame() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const chairShot = cloneCard(RawDeal, 'chair-shot', 'dq-win-chair');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-win-rev');
+
+  heel.hand = [chairShot];
+  heel.fortitude = 12;
+  fillHeelRing(heel, RawDeal, 5, 'dq-win-ring');
+  face.hand = [dq];
+  face.fortitude = 12;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+
+  await engine.playCard(1, chairShot.instanceId, 'maneuver');
+  await engine.playReversalFromHand(0, dq.instanceId);
+
+  assert(engine.winner === 0, 'Disqualification from hand awards win to face player');
+  assert(
+    engine.winReason === RawDeal.WIN_REASONS.DISQUALIFICATION,
+    'Disqualification win reason is disqualification'
+  );
+  assert(
+    engine.stateMachine.phase === RawDeal.PHASES.GAME_OVER,
+    'Disqualification ends the game'
+  );
+}
+
+async function testDisqualificationInRingsideDuringHeelDamageWinsGame() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({
+    engineMode: 'goldfish',
+    onDamageStep: async ({ onReveal }) => {
+      if (onReveal) onReveal();
+    },
+  });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const chairShot = cloneCard(RawDeal, 'chair-shot', 'dq-rs-chair');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-rs-card');
+
+  heel.hand = [chairShot];
+  heel.fortitude = 12;
+  fillHeelRing(heel, RawDeal, 5, 'dq-rs-heel-ring');
+  face.fortitude = 0;
+  face.arsenal = [];
+  for (let i = 0; i < 12; i++) {
+    face.arsenal.push(cloneCard(RawDeal, 'chop', `dq-rs-fill-${i}`));
+  }
+  face.arsenal.push(dq);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+
+  await engine.playCard(1, chairShot.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(0);
+  }
+
+  assert(engine.winner === 0, 'Disqualification in Ringside during heel damage wins for defender');
+  assert(
+    engine.winReason === RawDeal.WIN_REASONS.DISQUALIFICATION,
+    'Ringside Disqualification uses disqualification win reason'
+  );
+}
+
+async function testDisqualificationInRingsideDuringNonHeelDamageNoWin() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({
+    engineMode: 'goldfish',
+    onDamageStep: async ({ onReveal }) => {
+      if (onReveal) onReveal();
+    },
+  });
+  await engine.startGame('austin', 'rock');
+
+  const face = engine.players[0];
+  const heel = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'dq-nh-punch');
+  const dq = cloneCard(RawDeal, 'disqualification', 'dq-nh-card');
+
+  heel.hand = [punch];
+  heel.fortitude = 10;
+  fillHeelRing(heel, RawDeal, 5, 'dq-nh-ring');
+  face.fortitude = 0;
+  face.arsenal = [];
+  for (let i = 0; i < 12; i++) {
+    face.arsenal.push(cloneCard(RawDeal, 'chop', `dq-nh-fill-${i}`));
+  }
+  face.arsenal.push(dq);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 1;
+
+  await engine.playCard(1, punch.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(0);
+  }
+
+  assert(engine.winner == null, 'Disqualification in Ringside during non-heel damage does not win');
+}
+
+async function testRockBottomFindsPeoplesElbowFromRingside() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const rockBottom = cloneCard(RawDeal, 'rock-bottom', 'rb-play');
+  const elbow = cloneCard(RawDeal, 'peoples-elbow', 'rb-elbow-rs');
+
+  player.hand.push(rockBottom);
+  player.fortitude = 32;
+  player.ringside = [elbow];
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'rb-fill')];
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 24; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'kick', `rb-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, rockBottom.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'pickArsenalOrRingsideToHand',
+    'Rock Bottom opens Ringside/Arsenal search for People’s Elbow'
+  );
+  await engine.pickArsenalOrRingsideToHand(0, elbow.instanceId, 'ringside');
+
+  assert(
+    player.hand.some((c) => c.instanceId === elbow.instanceId),
+    'Rock Bottom puts People’s Elbow from Ringside into hand'
+  );
+}
+
+async function testRockBottomFindsPeoplesElbowFromArsenal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const rockBottom = cloneCard(RawDeal, 'rock-bottom', 'rb-ars-play');
+  const elbow = cloneCard(RawDeal, 'peoples-elbow', 'rb-elbow-ars');
+
+  player.hand.push(rockBottom);
+  player.fortitude = 32;
+  player.ringside = [];
+  player.arsenal = [cloneCard(RawDeal, 'chop', 'rb-ars-fill'), elbow];
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 24; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'kick', `rb-ars-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, rockBottom.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  await engine.pickArsenalOrRingsideToHand(0, elbow.instanceId, 'arsenal');
+
+  assert(
+    player.hand.some((c) => c.instanceId === elbow.instanceId),
+    'Rock Bottom puts People’s Elbow from Arsenal into hand'
+  );
+}
+
+async function testRockBottomOnlyReversesGrapple() {
+  const RawDeal = loadRawDeal();
+  const { engine, reversal } = await createHandReversalTest(RawDeal, {
+    maneuverId: 'punch',
+    reversalId: 'rock-bottom',
+    defenderFortitude: 32,
+  });
+  engine.players[1].hand.push(cloneCard(RawDeal, 'chop', 'rb-disc'));
+
+  assert(
+    !engine.canPlayReversalFromHand(1, reversal.instanceId),
+    'Rock Bottom cannot reverse a Strike maneuver'
+  );
+
+  const grappleTest = await createHandReversalTest(RawDeal, {
+    maneuverId: 'double-leg-takedown',
+    reversalId: 'rock-bottom',
+    defenderFortitude: 32,
+  });
+  grappleTest.engine.players[1].hand.push(
+    cloneCard(RawDeal, 'chop', 'rb-disc-gr')
+  );
+
+  assert(
+    grappleTest.engine.canPlayReversalFromHand(1, grappleTest.reversal.instanceId),
+    'Rock Bottom can reverse a Grapple maneuver when discard is available'
+  );
+}
+
+async function testRockBottomRequiresDiscardBeforeReversal() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('rock', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'rb-gr');
+  const rockBottom = cloneCard(RawDeal, 'rock-bottom', 'rb-rev');
+  const toDiscard = cloneCard(RawDeal, 'chop', 'rb-disc-card');
+
+  attacker.hand = [grapple];
+  attacker.fortitude = 12;
+  defender.hand = [rockBottom, toDiscard];
+  defender.fortitude = 32;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
+
+  await engine.playReversalFromHand(1, rockBottom.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardFromHand',
+    'Rock Bottom opens discard prompt before completing reversal'
+  );
+  await engine.selectForCardEffect(1, toDiscard.instanceId);
+
+  assert(
+    defender.ring.reversals.some((c) => c.instanceId === rockBottom.instanceId),
+    'Rock Bottom lands in Ring after discard'
+  );
+  assert(
+    defender.ringside.some((c) => c.instanceId === toDiscard.instanceId),
+    'Rock Bottom reversal discards 1 card to Ringside first'
+  );
+}
+
 async function testTakeThatMoveReversesStrikeGrappleSubmission() {
   const RawDeal = loadRawDeal();
 
@@ -7873,6 +8422,20 @@ async function main() {
   await testAbdominalStretchDiscardThenSearch();
   await testY2JDrawUpToBranch();
   await testY2JOpponentDiscardUpToBranch();
+  await testDisqualificationPlayableAgainstHeelWith5HeelInRing();
+  await testDisqualificationPlayableWithFiveHeelActionsInRing();
+  await testDisqualificationUiEligibilityMatchesEngine();
+  await testDisqualificationCountersHeelReversalFromHand();
+  await testDisqualificationRingsideDuringHeelReversalDamage();
+  await testDisqualificationNotPlayableWithFewerThan5HeelInRing();
+  await testDisqualificationNotPlayableAgainstNonHeelManeuver();
+  await testDisqualificationFromHandWinsGame();
+  await testDisqualificationInRingsideDuringHeelDamageWinsGame();
+  await testDisqualificationInRingsideDuringNonHeelDamageNoWin();
+  await testRockBottomFindsPeoplesElbowFromRingside();
+  await testRockBottomFindsPeoplesElbowFromArsenal();
+  await testRockBottomOnlyReversesGrapple();
+  await testRockBottomRequiresDiscardBeforeReversal();
   await testTakeThatMoveReversesStrikeGrappleSubmission();
   await testTakeThatMoveCannotReverseHighRisk();
   await testTakeThatMoveFromHandShufflesUpToFiveFromRingside();
