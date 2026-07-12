@@ -1385,6 +1385,102 @@ async function testWhoopCanReversalTaxFromHand() {
   );
 }
 
+async function testDoubleLegTakedownDrawUpToOne() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'dlt-draw');
+  const drawCard = cloneCard(RawDeal, 'punch', 'dlt-draw-pick');
+
+  player.hand = [grapple];
+  player.fortitude = 10;
+  player.arsenal = [drawCard];
+  opponent.arsenal = (opponent.arsenal || []).filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 6; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `dlt-opp-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Double Leg Takedown opens draw-up-to-1 prompt after successful play'
+  );
+  assert(
+    engine.cardEffectFlow.max === 1,
+    'Double Leg Takedown draw prompt allows up to 1 card'
+  );
+
+  engine.adjustDrawCount(0, 1);
+  await engine.confirmDrawCount(0);
+
+  assert(
+    player.hand.some((c) => c.instanceId === drawCard.instanceId),
+    'Double Leg Takedown draws chosen card from Arsenal'
+  );
+  assert(
+    !player.arsenal.some((c) => c.instanceId === drawCard.instanceId),
+    'Double Leg Takedown removes drawn card from Arsenal'
+  );
+}
+
+async function testDoubleLegTakedownMaySkipDraw() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const grapple = cloneCard(RawDeal, 'double-leg-takedown', 'dlt-skip');
+  const arsenalCard = cloneCard(RawDeal, 'punch', 'dlt-skip-ars');
+
+  player.hand = [grapple];
+  player.fortitude = 10;
+  player.arsenal = [arsenalCard];
+  opponent.arsenal = (opponent.arsenal || []).filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 6; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `dlt-skip-opp-${i}`));
+  }
+
+  const arsenalBefore = player.arsenal.length;
+  const opponentArsenalBefore = opponent.arsenal.length;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, grapple.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Double Leg Takedown offers optional draw before damage'
+  );
+  await engine.confirmDrawCount(0);
+
+  assert(
+    player.arsenal.length === arsenalBefore,
+    'Double Leg Takedown skipping draw leaves Arsenal unchanged'
+  );
+  assert(
+    !player.hand.some((c) => c.instanceId === arsenalCard.instanceId),
+    'Double Leg Takedown skipping draw does not add Arsenal card to hand'
+  );
+  assert(
+    opponent.arsenal.length === opponentArsenalBefore - 3,
+    'Double Leg Takedown still deals 3D after skipping draw'
+  );
+}
+
 async function testPedigreeBonusAfterStrike() {
   const RawDeal = loadRawDeal();
   const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
@@ -1430,6 +1526,9 @@ async function testPedigreeNoBonusWithoutStrike() {
   await engine.playCard(0, grapple.instanceId, 'maneuver');
   if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
     await engine.passPriority(1);
+  }
+  if (engine.cardEffectFlow?.type === 'drawCountChoice') {
+    await engine.confirmDrawCount(0);
   }
 
   player.hand.push(pedigree);
@@ -8372,6 +8471,8 @@ async function main() {
   await testNotYetEmptyHandSkipsEffect();
   await testWhoopCanReversalTaxFromHand();
   await testWhoopCanReversalTaxFromArsenal();
+  await testDoubleLegTakedownDrawUpToOne();
+  await testDoubleLegTakedownMaySkipDraw();
   await testPedigreeBonusAfterStrike();
   await testPedigreeNoBonusWithoutStrike();
   await testPedigreeNoBonusAfterReversedStrike();
