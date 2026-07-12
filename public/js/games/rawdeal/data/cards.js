@@ -203,6 +203,7 @@ window.RawDeal.CARDS = {
     stunValue: 1,
     text: "Strike When successfully played, +5D if played after a 5D or greater maneuver. SV: 1",
     flavor: "",
+    damageBonusAfterMinDamage: {"min": 5, "value": 5},
     set: "premiere",
   },
   'spinning-heel-kick': {
@@ -608,6 +609,8 @@ window.RawDeal.CARDS = {
     stunValue: 2,
     text: "Grapple When successfully played, you may draw 1 card. Add +1D for every maneuver with the word “slam” in its title in your Ring area. SV: 2",
     flavor: "",
+    maneuverEffects: [{"op": "draw", "count": 1}],
+    ringTitleWordDamageBonus: {"word": "slam", "value": 1},
     set: "premiere",
   },
   'press-slam': {
@@ -698,6 +701,7 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Submission When successfully played, look through your Arsenal for the card titled Maintain Hold and place that card in your hand, then shuffle your Arsenal.",
     flavor: "",
+    maneuverEffects: [{"op": "searchArsenalForCard", "cardId": "maintain-hold"}],
     set: "premiere",
   },
   'choke-hold': {
@@ -762,6 +766,7 @@ window.RawDeal.CARDS = {
     damage: 3,
     text: "Submission When successfully played, look through your Arsenal for the card titled Maintain Hold and place that card in your hand, then shuffle your Arsenal.",
     flavor: "",
+    maneuverEffects: [{"op": "searchArsenalForCard", "cardId": "maintain-hold"}],
     set: "premiere",
   },
   'bow-and-arrow': {
@@ -799,6 +804,7 @@ window.RawDeal.CARDS = {
     damage: 5,
     text: "Submission When successfully played, look through your Arsenal for the card titled Maintain Hold and place that card in your hand, then shuffle your Arsenal.",
     flavor: "",
+    maneuverEffects: [{"op": "searchArsenalForCard", "cardId": "maintain-hold"}],
     set: "premiere",
   },
   'camel-clutch': {
@@ -811,6 +817,7 @@ window.RawDeal.CARDS = {
     damage: 6,
     text: "Submission When successfully played, look through your Arsenal for the card titled Maintain Hold and place that card in your hand, then shuffle your Arsenal.",
     flavor: "",
+    maneuverEffects: [{"op": "searchArsenalForCard", "cardId": "maintain-hold"}],
     set: "premiere",
   },
   'boston-crab': {
@@ -852,6 +859,7 @@ window.RawDeal.CARDS = {
     damage: 6,
     text: "Submission When successfully played, you may discard 3 cards, search through your Arsenal and put 1 card into your hand, then shuffle your Arsenal.",
     flavor: "",
+    maneuverEffects: [{"op": "discardUpTo", "max": 3}, {"op": "searchArsenalForCard"}],
     set: "premiere",
   },
   'torture-rack': {
@@ -1923,7 +1931,7 @@ window.RawDeal.CARDS = {
     text: "Action Draw up to 5 Cards or force opponent to discard up to 5 cards. Unique",
     flavor: "",
     unique: true,
-    actionEffects: [{"op": "draw", "count": 5}],
+    actionEffects: [{"op": "drawOrOpponentDiscardUpTo", "max": 5}],
     set: "premiere",
   },
   'dont-you-never-ever': {

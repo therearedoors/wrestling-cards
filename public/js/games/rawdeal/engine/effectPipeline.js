@@ -390,6 +390,22 @@ window.RawDeal.EffectPipeline = {
       case 'drawOrOpponentChoice':
         return engine._beginDrawOrOpponentChoice(player, pipeline.playerIndex, sourceName, step.count || 2);
 
+      case 'drawOrOpponentDiscardUpTo':
+        return engine._beginDrawOrOpponentDiscardUpToChoice(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          step.max || 5
+        );
+
+      case 'searchArsenalForCard':
+        return engine._beginSearchArsenalForCardPrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          { cardId: step.cardId || null }
+        );
+
       case 'topArsenalToRingside': {
         await engine._topArsenalToRingside(player, { name: sourceName }, step.count || 1);
         return false;
