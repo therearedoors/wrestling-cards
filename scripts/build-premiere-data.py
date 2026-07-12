@@ -276,7 +276,7 @@ def parse_cards(text: str):
                     if not re.search(r'\bF:\s*\d+', line) and not line.startswith('"'):
                         ability_lines.append(line)
             ability = ' '.join(ability_lines).strip()
-            cards[card_id] = {
+            superstar_entry = {
                 'id': card_id,
                 'num': num,
                 'name': name.split('(')[0].strip().title() if 'logo' in name.lower() else name,
@@ -288,6 +288,10 @@ def parse_cards(text: str):
                 'flavor': flavor.strip('"'),
                 'set': 'premiere',
             }
+            superstar_meta = infer_superstar_metadata(ability)
+            if superstar_meta:
+                superstar_entry.update(superstar_meta)
+            cards[card_id] = superstar_entry
             continue
 
         if num in TAG_TEAM_NUMS:
@@ -387,6 +391,9 @@ def parse_cards(text: str):
         ring_passive = infer_ring_passive_effects(entry.get('text', ''))
         if ring_passive:
             entry.update(ring_passive)
+        pre_draw_ring = infer_pre_draw_ring_effects(entry.get('text', ''))
+        if pre_draw_ring:
+            entry.update(pre_draw_ring)
         ring_discount = infer_discount_when_ring_card(entry.get('text', ''))
         if ring_discount:
             entry.update(ring_discount)
@@ -474,6 +481,27 @@ def infer_ring_passive_effects(text):
     if 'while' in blob and 'in your ring area' in blob and 'all your maneuvers are +1d' in blob:
         return {'ringPassiveEffects': [{'op': 'maneuverDamageBonus', 'value': 1}]}
     return None
+
+
+def infer_pre_draw_ring_effects(text):
+    blob = text.lower()
+    if (
+        'at the start of your turn' in blob
+        and 'before your draw segment' in blob
+        and 'top card from his arsenal' in blob
+    ):
+        return {'preDrawRingEffects': [{'op': 'opponentTopArsenalToRingside', 'count': 1}]}
+    return None
+
+
+def infer_superstar_metadata(ability):
+    blob = ability.lower()
+    meta = {}
+    if 'draw 2 cards' in blob and 'draw segment' in blob:
+        meta['drawSegmentCount'] = 2
+    if 'all damage from opponent is at -1d' in blob:
+        meta['damageTakenReduction'] = 1
+    return meta or None
 
 
 def infer_damage_bonus_after_last_subtype(text):
@@ -879,7 +907,8 @@ def infer_reversal_effects(types_list, rules, damage):
         effects.append({'op': 'dealDamage'})
 
     if 'jockeying for position' in blob and 'discard 4' in blob:
-        pass
+        effects.append({'op': 'opponentDiscardFromHand', 'count': 4})
+        effects.append({'op': 'draw', 'count': 1})
     elif m := re.search(r'if played from your hand.*?draw (\d+)', blob):
         effects.append({'op': 'draw', 'count': int(m.group(1))})
 
@@ -1140,6 +1169,7 @@ def emit_cards(cards):
     for i, card in enumerate(items):
         parts = [f"  '{card['id']}': {{"]
         for key in ['id', 'num', 'name', 'types', 'subtype', 'alignment', 'handSize', 'superstarValue',
+                    'drawSegmentCount', 'damageTakenReduction',
                     'ability', 'fortitude', 'damage', 'stunValue', 'text', 'flavor',
                     'unique', 'hybrid', 'reverses', 'maxDamage', 'requiresPlayed',
                     'requiresAfterSuccessfulManeuver',
@@ -1159,7 +1189,7 @@ def emit_cards(cards):
                     'disqualifiesOpponent',
                     'requiresReversalDiscard',
                     'actionEffects', 'maneuverEffects', 'reversalEffects',
-                    'ringPassiveEffects', 'set']:
+                    'ringPassiveEffects', 'preDrawRingEffects', 'set']:
             if key in card and card[key] is not None:
                 val = card[key]
                 if isinstance(val, bool):

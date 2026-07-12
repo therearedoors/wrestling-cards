@@ -190,7 +190,12 @@ window.RawDeal.CardUtils = {
   },
 
   getStunValue(card) {
-    return card?.stunValue || 0;
+    if (card?.stunValue != null) return card.stunValue;
+    const catalog = window.RawDeal.CARDS?.[card?.id];
+    if (catalog?.stunValue != null) return catalog.stunValue;
+    const text = card?.text ?? catalog?.text ?? '';
+    const match = text.match(/(?:unique\s+)?sv:\s*(\d+)/i);
+    return match ? parseInt(match[1], 10) : 0;
   },
 
   /** Printed damage dealt when this reversal is played from hand (0 if damage comes from reversed maneuver). */
