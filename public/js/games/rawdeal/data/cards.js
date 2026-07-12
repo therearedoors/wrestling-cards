@@ -189,6 +189,7 @@ window.RawDeal.CARDS = {
     damage: 9,
     text: "Strike Reversals to this maneuver are +2D.",
     flavor: "",
+    handReversalDamageBonus: 2,
     set: "premiere",
   },
   'superkick': {
@@ -514,6 +515,7 @@ window.RawDeal.CARDS = {
     damage: 9,
     text: "Grapple When successfully played, you may draw 1 card.",
     flavor: "",
+    maneuverEffects: [{"op": "draw", "count": 1}],
     set: "premiere",
   },
   'samoan-drop': {
@@ -784,6 +786,7 @@ window.RawDeal.CARDS = {
     damage: 7,
     text: "Submission When successfully played, shuffle 2 cards from your Ringside pile into your Arsenal.",
     flavor: "",
+    maneuverEffects: [{"op": "shuffleRingsideUpTo", "max": 2, "exact": true}],
     set: "premiere",
   },
   'sleeper': {
@@ -833,7 +836,10 @@ window.RawDeal.CARDS = {
     damage: 8,
     text: "Submission When successfully played, opponent must discard 1 card and you may draw 1 card.",
     flavor: "",
-    maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
+    maneuverEffects: [
+      {"op": "opponentDiscardFromHand", "count": 1},
+      {"op": "draw", "count": 1},
+    ],
     set: "premiere",
   },
   'abdominal-stretch': {
@@ -1857,6 +1863,8 @@ window.RawDeal.CARDS = {
     text: "High Risk (Maneuver) Can only be played after a 4D or greater maneuver. Reversals to this maneuver are +6D. Unique SV: 2",
     flavor: "",
     unique: true,
+    requiresAfterManeuverMinDamage: 4,
+    handReversalDamageBonus: 6,
     set: "premiere",
   },
   'kanes-return': {
@@ -1870,6 +1878,11 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     reverses: ["strike", "grapple", "submission", "high-risk", "trademark", "trademark-finisher"],
+    reversalEffects: [
+      {"op": "topArsenalToRingside", "count": 4},
+      {"op": "nextTurnDamageBonus", "value": 2},
+      {"op": "nextTurnOpponentReversalTax", "value": 15},
+    ],
     set: "premiere",
   },
   'jericho': {
@@ -1896,6 +1909,7 @@ window.RawDeal.CARDS = {
     text: "High Risk (Maneuver) Can only be played after a 4D or greater maneuver. When successfully played, opponent must discard 1 card. Unique SV: 2",
     flavor: "",
     unique: true,
+    requiresAfterManeuverMinDamage: 4,
     maneuverEffects: [{"op": "opponentDiscardFromHand", "count": 1}],
     set: "premiere",
   },
@@ -1924,6 +1938,10 @@ window.RawDeal.CARDS = {
     flavor: "",
     unique: true,
     reverses: ["strike", "grapple", "submission"],
+    reversalEffects: [
+      {"op": "opponentDiscardFromHand", "count": 2},
+      {"op": "nextTurnDamageBonus", "value": 2},
+    ],
     set: "premiere",
   },
 };
