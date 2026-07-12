@@ -5,7 +5,7 @@ window.RawDeal = window.RawDeal || {};
  * Modes:
  * - choice: { message, options: [{ id, label }] }
  * - drawCount: { message, min, max, selected }
- * - discardCount: { message, min, max, selected }
+ * - discardCount / forceOpponentDiscardCount: { message, min, max, selected }
 
  */
 window.RawDeal.ChoiceModal = class ChoiceModal {
@@ -25,7 +25,11 @@ window.RawDeal.ChoiceModal = class ChoiceModal {
       return;
     }
 
-    if (prompt.mode === 'drawCount' || prompt.mode === 'discardCount') {
+    if (
+      prompt.mode === 'drawCount' ||
+      prompt.mode === 'discardCount' ||
+      prompt.mode === 'forceOpponentDiscardCount'
+    ) {
       this._showCountStepper(prompt);
       return;
     }

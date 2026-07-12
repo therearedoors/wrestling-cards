@@ -6568,6 +6568,322 @@ async function testDontYouNeverEverFromHandForcesDiscardAndNextTurnBonus() {
   );
 }
 
+async function testSuperkickBonusAfter5DManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const superkick = cloneCard(RawDeal, 'superkick', 'sk-play');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'kick', 'sk-kick-5d');
+  player.hand.push(superkick);
+  player.fortitude = 10;
+
+  assert(
+    engine._peekManeuverDamage(player, opponent, superkick) === 10,
+    'Superkick deals +5D after a 5D maneuver (5 + 5)'
+  );
+}
+
+async function testSuperkickNoBonusAfter3DManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const superkick = cloneCard(RawDeal, 'superkick', 'sk-low');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'punch', 'sk-punch-3d');
+  player.hand.push(superkick);
+
+  assert(
+    engine._peekManeuverDamage(player, opponent, superkick) === 5,
+    'Superkick has no bonus after a maneuver below 5D'
+  );
+}
+
+async function testPowerbombSlamBonusAndDraw() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const powerbomb = cloneCard(RawDeal, 'powerbomb', 'pb-play');
+
+  player.hand.push(powerbomb);
+  player.fortitude = 20;
+  player.ring.maneuvers = [
+    cloneCard(RawDeal, 'body-slam', 'pb-ring-bs'),
+    cloneCard(RawDeal, 'power-slam', 'pb-ring-ps'),
+  ];
+  player.arsenal = [];
+  for (let i = 0; i < 6; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `pb-ars-${i}`));
+  }
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 16; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `pb-opp-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = player.arsenal.length;
+  assert(
+    engine._peekManeuverDamage(player, opponent, powerbomb) === 14,
+    'Powerbomb gains +1D per slam-titled maneuver in Ring (12 + 2)'
+  );
+
+  await engine.playCard(0, powerbomb.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    player.arsenal.length === arsenalBefore - 1,
+    'Powerbomb draws 1 card on success'
+  );
+}
+
+async function testFullNelsonFindsMaintainHold() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const fullNelson = cloneCard(RawDeal, 'full-nelson', 'fn-play');
+  const maintainHold = cloneCard(RawDeal, 'maintain-hold', 'fn-mh');
+  const filler = cloneCard(RawDeal, 'chop', 'fn-fill');
+
+  player.hand.push(fullNelson);
+  player.fortitude = 12;
+  player.arsenal = [filler, maintainHold, cloneCard(RawDeal, 'kick', 'fn-fill-2')];
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 10; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `fn-opp-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, fullNelson.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'arsenalSearch',
+    'Full Nelson opens Arsenal search prompt'
+  );
+  assert(
+    engine.cardEffectFlow.purpose === 'searchToHand',
+    'Full Nelson searches Arsenal without ending turn'
+  );
+
+  await engine.confirmArsenalSearch(0, [maintainHold.instanceId]);
+
+  assert(
+    player.hand.some((c) => c.instanceId === maintainHold.instanceId),
+    'Full Nelson puts Maintain Hold in hand'
+  );
+  assert(
+    !player.arsenal.some((c) => c.instanceId === maintainHold.instanceId),
+    'Full Nelson removes Maintain Hold from Arsenal'
+  );
+}
+
+async function testFullNelsonNoMaintainHoldStillShuffles() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const fullNelson = cloneCard(RawDeal, 'full-nelson', 'fn-none');
+  const filler = cloneCard(RawDeal, 'chop', 'fn-only');
+
+  player.hand.push(fullNelson);
+  player.fortitude = 12;
+  player.arsenal = [filler];
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 8; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'kick', `fn-none-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, fullNelson.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(!engine.cardEffectFlow, 'Full Nelson skips search when Maintain Hold absent');
+  assert(
+    !player.hand.some((c) => c.id === 'maintain-hold'),
+    'Full Nelson does not add Maintain Hold when absent'
+  );
+}
+
+async function testAbdominalStretchDiscardThenSearch() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const stretch = cloneCard(RawDeal, 'abdominal-stretch', 'abs-play');
+  const discardA = cloneCard(RawDeal, 'chop', 'abs-disc-a');
+  const discardB = cloneCard(RawDeal, 'kick', 'abs-disc-b');
+  const pick = cloneCard(RawDeal, 'punch', 'abs-pick');
+
+  player.hand = [stretch, discardA, discardB];
+  player.fortitude = 15;
+  player.arsenal = [pick, cloneCard(RawDeal, 'elbow', 'abs-fill')];
+  opponent.arsenal = (opponent.arsenal || []).filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 10; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `abs-opp-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, stretch.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'discardCountChoice',
+    'Abdominal Stretch opens discard-up-to prompt'
+  );
+  engine.adjustDiscardCount(0, 2);
+  await engine.confirmDiscardCount(0);
+  await engine.selectForCardEffect(0, discardA.instanceId);
+  await engine.selectForCardEffect(0, discardB.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.type === 'arsenalSearch',
+    'Abdominal Stretch opens Arsenal search after discard'
+  );
+  await engine.confirmArsenalSearch(0, [pick.instanceId]);
+
+  assert(
+    player.hand.some((c) => c.instanceId === pick.instanceId),
+    'Abdominal Stretch puts searched card in hand'
+  );
+  assert(
+    player.ringside.some((c) => c.instanceId === discardA.instanceId) &&
+      player.ringside.some((c) => c.instanceId === discardB.instanceId),
+    'Abdominal Stretch discards chosen cards to Ringside'
+  );
+}
+
+async function testY2JDrawUpToBranch() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('jericho', 'austin');
+
+  const player = engine.players[0];
+  const y2j = cloneCard(RawDeal, 'y2j', 'y2j-draw');
+
+  player.hand.push(y2j);
+  player.fortitude = 10;
+  player.arsenal = [];
+  for (let i = 0; i < 4; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `y2j-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = player.arsenal.length;
+  await engine.playCard(0, y2j.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.choiceId === 'drawOrOpponentDiscardUpTo',
+    'Y2J opens draw-or-discard-up-to choice'
+  );
+  await engine.selectChoice(0, 'draw');
+
+  assert(
+    engine.cardEffectFlow?.type === 'drawCountChoice',
+    'Y2J draw branch opens draw-up-to prompt'
+  );
+  engine.adjustDrawCount(0, 3);
+  await engine.confirmDrawCount(0);
+
+  assert(
+    player.arsenal.length === arsenalBefore - 3,
+    'Y2J draw branch draws chosen number of cards'
+  );
+}
+
+async function testY2JOpponentDiscardUpToBranch() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('jericho', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const y2j = cloneCard(RawDeal, 'y2j', 'y2j-disc');
+  const discA = cloneCard(RawDeal, 'chop', 'y2j-disc-a');
+  const discB = cloneCard(RawDeal, 'kick', 'y2j-disc-b');
+  const keep = cloneCard(RawDeal, 'punch', 'y2j-keep');
+
+  player.hand.push(y2j);
+  player.fortitude = 10;
+  opponent.hand = [discA, discB, keep];
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, y2j.instanceId, 'action');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  await engine.selectChoice(0, 'opponentDiscard');
+
+  assert(
+    engine.cardEffectFlow?.type === 'forceOpponentDiscardCountChoice',
+    'Y2J opponent branch opens discard-count prompt'
+  );
+  engine.adjustDiscardCount(0, 2);
+  await engine.confirmDiscardCount(0);
+
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Y2J opponent branch opens opponent discard selection'
+  );
+  await engine.selectForCardEffect(1, discA.instanceId);
+  await engine.selectForCardEffect(1, discB.instanceId);
+
+  assert(
+    opponent.hand.length === 1 && opponent.hand[0].instanceId === keep.instanceId,
+    'Y2J forces opponent to discard chosen number of cards'
+  );
+  assert(
+    opponent.ringside.some((c) => c.instanceId === discA.instanceId) &&
+      opponent.ringside.some((c) => c.instanceId === discB.instanceId),
+    'Y2J sends opponent discards to Ringside'
+  );
+}
+
 async function testTakeThatMoveReversesStrikeGrappleSubmission() {
   const RawDeal = loadRawDeal();
 
@@ -7549,6 +7865,14 @@ async function main() {
   await testKanesReturnFromHandMovesArsenalAndSetsNextTurnBonuses();
   await testKanesReturnFromArsenalNoHandEffects();
   await testDontYouNeverEverFromHandForcesDiscardAndNextTurnBonus();
+  await testSuperkickBonusAfter5DManeuver();
+  await testSuperkickNoBonusAfter3DManeuver();
+  await testPowerbombSlamBonusAndDraw();
+  await testFullNelsonFindsMaintainHold();
+  await testFullNelsonNoMaintainHoldStillShuffles();
+  await testAbdominalStretchDiscardThenSearch();
+  await testY2JDrawUpToBranch();
+  await testY2JOpponentDiscardUpToBranch();
   await testTakeThatMoveReversesStrikeGrappleSubmission();
   await testTakeThatMoveCannotReverseHighRisk();
   await testTakeThatMoveFromHandShufflesUpToFiveFromRingside();

@@ -231,6 +231,18 @@ window.RawDeal.GameEngine = class GameEngine {
     return bonus;
   }
 
+  _getRingTitleWordDamageBonus(player, { word, value = 1 } = {}) {
+    if (!player?.ring?.maneuvers?.length || !word) return 0;
+    const needle = word.toLowerCase();
+    let count = 0;
+    for (const card of player.ring.maneuvers) {
+      if (card.name?.toLowerCase().includes(needle)) {
+        count += 1;
+      }
+    }
+    return count * (value || 1);
+  }
+
   _addTurnDamageBonus(player, { all = 0, subtype, value = 0, sourceName }) {
     const idx = this._playerIndex(player);
     const bonuses = this.turnDamageBonus[idx];
@@ -419,6 +431,18 @@ window.RawDeal.GameEngine = class GameEngine {
       };
     }
 
+    if (flow.type === 'forceOpponentDiscardCountChoice') {
+      const opponent = this.players[flow.opponentIndex];
+      const available = Math.min(flow.max || 5, opponent.hand.length);
+      return {
+        mode: 'forceOpponentDiscardCount',
+        message: this._gc().prompt.forceOpponentDiscardCountChoice(flow.sourceName, available),
+        min: 0,
+        max: available,
+        selected: flow.selectedCount ?? 0,
+      };
+    }
+
     if (flow.type === 'shuffleRingsideIntoArsenal') {
       const picked = flow.selectedIds.length;
       const player = this.players[flow.playerIndex];
@@ -547,14 +571,17 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (flow.type === 'arsenalSearch') {
       const targetPlayer = this.players[flow.targetPlayerIndex];
-      const cards = targetPlayer.arsenal.map((c) => ({ ...c }));
+      const cards = targetPlayer.arsenal
+        .filter((c) => !flow.filterCardId || c.id === flow.filterCardId)
+        .map((c) => ({ ...c }));
       const picked = flow.selectedIds.length;
       const n = flow.selectCount || 1;
       const message = this._gc().prompt.arsenalSearch(
         flow.sourceName,
         flow.purpose,
         n,
-        picked
+        picked,
+        flow.filterCardId
       );
       return {
         mode: 'arsenalSearch',
@@ -563,6 +590,7 @@ window.RawDeal.GameEngine = class GameEngine {
         cards,
         selectCount: n,
         selectedIds: [...flow.selectedIds],
+        filterCardId: flow.filterCardId || null,
       };
     }
 
@@ -1201,6 +1229,18 @@ window.RawDeal.GameEngine = class GameEngine {
 
     damage += this._getRingPassiveManeuverDamageBonus(player);
 
+    const afterMinDamageBonus = played.damageBonusAfterMinDamage;
+    if (afterMinDamageBonus) {
+      const lastDamage = player.turnState?.lastSuccessfulManeuverDamage;
+      if (lastDamage != null && lastDamage >= (afterMinDamageBonus.min || 0)) {
+        damage += afterMinDamageBonus.value || 0;
+      }
+    }
+
+    if (played.ringTitleWordDamageBonus) {
+      damage += this._getRingTitleWordDamageBonus(player, played.ringTitleWordDamageBonus);
+    }
+
     const afterSubtypeBonus = played.damageBonusAfterLastSubtype;
     if (
       afterSubtypeBonus &&
@@ -1435,6 +1475,40 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
+  _beginDrawOrOpponentDiscardUpToChoice(player, playerIndex, sourceName, max = 5) {
+    this.cardEffectFlow = {
+      type: 'choice',
+      choiceId: 'drawOrOpponentDiscardUpTo',
+      playerIndex,
+      sourceName,
+      max,
+    };
+    this._notify();
+    return true;
+  }
+
+  _beginForceOpponentDiscardCountPrompt(player, playerIndex, sourceName, max = 5) {
+    const opponent = this.players[1 - playerIndex];
+    const available = Math.min(max, opponent.hand.length);
+    if (available === 0) {
+      this.actionLog.push({
+        message: this._gc().log.opponentNoHandToDiscard(sourceName),
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'forceOpponentDiscardCountChoice',
+      playerIndex,
+      opponentIndex: 1 - playerIndex,
+      sourceName,
+      max,
+      selectedCount: 0,
+    };
+    this._notify();
+    return true;
+  }
+
   _beginMarkingOutChoice(player, playerIndex, sourceName) {
     this.cardEffectFlow = {
       type: 'choice',
@@ -1523,12 +1597,22 @@ window.RawDeal.GameEngine = class GameEngine {
 
   adjustDiscardCount(playerIndex, delta) {
     const flow = this.cardEffectFlow;
-    if (!flow || flow.type !== 'discardCountChoice' || flow.playerIndex !== playerIndex) {
+    if (
+      !flow ||
+      flow.playerIndex !== playerIndex ||
+      (flow.type !== 'discardCountChoice' && flow.type !== 'forceOpponentDiscardCountChoice')
+    ) {
       return false;
     }
 
-    const player = this.players[playerIndex];
-    const available = this._discardUpToAvailableMax(player, flow.max);
+    const player =
+      flow.type === 'forceOpponentDiscardCountChoice'
+        ? this.players[flow.opponentIndex]
+        : this.players[playerIndex];
+    const available =
+      flow.type === 'forceOpponentDiscardCountChoice'
+        ? Math.min(flow.max, player.hand.length)
+        : this._discardUpToAvailableMax(player, flow.max);
     const next = (flow.selectedCount ?? 0) + delta;
     flow.selectedCount = Math.max(0, Math.min(available, next));
     this._notify();
@@ -1537,8 +1621,39 @@ window.RawDeal.GameEngine = class GameEngine {
 
   async confirmDiscardCount(playerIndex) {
     const flow = this.cardEffectFlow;
-    if (!flow || flow.type !== 'discardCountChoice' || flow.playerIndex !== playerIndex) {
+    if (
+      !flow ||
+      flow.playerIndex !== playerIndex ||
+      (flow.type !== 'discardCountChoice' && flow.type !== 'forceOpponentDiscardCountChoice')
+    ) {
       return false;
+    }
+
+    if (flow.type === 'forceOpponentDiscardCountChoice') {
+      const count = flow.selectedCount ?? 0;
+      const sourceName = flow.sourceName;
+      const opponent = this.players[flow.opponentIndex];
+      this.cardEffectFlow = null;
+      this._notify();
+
+      if (count === 0) {
+        this.actionLog.push({
+          message: this._gc().log.forcedOpponentDiscardZero(sourceName),
+        });
+        if (this.effectPipelineFlow?.paused) {
+          await window.RawDeal.EffectPipeline.resumeAfterCardEffect(this);
+        }
+        return true;
+      }
+
+      const paused = await this._beginOpponentControlledDiscard(
+        opponent,
+        flow.opponentIndex,
+        sourceName,
+        count,
+        { resumePipeline: true }
+      );
+      return !!paused;
     }
 
     const player = this.players[playerIndex];
@@ -2361,6 +2476,63 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
+  async _beginSearchArsenalForCardPrompt(player, playerIndex, sourceName, { cardId = null } = {}) {
+    if (player.arsenal.length === 0) {
+      this.actionLog.push({
+        message: this._gc().log.searchArsenalEmpty(sourceName),
+      });
+      return false;
+    }
+
+    const matches = cardId
+      ? player.arsenal.filter((c) => c.id === cardId)
+      : player.arsenal;
+
+    if (cardId && matches.length === 0) {
+      this.actionLog.push({
+        message: this._gc().log.searchArsenalNoMatch(sourceName, cardId),
+      });
+      this._shuffle(player.arsenal);
+      this.actionLog.push({
+        message: this._gc().log.shuffledArsenal(sourceName, false),
+      });
+      return false;
+    }
+
+    this.cardEffectFlow = {
+      type: 'arsenalSearch',
+      playerIndex,
+      targetPlayerIndex: playerIndex,
+      purpose: 'searchToHand',
+      sourceName,
+      selectCount: 1,
+      selectedIds: [],
+      filterCardId: cardId || null,
+    };
+    this.actionLog.push({
+      message: this._gc().log.searchArsenalLook(sourceName, cardId),
+    });
+    this._notify();
+    return true;
+  }
+
+  async _completeArsenalSearchToHand(player, playerIndex, sourceName, card) {
+    if (card) {
+      player.hand.push(card);
+      this.actionLog.push({
+        message: this._gc().log.pickedFromArsenalToHand(sourceName, card.name),
+      });
+    }
+    this._shuffle(player.arsenal);
+    this.actionLog.push({
+      message: this._gc().log.shuffledArsenal(sourceName, false),
+    });
+    this.cardEffectFlow = null;
+    this._notify();
+    await this._finishCardEffectResolution();
+    return true;
+  }
+
   async _beginMarkingOutOwnArsenalPrompt(player, playerIndex, sourceName) {
     if (player.arsenal.length === 0) {
       this.actionLog.push({
@@ -2466,7 +2638,11 @@ window.RawDeal.GameEngine = class GameEngine {
     const targetPlayer = this.players[flow.targetPlayerIndex];
     if (!targetPlayer.arsenal.some((c) => c.instanceId === instanceId)) return false;
 
-    if (flow.purpose === 'toHand') {
+    if (flow.purpose === 'toHand' || flow.purpose === 'searchToHand') {
+      if (flow.filterCardId) {
+        const card = targetPlayer.arsenal.find((c) => c.instanceId === instanceId);
+        if (!card || card.id !== flow.filterCardId) return false;
+      }
       return await this.confirmArsenalSearch(playerIndex, [instanceId]);
     }
 
@@ -2500,6 +2676,16 @@ window.RawDeal.GameEngine = class GameEngine {
     if (flow.purpose === 'toHand') {
       const player = this.players[playerIndex];
       return await this._completeMarkingOutToHand(
+        player,
+        playerIndex,
+        flow.sourceName,
+        cards[0] || null
+      );
+    }
+
+    if (flow.purpose === 'searchToHand') {
+      const player = this.players[playerIndex];
+      return await this._completeArsenalSearchToHand(
         player,
         playerIndex,
         flow.sourceName,
@@ -3163,6 +3349,18 @@ window.RawDeal.GameEngine = class GameEngine {
       } else {
         return false;
       }
+    } else if (flow.choiceId === 'drawOrOpponentDiscardUpTo') {
+      const max = flow.max || 5;
+      const sourceName = flow.sourceName;
+      this.cardEffectFlow = null;
+      this._notify();
+      if (optionId === 'draw') {
+        return this._beginDrawUpToPrompt(player, playerIndex, sourceName, max);
+      }
+      if (optionId === 'opponentDiscard') {
+        return this._beginForceOpponentDiscardCountPrompt(player, playerIndex, sourceName, max);
+      }
+      return false;
     } else {
       return false;
     }

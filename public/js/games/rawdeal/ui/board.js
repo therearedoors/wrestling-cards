@@ -29,7 +29,7 @@ window.RawDeal.Board = class Board {
       };
       this.choiceModal.onAdjust = (delta) => {
         const mode = this.choiceModal._prompt?.mode;
-        if (mode === 'discardCount') {
+        if (mode === 'discardCount' || mode === 'forceOpponentDiscardCount') {
           if (this.onAdjustDiscardCount) this.onAdjustDiscardCount(delta);
         } else if (this.onAdjustDrawCount) {
           this.onAdjustDrawCount(delta);
@@ -37,7 +37,7 @@ window.RawDeal.Board = class Board {
       };
       this.choiceModal.onConfirm = () => {
         const mode = this.choiceModal._prompt?.mode;
-        if (mode === 'discardCount') {
+        if (mode === 'discardCount' || mode === 'forceOpponentDiscardCount') {
           if (this.onConfirmDiscardCount) this.onConfirmDiscardCount();
         } else if (this.onConfirmDrawCount) {
           this.onConfirmDrawCount();
@@ -449,7 +449,8 @@ window.RawDeal.Board = class Board {
     if (
       prompt?.mode === 'choice' ||
       prompt?.mode === 'drawCount' ||
-      prompt?.mode === 'discardCount'
+      prompt?.mode === 'discardCount' ||
+      prompt?.mode === 'forceOpponentDiscardCount'
     ) {
       this.choiceModal.show(prompt);
     } else {
@@ -512,6 +513,7 @@ window.RawDeal.Board = class Board {
       prompt.mode !== 'choice' &&
       prompt.mode !== 'drawCount' &&
       prompt.mode !== 'discardCount' &&
+      prompt.mode !== 'forceOpponentDiscardCount' &&
       prompt.mode !== 'ringsideModal' &&
       prompt.mode !== 'opponentRingModal' &&
       prompt.mode !== 'arsenalReorder' &&

@@ -65,6 +65,17 @@ window.RawDeal = window.RawDeal || {};
       };
     },
 
+    drawOrOpponentDiscardUpTo(ctx) {
+      const { sourceName, max } = ctx;
+      return {
+        message: `${sourceName}: choose one.`,
+        options: [
+          { id: 'draw', label: `Draw up to ${max} cards` },
+          { id: 'opponentDiscard', label: `Opponent discards up to ${max} cards` },
+        ],
+      };
+    },
+
     egoBoostOrDiscard(ctx) {
       const { sourceName, count } = ctx;
       return {
@@ -84,6 +95,10 @@ window.RawDeal = window.RawDeal || {};
 
     discardCountChoice(sourceName, available) {
       return `${sourceName}: discard how many cards to Ringside? (0–${available})`;
+    },
+
+    forceOpponentDiscardCountChoice(sourceName, available) {
+      return `${sourceName}: how many cards should opponent discard? (0–${available})`;
     },
 
     shuffleRingsideIntoArsenal(sourceName, n, picked) {
@@ -149,8 +164,16 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceName}: choose 1 card from your Arsenal or Ringside to put in your hand.`;
     },
 
-    arsenalSearch(sourceName, purpose, n, picked) {
+    arsenalSearch(sourceName, purpose, n, picked, filterCardId = null) {
       if (purpose === 'toHand') {
+        return `${sourceName}: choose 1 card from your Arsenal to put in your hand.`;
+      }
+      if (purpose === 'searchToHand') {
+        if (filterCardId) {
+          const def = window.RawDeal.CARDS?.[filterCardId];
+          const title = def?.name || filterCardId;
+          return `${sourceName}: choose ${title} from your Arsenal to put in your hand.`;
+        }
         return `${sourceName}: choose 1 card from your Arsenal to put in your hand.`;
       }
       if (n === 1) {
@@ -387,6 +410,29 @@ window.RawDeal = window.RawDeal || {};
 
     markingOutPutOpponentInRingside(sourceName, names) {
       return `${sourceName}: put ${names} from opponent's Arsenal into Ringside.`;
+    },
+
+    searchArsenalEmpty(sourceName) {
+      return `${sourceName}: Arsenal is empty — nothing to search.`;
+    },
+
+    searchArsenalNoMatch(sourceName, cardId) {
+      const def = window.RawDeal.CARDS?.[cardId];
+      const title = def?.name || cardId;
+      return `${sourceName}: no ${title} found in Arsenal.`;
+    },
+
+    searchArsenalLook(sourceName, cardId) {
+      if (cardId) {
+        const def = window.RawDeal.CARDS?.[cardId];
+        const title = def?.name || cardId;
+        return `${sourceName}: search Arsenal for ${title}.`;
+      }
+      return `${sourceName}: search Arsenal for 1 card.`;
+    },
+
+    forcedOpponentDiscardZero(sourceName) {
+      return `${sourceName}: opponent discards 0 cards.`;
     },
 
     opponentDrew(sourceName, drawn) {
