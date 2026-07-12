@@ -160,7 +160,12 @@ window.RawDeal = window.RawDeal || {};
       return `${sourceName}: drag to reorder ${whose} ${count} Arsenal card${count === 1 ? '' : 's'} (left = next to draw). ${shuffleHint}`;
     },
 
-    arsenalOrRingsidePick(sourceName) {
+    arsenalOrRingsidePick(sourceName, filterCardId = null) {
+      if (filterCardId) {
+        const def = window.RawDeal.CARDS?.[filterCardId];
+        const title = def?.name || filterCardId;
+        return `${sourceName}: choose ${title} from your Arsenal or Ringside to put in your hand.`;
+      }
       return `${sourceName}: choose 1 card from your Arsenal or Ringside to put in your hand.`;
     },
 
@@ -433,6 +438,22 @@ window.RawDeal = window.RawDeal || {};
 
     forcedOpponentDiscardZero(sourceName) {
       return `${sourceName}: opponent discards 0 cards.`;
+    },
+
+    disqualificationWin(sourceName) {
+      return `${sourceName}: opponent is disqualified — you win the match!`;
+    },
+
+    searchArsenalOrRingsideLook(sourceName, cardId) {
+      const def = window.RawDeal.CARDS?.[cardId];
+      const title = def?.name || cardId;
+      return `${sourceName}: search Ringside and Arsenal for ${title}.`;
+    },
+
+    searchArsenalOrRingsideNoMatch(sourceName, cardId) {
+      const def = window.RawDeal.CARDS?.[cardId];
+      const title = def?.name || cardId;
+      return `${sourceName}: no ${title} found in Ringside or Arsenal.`;
     },
 
     opponentDrew(sourceName, drawn) {

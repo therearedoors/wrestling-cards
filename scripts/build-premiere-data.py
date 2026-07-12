@@ -365,6 +365,18 @@ def parse_cards(text: str):
         lower_f = infer_requires_lower_fortitude_than_opponent(rules)
         if lower_f:
             entry.update(lower_f)
+        dq_win = infer_disqualifies_opponent(rules)
+        if dq_win:
+            entry.update(dq_win)
+        heel_ring = infer_requires_opponent_heel_in_ring(rules)
+        if heel_ring:
+            entry.update(heel_ring)
+        only_subtype = infer_reverses_only_subtype(rules)
+        if only_subtype:
+            entry.update(only_subtype)
+        rev_discard = infer_requires_reversal_discard(rules)
+        if rev_discard:
+            entry.update(rev_discard)
 
         cards[card_id] = entry
 
@@ -564,6 +576,37 @@ def infer_hand_reversal_damage_bonus(rules):
     return None
 
 
+def infer_disqualifies_opponent(rules):
+    blob = rules.lower()
+    if 'opponent is disqualified and you win' in blob:
+        return {'disqualifiesOpponent': True}
+    return None
+
+
+def infer_requires_opponent_heel_in_ring(rules):
+    blob = rules.lower()
+    m = re.search(r'(\d+) or more heel cards in his ring', blob)
+    if m:
+        return {'requiresOpponentHeelInRing': int(m.group(1))}
+    return None
+
+
+def infer_reverses_only_subtype(rules):
+    blob = rules.lower()
+    m = re.search(r'may only reverse a (strike|grapple|submission) maneuver', blob)
+    if m:
+        return {'reversesOnlySubtype': m.group(1)}
+    return None
+
+
+def infer_requires_reversal_discard(rules):
+    blob = rules.lower()
+    m = re.search(r'you must first discard (\d+) card', blob)
+    if m:
+        return {'requiresReversalDiscard': int(m.group(1))}
+    return None
+
+
 def infer_requires_after_successful_submission(rules):
     blob = rules.lower()
     if 'play after a successful submission maneuver not reversed' in blob:
@@ -661,6 +704,8 @@ def classify(types_blob, rules, name, damage):
             reverses.append('after-irish-whip')
         if 'card titled jockeying for position' in blob:
             reverses.append('jockeying-for-position')
+        if 'reverse any heel maneuver or reversal' in blob:
+            reverses.append('heel')
 
     return subtype, reverses
 
@@ -797,6 +842,16 @@ def infer_maneuver_effects(types_list, rules):
         if m := re.search(r'discard (\d+) cards?', blob):
             effects.append({'op': 'discardUpTo', 'max': int(m.group(1))})
         effects.append({'op': 'searchArsenalForCard'})
+
+    if (
+        'look through your ringside' in blob
+        and 'arsenal for the card titled' in blob
+        and 'shuffle your arsenal' in blob
+    ):
+        m = re.search(r'card titled ([^.]+)', blob)
+        if m:
+            ref_id = _resolve_referenced_card_id(m.group(1).strip(), {})
+            effects.append({'op': 'searchArsenalOrRingsideForCard', 'cardId': ref_id})
 
     return effects or None
 
@@ -1099,6 +1154,10 @@ def emit_cards(cards):
                     'damageBonusAfterMinDamage',
                     'ringTitleWordDamageBonus',
                     'reversesOnlyManeuver',
+                    'reversesOnlySubtype',
+                    'requiresOpponentHeelInRing',
+                    'disqualifiesOpponent',
+                    'requiresReversalDiscard',
                     'actionEffects', 'maneuverEffects', 'reversalEffects',
                     'ringPassiveEffects', 'set']:
             if key in card and card[key] is not None:

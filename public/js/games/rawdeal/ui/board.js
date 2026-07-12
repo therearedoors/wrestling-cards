@@ -570,10 +570,12 @@ window.RawDeal.Board = class Board {
     const myIndex = state.myIndex ?? 0;
     if (state.winner === myIndex) {
       if (state.winReason === 'pinfall') return 'PINFALL! You win!';
+      if (state.winReason === 'disqualification') return 'DISQUALIFICATION! You win!';
       if (state.winReason === 'forfeit') return 'Opponent left — you win!';
       return 'Count-out! You win!';
     }
     if (state.winReason === 'forfeit') return 'You left the match.';
+    if (state.winReason === 'disqualification') return 'DISQUALIFICATION! You lose.';
     if (state.winReason === 'pinfall') return 'PINFALL! You lose.';
     return 'You got counted out. Try again!';
   }
@@ -591,6 +593,8 @@ window.RawDeal.Board = class Board {
     if (reversalWindow.canRespond) {
       if (reversalWindow.kind === 'action') {
         text.textContent = `Opponent played ${m.name} as an Action — play a Reversal from hand or Pass.`;
+      } else if (reversalWindow.kind === 'opponentReversal') {
+        text.textContent = `Opponent played ${m.name} as a heel Reversal — play Disqualification! from hand or Pass.`;
       } else if (reversalWindow.kind === 'maintained') {
         text.textContent = `Opponent is maintaining ${m.name} (${m.damage}D) — play a Reversal from hand or Pass.`;
       } else {
@@ -598,6 +602,8 @@ window.RawDeal.Board = class Board {
       }
     } else if (reversalWindow.kind === 'action') {
       text.textContent = `Waiting for opponent to respond to ${m.name} (Action)…`;
+    } else if (reversalWindow.kind === 'opponentReversal') {
+      text.textContent = `Waiting for opponent to counter your heel Reversal (${m.name})…`;
     } else if (reversalWindow.kind === 'maintained') {
       text.textContent = `Waiting for opponent to respond to maintained ${m.name}…`;
     } else {
@@ -822,14 +828,29 @@ window.RawDeal.Board = class Board {
   }
 
   _canReverseManeuver(card, maneuver, player, reversalWindow = null) {
+    const players = this._state?.players;
+    const heelPlayerIndex =
+      reversalWindow?.heelPlayerIndex ?? reversalWindow?.attackerIndex;
+    const attacker =
+      heelPlayerIndex != null && players ? players[heelPlayerIndex] : null;
+    const maneuverCard = {
+      id: maneuver.id,
+      name: maneuver.name,
+      subtype: maneuver.subtype,
+      damage: maneuver.damage,
+      alignment: maneuver.alignment,
+      types: maneuver.types,
+    };
+
     return window.RawDeal.CardUtils.canReverseManeuver(
       card,
-      maneuver,
+      maneuverCard,
       player.fortitude,
       maneuver.damage,
       {
         afterIrishWhip: reversalWindow?.maneuver?.afterIrishWhip ?? false,
         reversalFortitudeTax: reversalWindow?.maneuver?.reversalFortitudeTax ?? 0,
+        attacker,
       }
     );
   }

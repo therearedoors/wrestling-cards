@@ -4,8 +4,14 @@ window.RawDeal.CardUtils = {
   HAND_PLAY_MODES: ['maneuver', 'action'],
 
   getTypes(card) {
-    if (!card?.types?.length) return [];
-    return card.types;
+    if (card?.types?.length) return card.types;
+    return window.RawDeal.CARDS?.[card?.id]?.types ?? [];
+  },
+
+  getCardAlignment(card) {
+    if (!card) return null;
+    if (card.alignment) return card.alignment;
+    return window.RawDeal.CARDS?.[card?.id]?.alignment ?? null;
   },
 
   isHybrid(card) {
@@ -82,6 +88,30 @@ window.RawDeal.CardUtils = {
     return ['maneuvers', 'reversals', 'actions'].some((area) =>
       player.ring[area]?.some((c) => c.id === cardId)
     );
+  },
+
+  countHeelCardsInRing(player) {
+    if (!player?.ring) return 0;
+    let count = 0;
+    for (const area of ['maneuvers', 'reversals', 'actions']) {
+      for (const card of player.ring[area] || []) {
+        if (this.isHeelCard(card)) count += 1;
+      }
+    }
+    return count;
+  },
+
+  isHeelCard(card) {
+    return this.getCardAlignment(card) === 'heel';
+  },
+
+  meetsReversalDiscardRequirement(player, reversalCard, reversalInstanceId = null) {
+    const need = reversalCard?.requiresReversalDiscard || 0;
+    if (!need) return true;
+    const others = reversalInstanceId
+      ? player.hand.filter((c) => c.instanceId !== reversalInstanceId).length
+      : Math.max(0, player.hand.length - 1);
+    return others >= need;
   },
 
   meetsActionPlayRequirement(player, opponent, card) {
@@ -201,10 +231,11 @@ window.RawDeal.CardUtils = {
     const canReverse =
       this.hasType(reversalCard, 'reversal') ||
       (reversalCard.reverses && reversalCard.reverses.length > 0) ||
-      !!reversalCard.reversesOnlyManeuver;
+      !!reversalCard.reversesOnlyManeuver ||
+      !!reversalCard.reversesOnlySubtype;
     if (!canReverse) return false;
 
-    const { afterIrishWhip = false, reversalFortitudeTax = 0 } = options;
+    const { afterIrishWhip = false, reversalFortitudeTax = 0, attacker = null } = options;
     const reversalCost = (reversalCard.fortitude || 0) + reversalFortitudeTax;
     if (defenderFortitude < reversalCost) return false;
 
@@ -213,6 +244,24 @@ window.RawDeal.CardUtils = {
     if (reversalCard.reversesOnlyManeuver) {
       return (
         maneuver.id === reversalCard.reversesOnlyManeuver &&
+        this.passesReversalDamageCap(reversalCard, damage)
+      );
+    }
+
+    if (reversalCard.reversesOnlySubtype) {
+      return (
+        maneuver.subtype === reversalCard.reversesOnlySubtype &&
+        this.passesReversalDamageCap(reversalCard, damage)
+      );
+    }
+
+    if (reversalCard.reverses?.includes('heel')) {
+      if (!attacker) return false;
+      const minHeel = reversalCard.requiresOpponentHeelInRing ?? 5;
+      if (this.countHeelCardsInRing(attacker) < minHeel) return false;
+      if (!this.isHeelCard(maneuver)) return false;
+      return (
+        (this.hasType(maneuver, 'maneuver') || this.hasType(maneuver, 'reversal')) &&
         this.passesReversalDamageCap(reversalCard, damage)
       );
     }
