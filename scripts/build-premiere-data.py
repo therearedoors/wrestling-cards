@@ -384,6 +384,12 @@ def parse_cards(text: str):
         after_subtype_bonus = infer_damage_bonus_after_last_subtype(entry.get('text', ''))
         if after_subtype_bonus:
             entry.update(after_subtype_bonus)
+        after_min_damage_bonus = infer_damage_bonus_after_min_damage(entry.get('text', ''))
+        if after_min_damage_bonus:
+            entry.update(after_min_damage_bonus)
+        ring_title_bonus = infer_ring_title_word_damage_bonus(entry.get('text', ''))
+        if ring_title_bonus:
+            entry.update(ring_title_bonus)
 
     return cards
 
@@ -500,9 +506,46 @@ def infer_requires_after_successful_maneuver(rules):
 
 def infer_requires_after_maneuver_min_damage(rules):
     blob = rules.lower()
+    if re.search(r'\+(\d+)d if played after a \d+d or greater maneuver', blob):
+        return None
+    if not (
+        'can only be played after' in blob
+        or 'may only be played after' in blob
+        or 'play after a maneuver that does' in blob
+    ):
+        return None
     m = re.search(r'after a (?:maneuver that does )?(\d+)d or greater(?: maneuver)?', blob)
     if m:
         return {'requiresAfterManeuverMinDamage': int(m.group(1))}
+    return None
+
+
+def infer_damage_bonus_after_min_damage(text):
+    blob = text.lower()
+    m = re.search(r'\+(\d+)d if played after a (\d+)d or greater maneuver', blob)
+    if m:
+        return {
+            'damageBonusAfterMinDamage': {
+                'min': int(m.group(2)),
+                'value': int(m.group(1)),
+            }
+        }
+    return None
+
+
+def infer_ring_title_word_damage_bonus(text):
+    blob = text.lower()
+    m = re.search(
+        r'\+(\d+)d for every maneuver with the word [“"]?(\w+)[”"]? in its title in your ring',
+        blob,
+    )
+    if m:
+        return {
+            'ringTitleWordDamageBonus': {
+                'word': m.group(2),
+                'value': int(m.group(1)),
+            }
+        }
     return None
 
 
@@ -739,6 +782,21 @@ def infer_maneuver_effects(types_list, rules):
                 'max': int(m.group(1)),
                 'exact': True,
             })
+
+    if (
+        'look through your arsenal for the card titled maintain hold' in blob
+        and 'shuffle your arsenal' in blob
+    ):
+        effects.append({'op': 'searchArsenalForCard', 'cardId': 'maintain-hold'})
+
+    if (
+        'search through your arsenal' in blob
+        and 'put 1 card into your hand' in blob
+        and 'shuffle your arsenal' in blob
+    ):
+        if m := re.search(r'discard (\d+) cards?', blob):
+            effects.append({'op': 'discardUpTo', 'max': int(m.group(1))})
+        effects.append({'op': 'searchArsenalForCard'})
 
     return effects or None
 
@@ -999,6 +1057,9 @@ def infer_action_effects(types_list, rules, name=''):
     ):
         return [{'op': 'nextManeuverUnreversible'}]
 
+    if 'draw up to 5' in blob and 'discard up to 5' in blob:
+        return [{'op': 'drawOrOpponentDiscardUpTo', 'max': 5}]
+
     if 'draw up to 5' in blob:
         return [{'op': 'draw', 'count': 5}]
     if 'draw 2' in blob or 'draw up to 2' in blob:
@@ -1035,6 +1096,8 @@ def emit_cards(cards):
                     'requiresLowerFortitudeThanOpponent', 'discountAfterCard',
                     'discountWhenRingCard',
                     'damageBonusAfterLastSubtype',
+                    'damageBonusAfterMinDamage',
+                    'ringTitleWordDamageBonus',
                     'reversesOnlyManeuver',
                     'actionEffects', 'maneuverEffects', 'reversalEffects',
                     'ringPassiveEffects', 'set']:
