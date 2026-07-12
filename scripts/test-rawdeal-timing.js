@@ -6104,6 +6104,470 @@ async function testIAmTheGameOpponentDiscardTwoChoice() {
   assert(!engine.cardEffectFlow, 'I Am the Game completes after opponent discard');
 }
 
+async function testReverseDdtDrawsOneOnSuccess() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const reverseDdt = cloneCard(RawDeal, 'reverse-ddt', 'rddt-play');
+  player.hand.push(reverseDdt);
+  player.fortitude = 12;
+  player.arsenal = [];
+  for (let i = 0; i < 5; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `rddt-ars-${i}`));
+  }
+  const opponent = engine.players[1];
+  opponent.arsenal = opponent.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = opponent.arsenal.length; i < 12; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'chop', `rddt-opp-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = player.arsenal.length;
+  const handBefore = player.hand.length;
+  await engine.playCard(0, reverseDdt.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    player.arsenal.length === arsenalBefore - 1,
+    'Reverse DDT draws 1 card from Arsenal on success'
+  );
+  assert(
+    player.hand.length === handBefore,
+    'Reverse DDT net hand unchanged after playing card and drawing 1'
+  );
+}
+
+async function testGuillotineStretchDiscardsAndDraws() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const guillotine = cloneCard(RawDeal, 'guillotine-stretch', 'gs-play');
+  const toDiscard = cloneCard(RawDeal, 'chop', 'gs-opp-disc');
+
+  player.hand.push(guillotine);
+  player.fortitude = 12;
+  opponent.hand = [toDiscard, cloneCard(RawDeal, 'punch', 'gs-opp-keep')];
+  opponent.arsenal = [];
+  for (let i = 0; i < 10; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'kick', `gs-opp-ars-${i}`));
+  }
+  player.arsenal = [];
+  for (let i = 0; i < 4; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'kick', `gs-pl-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = player.arsenal.length;
+  await engine.playCard(0, guillotine.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Guillotine Stretch opens opponent discard prompt'
+  );
+  await engine.selectForCardEffect(1, toDiscard.instanceId);
+
+  assert(
+    opponent.ringside.some((c) => c.instanceId === toDiscard.instanceId),
+    'Guillotine Stretch forces opponent discard to Ringside'
+  );
+  assert(
+    player.arsenal.length === arsenalBefore - 1,
+    'Guillotine Stretch draws 1 card after opponent discard'
+  );
+}
+
+async function testChickenWingShufflesTwoFromRingside() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const player = engine.players[0];
+  const chickenWing = cloneCard(RawDeal, 'chicken-wing', 'cw-play');
+  const rs1 = cloneCard(RawDeal, 'punch', 'cw-rs-1');
+  const rs2 = cloneCard(RawDeal, 'kick', 'cw-rs-2');
+
+  player.hand.push(chickenWing);
+  player.fortitude = 12;
+  player.ringside = [rs1, rs2];
+  player.arsenal = [];
+  for (let i = 0; i < 6; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `cw-ars-${i}`));
+  }
+  player.arsenal = player.arsenal.filter((c) => !c.reverses?.length);
+  for (let i = player.arsenal.length; i < 10; i++) {
+    player.arsenal.push(cloneCard(RawDeal, 'chop', `cw-safe-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = player.arsenal.length;
+  await engine.playCard(0, chickenWing.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'shuffleRingsideIntoArsenal',
+    'Chicken Wing opens Ringside shuffle modal'
+  );
+  assert(engine.cardEffectFlow.exact === true, 'Chicken Wing requires exactly 2 cards');
+  await engine.confirmSuperstarAbilityPrompt(0, [rs1.instanceId, rs2.instanceId]);
+
+  assert(player.ringside.length === 0, 'Chicken Wing empties selected Ringside cards');
+  assert(
+    player.arsenal.length === arsenalBefore + 2,
+    'Chicken Wing shuffles 2 cards into Arsenal'
+  );
+}
+
+async function testDiscusPunchHandReversalDamageBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('austin', 'rock');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const discus = cloneCard(RawDeal, 'discus-punch', 'dp-play');
+  const chyna = cloneCard(RawDeal, 'chyna-interferes', 'dp-chyna');
+
+  attacker.hand = [discus];
+  attacker.fortitude = 7;
+  attacker.arsenal = [];
+  for (let i = 0; i < 14; i++) {
+    attacker.arsenal.push(cloneCard(RawDeal, 'chop', `dp-atk-ars-${i}`));
+  }
+  defender.hand = [chyna];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 14; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `dp-def-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const arsenalBefore = attacker.arsenal.length;
+  await engine.playCard(0, discus.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, chyna.instanceId);
+
+  const reversalDamage = engine.damageLog.find((entry) => entry.card === 'Chyna Interferes');
+  assert(
+    reversalDamage?.damage === 5,
+    'Hand reversal vs Discus Punch deals +2D (Chyna 3D + 2)'
+  );
+  assert(
+    attacker.arsenal.length === arsenalBefore - 5,
+    'Discus Punch +2D bonus overturns 5D from hand reversal (Chyna 3D + 2)'
+  );
+}
+
+async function testKanesFlyingClotheslineNotPlayableAfterLowDamage() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('kane', 'austin');
+
+  const player = engine.players[0];
+  const clothesline = cloneCard(RawDeal, 'kanes-flying-clothesline', 'kfc-low');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'punch', 'kfc-punch-3d');
+  player.hand.push(clothesline);
+
+  assert(
+    !engine.canPlayCard(0, clothesline.instanceId, 'maneuver'),
+    'Kane’s Flying Clothesline not playable after a maneuver below 4D'
+  );
+}
+
+async function testKanesFlyingClotheslinePlayableAfter4DManeuver() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('kane', 'austin');
+
+  const player = engine.players[0];
+  const clothesline = cloneCard(RawDeal, 'kanes-flying-clothesline', 'kfc-ok');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'clothesline', 'kfc-cl-7d');
+  player.hand.push(clothesline);
+  player.fortitude = 8;
+
+  assert(
+    engine.canPlayCard(0, clothesline.instanceId, 'maneuver'),
+    'Kane’s Flying Clothesline playable after a 4D+ maneuver'
+  );
+}
+
+async function testKanesFlyingClotheslineHandReversalDamageBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('kane', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const setup = cloneCard(RawDeal, 'clothesline', 'kfc-setup');
+  const clothesline = cloneCard(RawDeal, 'kanes-flying-clothesline', 'kfc-cl');
+  const chyna = cloneCard(RawDeal, 'chyna-interferes', 'kfc-chyna');
+
+  attacker.hand = [setup, clothesline];
+  attacker.fortitude = 15;
+  attacker.arsenal = [];
+  for (let i = 0; i < 20; i++) {
+    attacker.arsenal.push(cloneCard(RawDeal, 'chop', `kfc-atk-ars-${i}`));
+  }
+  defender.hand = [chyna];
+  defender.fortitude = 10;
+  defender.arsenal = defender.arsenal.filter((c) => !c.reverses?.length);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, setup.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+  attacker.fortitude = 15;
+
+  const arsenalBefore = attacker.arsenal.length;
+  await engine.playCard(0, clothesline.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, chyna.instanceId);
+
+  const reversalDamage = engine.damageLog.find((entry) => entry.card === 'Chyna Interferes');
+  assert(
+    reversalDamage?.damage === 9,
+    'Hand reversal vs Kane’s Flying Clothesline deals +6D (Chyna 3D + 6)'
+  );
+  assert(
+    attacker.arsenal.length === arsenalBefore - 11,
+    'Kane’s Flying Clothesline +6D overturns 9D plus 2 SV draws from reversal'
+  );
+}
+
+async function testLionsaultNotPlayableAfterLowDamage() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('jericho', 'austin');
+
+  const player = engine.players[0];
+  const lionsault = cloneCard(RawDeal, 'lionsault', 'lio-low');
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'punch', 'lio-punch-3d');
+  player.hand.push(lionsault);
+
+  assert(
+    !engine.canPlayCard(0, lionsault.instanceId, 'maneuver'),
+    'Lionsault not playable after a maneuver below 4D'
+  );
+}
+
+async function testLionsaultPlayableAfter4DManeuverAndForcesDiscard() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('jericho', 'austin');
+
+  const player = engine.players[0];
+  const opponent = engine.players[1];
+  const lionsault = cloneCard(RawDeal, 'lionsault', 'lio-ok');
+  const toDiscard = cloneCard(RawDeal, 'chop', 'lio-opp-disc');
+
+  opponent.hand = [toDiscard, cloneCard(RawDeal, 'punch', 'lio-opp-keep')];
+  opponent.arsenal = [];
+  for (let i = 0; i < 14; i++) {
+    opponent.arsenal.push(cloneCard(RawDeal, 'kick', `lio-opp-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await playManeuverSuccessfully(engine, RawDeal, 'kick', 'lio-kick-5d');
+  player.hand.push(lionsault);
+  player.fortitude = 6;
+
+  await engine.playCard(0, lionsault.instanceId, 'maneuver');
+  if (engine.stateMachine.phase === RawDeal.PHASES.REVERSAL_PRIORITY) {
+    await engine.passPriority(1);
+  }
+
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Lionsault opens opponent discard prompt after successful play'
+  );
+  await engine.selectForCardEffect(1, toDiscard.instanceId);
+  assert(
+    opponent.ringside.some((c) => c.instanceId === toDiscard.instanceId),
+    'Lionsault forces opponent to discard 1 card'
+  );
+}
+
+async function testKanesReturnFromHandMovesArsenalAndSetsNextTurnBonuses() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('kane', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'kr-punch');
+  const kanesReturn = cloneCard(RawDeal, 'kanes-return', 'kr-rev');
+  const kick = cloneCard(RawDeal, 'kick', 'kr-kick');
+  const stepAside = cloneCard(RawDeal, 'step-aside', 'kr-step');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 10;
+  defender.hand = [kanesReturn];
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `kr-def-ars-${i}`));
+  }
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const defenderArsenalBefore = defender.arsenal.length;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, kanesReturn.instanceId);
+
+  assert(
+    defender.ringside.length === 4,
+    'Kane’s Return places 4 cards in Ringside'
+  );
+  assert(
+    defender.arsenal.length === defenderArsenalBefore - 5,
+    'Kane’s Return moves 4 Arsenal to Ringside then draws 1 on new turn'
+  );
+
+  assert(
+    engine.turnDamageBonus[1].all === 2,
+    'Kane’s Return applies +2D to all maneuvers on next turn'
+  );
+  assert(
+    defender.turnState?.turnOpponentReversalTax === 15,
+    'Kane’s Return applies +15F to opponent reversals on next turn'
+  );
+
+  defender.hand.push(kick);
+  defender.fortitude = 20;
+  attacker.hand = [stepAside];
+  attacker.fortitude = 0;
+
+  await engine.playCard(1, kick.instanceId, 'maneuver');
+  assert(
+    engine._peekManeuverDamage(defender, attacker, kick) === 7,
+    'Kane’s Return +2D boosts Kick from 5D to 7D'
+  );
+  assert(
+    !engine.canPlayReversalFromHand(0, stepAside.instanceId),
+    'Kane’s Return blocks Step Aside below +15F tax'
+  );
+}
+
+async function testKanesReturnFromArsenalNoHandEffects() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'goldfish' });
+  await engine.startGame('kane', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'kr-ars-punch');
+  const kanesReturn = cloneCard(RawDeal, 'kanes-return', 'kr-ars-rev');
+
+  attacker.hand = [punch];
+  attacker.fortitude = 10;
+  defender.fortitude = 10;
+  defender.arsenal = [];
+  for (let i = 0; i < 8; i++) {
+    defender.arsenal.push(cloneCard(RawDeal, 'chop', `kr-ars-fill-${i}`));
+  }
+  defender.arsenal.push(kanesReturn);
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  const ringsideBefore = defender.ringside.length;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+
+  const lastDamage = engine.damageLog[engine.damageLog.length - 1];
+  assert(lastDamage?.result === 'reversed', 'Arsenal Kane’s Return reverses the maneuver');
+  assert(
+    lastDamage?.reversedBy === 'Kane’s Return!',
+    'Arsenal Kane’s Return reverses from defender Arsenal'
+  );
+  assert(
+    defender.ringside.length <= ringsideBefore + 1,
+    'Arsenal Kane’s Return does not mass-move Arsenal to Ringside'
+  );
+  assert(
+    engine.pendingTurnDamageBonus[1].all === 0,
+    'Arsenal Kane’s Return does not queue next-turn damage bonus'
+  );
+  assert(!engine.effectPipelineFlow, 'Arsenal Kane’s Return does not run hand-only effects');
+}
+
+async function testDontYouNeverEverFromHandForcesDiscardAndNextTurnBonus() {
+  const RawDeal = loadRawDeal();
+  const engine = new RawDeal.GameEngine({ engineMode: 'multiplayer' });
+  await engine.startGame('mankind', 'austin');
+
+  const attacker = engine.players[0];
+  const defender = engine.players[1];
+  const punch = cloneCard(RawDeal, 'punch', 'dyne-punch');
+  const neverEver = cloneCard(RawDeal, 'dont-you-never-ever', 'dyne-rev');
+  const discardA = cloneCard(RawDeal, 'chop', 'dyne-disc-a');
+  const discardB = cloneCard(RawDeal, 'kick', 'dyne-disc-b');
+
+  attacker.hand = [punch, discardA, discardB];
+  attacker.fortitude = 10;
+  defender.hand = [neverEver];
+  defender.fortitude = 2;
+
+  engine.stateMachine.phase = RawDeal.PHASES.MAIN;
+  engine.stateMachine.activePlayer = 0;
+
+  await engine.playCard(0, punch.instanceId, 'maneuver');
+  await engine.playReversalFromHand(1, neverEver.instanceId);
+
+  assert(
+    engine.cardEffectFlow?.type === 'opponentDiscardFromHand',
+    'Don’t You Never … EVER! opens opponent discard prompt'
+  );
+  await engine.selectForCardEffect(0, discardA.instanceId);
+  await engine.selectForCardEffect(0, discardB.instanceId);
+
+  assert(attacker.hand.length === 0, 'Don’t You Never … EVER! forces opponent to discard 2');
+  assert(
+    engine.turnDamageBonus[1].all === 2,
+    'Don’t You Never … EVER! applies +2D to all maneuvers on next turn'
+  );
+  assert(
+    engine.pendingTurnOpponentReversalTax[1] === 0,
+    'Don’t You Never … EVER! does not apply reversal tax'
+  );
+}
+
 async function testTakeThatMoveReversesStrikeGrappleSubmission() {
   const RawDeal = loadRawDeal();
 
@@ -7073,6 +7537,18 @@ async function main() {
   await testIAmTheGameDrawTwoChoice();
   await testIAmTheGameOpponentDiscardTwoChoice();
   await testIAmTheGameBoostsManeuverDamage();
+  await testReverseDdtDrawsOneOnSuccess();
+  await testGuillotineStretchDiscardsAndDraws();
+  await testChickenWingShufflesTwoFromRingside();
+  await testDiscusPunchHandReversalDamageBonus();
+  await testKanesFlyingClotheslineNotPlayableAfterLowDamage();
+  await testKanesFlyingClotheslinePlayableAfter4DManeuver();
+  await testKanesFlyingClotheslineHandReversalDamageBonus();
+  await testLionsaultNotPlayableAfterLowDamage();
+  await testLionsaultPlayableAfter4DManeuverAndForcesDiscard();
+  await testKanesReturnFromHandMovesArsenalAndSetsNextTurnBonuses();
+  await testKanesReturnFromArsenalNoHandEffects();
+  await testDontYouNeverEverFromHandForcesDiscardAndNextTurnBonus();
   await testTakeThatMoveReversesStrikeGrappleSubmission();
   await testTakeThatMoveCannotReverseHighRisk();
   await testTakeThatMoveFromHandShufflesUpToFiveFromRingside();
