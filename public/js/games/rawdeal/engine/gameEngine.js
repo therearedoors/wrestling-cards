@@ -33,6 +33,8 @@ window.RawDeal.GameEngine = class GameEngine {
     this.discardAllHandsFlow = null;
     this.reversedManeuverDamage = null;
     this.reversedManeuverHandReversalDamageBonus = 0;
+    this.pendingReversalAfterDiscard = null;
+    this.pendingOpponentReversal = null;
     this.maintainedSubmissionFlow = null;
     this._pendingMaintainedSubmissionWindow = false;
     this.animationEvents = [];
@@ -231,6 +233,27 @@ window.RawDeal.GameEngine = class GameEngine {
     return bonus;
   }
 
+  _applyDisqualificationWin(winnerIndex, sourceName = 'Disqualification!') {
+    this.winner = winnerIndex;
+    this.winReason = window.RawDeal.WIN_REASONS.DISQUALIFICATION;
+    this.stateMachine.phase = window.RawDeal.PHASES.GAME_OVER;
+    this.reversalWindow = null;
+    this.cardEffectFlow = null;
+    this.pendingReversalAfterDiscard = null;
+    this.pendingOpponentReversal = null;
+    this.actionLog.push({
+      message: this._gc().log.disqualificationWin(sourceName),
+    });
+    this._notify();
+  }
+
+  _checkDisqualificationRingsideTrigger(defender, attacker, damageSource) {
+    if (!window.RawDeal.CardUtils.isHeelCard(damageSource)) return null;
+    const minHeel = 5;
+    if (window.RawDeal.CardUtils.countHeelCardsInRing(attacker) < minHeel) return null;
+    return this._playerIndex(defender);
+  }
+
   _getRingTitleWordDamageBonus(player, { word, value = 1 } = {}) {
     if (!player?.ring?.maneuvers?.length || !word) return 0;
     const needle = word.toLowerCase();
@@ -364,19 +387,41 @@ window.RawDeal.GameEngine = class GameEngine {
     this.animationEvents = [];
   }
 
+  _reversalWindowResponderIndex(kind, attackerIndex, defenderIndex) {
+    return kind === 'opponentReversal' ? attackerIndex : defenderIndex;
+  }
+
+  _reversalWindowHeelPlayerIndex(kind, attackerIndex, defenderIndex) {
+    return kind === 'opponentReversal' ? defenderIndex : attackerIndex;
+  }
+
   _publicReversalWindow(viewerIndex) {
     if (!this.reversalWindow) return null;
     const { attackerIndex, defenderIndex, played, damage, kind = 'maneuver' } = this.reversalWindow;
+    const heelPlayerIndex = this._reversalWindowHeelPlayerIndex(
+      kind,
+      attackerIndex,
+      defenderIndex
+    );
+    const heelPlayer = this.players[heelPlayerIndex];
+    const catalog = window.RawDeal.CARDS?.[played.id];
     return {
       active: true,
       kind,
       attackerIndex,
       defenderIndex,
-      canRespond: viewerIndex === defenderIndex,
+      heelPlayerIndex,
+      opponentHeelInRing: window.RawDeal.CardUtils.countHeelCardsInRing(heelPlayer),
+      canRespond:
+        viewerIndex ===
+        this._reversalWindowResponderIndex(kind, attackerIndex, defenderIndex),
       maneuver: {
         id: played.id,
         name: played.name,
         subtype: played.subtype,
+        alignment:
+          played.alignment ?? catalog?.alignment ?? null,
+        types: played.types?.length ? played.types : (catalog?.types ?? []),
         damage: kind === 'action' ? 0 : damage,
         afterIrishWhip: kind === 'maneuver'
           ? !!this.players[attackerIndex]?.turnState?.irishWhipPlayed
@@ -596,13 +641,21 @@ window.RawDeal.GameEngine = class GameEngine {
 
     if (flow.type === 'pickArsenalOrRingsideToHand') {
       const player = this.players[flow.playerIndex];
+      const filterId = flow.filterCardId || null;
+      const arsenalCards = player.arsenal
+        .filter((c) => !filterId || c.id === filterId)
+        .map((c) => ({ ...c }));
+      const ringsideCards = player.ringside
+        .filter((c) => !filterId || c.id === filterId)
+        .map((c) => ({ ...c }));
       return {
         mode: 'arsenalOrRingsideModal',
-        message: this._gc().prompt.arsenalOrRingsidePick(flow.sourceName),
-        arsenalCards: player.arsenal.map((c) => ({ ...c })),
-        ringsideCards: player.ringside.map((c) => ({ ...c })),
+        message: this._gc().prompt.arsenalOrRingsidePick(flow.sourceName, filterId),
+        arsenalCards,
+        ringsideCards,
         selectedId: flow.selectedId,
         selectedZone: flow.selectedZone,
+        filterCardId: filterId,
       };
     }
 
@@ -1692,10 +1745,24 @@ window.RawDeal.GameEngine = class GameEngine {
     return true;
   }
 
-  async _beginPickArsenalOrRingsidePrompt(player, playerIndex, sourceName) {
-    if (player.arsenal.length === 0 && player.ringside.length === 0) {
+  async _beginPickArsenalOrRingsidePrompt(
+    player,
+    playerIndex,
+    sourceName,
+    { cardId = null } = {}
+  ) {
+    const arsenalMatches = cardId
+      ? player.arsenal.filter((c) => c.id === cardId)
+      : player.arsenal;
+    const ringsideMatches = cardId
+      ? player.ringside.filter((c) => c.id === cardId)
+      : player.ringside;
+
+    if (arsenalMatches.length === 0 && ringsideMatches.length === 0) {
       this.actionLog.push({
-        message: this._gc().log.noArsenalOrRingsideToPick(sourceName),
+        message: cardId
+          ? this._gc().log.searchArsenalOrRingsideNoMatch(sourceName, cardId)
+          : this._gc().log.noArsenalOrRingsideToPick(sourceName),
       });
       this._shuffle(player.arsenal);
       this.actionLog.push({
@@ -1710,9 +1777,26 @@ window.RawDeal.GameEngine = class GameEngine {
       sourceName,
       selectedId: null,
       selectedZone: null,
+      filterCardId: cardId || null,
     };
+    if (cardId) {
+      this.actionLog.push({
+        message: this._gc().log.searchArsenalOrRingsideLook(sourceName, cardId),
+      });
+    }
     this._notify();
     return true;
+  }
+
+  async _beginSearchArsenalOrRingsideForCardPrompt(
+    player,
+    playerIndex,
+    sourceName,
+    { cardId = null } = {}
+  ) {
+    return this._beginPickArsenalOrRingsidePrompt(player, playerIndex, sourceName, {
+      cardId,
+    });
   }
 
   async _completePickArsenalOrRingside(player, playerIndex, sourceName, card, zone) {
@@ -1746,14 +1830,15 @@ window.RawDeal.GameEngine = class GameEngine {
   }
 
   selectArsenalOrRingsidePick(playerIndex, instanceId, zone) {
-    if (!this.cardEffectFlow || this.cardEffectFlow.playerIndex !== playerIndex) return false;
-    if (this.cardEffectFlow.type !== 'pickArsenalOrRingsideToHand') return false;
+    const flow = this.cardEffectFlow;
+    if (!flow || flow.playerIndex !== playerIndex) return false;
+    if (flow.type !== 'pickArsenalOrRingsideToHand') return false;
 
     const player = this.players[playerIndex];
     const pool = zone === 'ringside' ? player.ringside : player.arsenal;
-    if (!pool.some((c) => c.instanceId === instanceId)) return false;
-
-    const flow = this.cardEffectFlow;
+    const card = pool.find((c) => c.instanceId === instanceId);
+    if (!card) return false;
+    if (flow.filterCardId && card.id !== flow.filterCardId) return false;
     if (flow.selectedId === instanceId && flow.selectedZone === zone) {
       flow.selectedId = null;
       flow.selectedZone = null;
@@ -2958,23 +3043,48 @@ window.RawDeal.GameEngine = class GameEngine {
 
   canPlayReversalFromHand(playerIndex, instanceId) {
     if (this.stateMachine.phase !== window.RawDeal.PHASES.REVERSAL_PRIORITY) return false;
-    if (!this.reversalWindow || this.reversalWindow.defenderIndex !== playerIndex) return false;
+    if (!this.reversalWindow) return false;
+
+    const { attackerIndex, defenderIndex, kind = 'maneuver' } = this.reversalWindow;
+    const responderIndex = this._reversalWindowResponderIndex(
+      kind,
+      attackerIndex,
+      defenderIndex
+    );
+    if (responderIndex !== playerIndex) return false;
 
     const player = this.players[playerIndex];
     const card = player.hand.find((c) => c.instanceId === instanceId);
     if (!card) return false;
 
-    const { played, kind = 'maneuver' } = this.reversalWindow;
+    const { played } = this.reversalWindow;
     if (kind === 'action') {
-      const attacker = this.players[this.reversalWindow.attackerIndex];
+      const attacker = this.players[attackerIndex];
       return window.RawDeal.CardUtils.canReverseAction(card, played, player.fortitude, {
         reversalFortitudeTax: this._getActionReversalFortitudeTax(attacker),
       });
     }
 
-    const attacker = this.players[this.reversalWindow.attackerIndex];
+    const heelPlayerIndex = this._reversalWindowHeelPlayerIndex(
+      kind,
+      attackerIndex,
+      defenderIndex
+    );
+    const heelPlayer = this.players[heelPlayerIndex];
+    const discardAlreadyDone =
+      this.pendingReversalAfterDiscard?.instanceId === instanceId;
+    if (
+      !discardAlreadyDone &&
+      !window.RawDeal.CardUtils.meetsReversalDiscardRequirement(
+        player,
+        card,
+        instanceId
+      )
+    ) {
+      return false;
+    }
     return this._reversalStops(card, played, player, {
-      attacker,
+      attacker: heelPlayer,
       effectiveDamage: this.reversalWindow.damage,
     });
   }
@@ -2983,9 +3093,44 @@ window.RawDeal.GameEngine = class GameEngine {
     if (!this.canPlayReversalFromHand(playerIndex, instanceId)) return false;
 
     const player = this.players[playerIndex];
-    const { player: attacker, played, kind = 'maneuver' } = this.reversalWindow;
+    const reversalInHand = player.hand.find((c) => c.instanceId === instanceId);
+    if (
+      reversalInHand?.requiresReversalDiscard &&
+      !this.pendingReversalAfterDiscard
+    ) {
+      this.pendingReversalAfterDiscard = { playerIndex, instanceId };
+      const paused = this._beginDiscardFromHandPrompt(
+        player,
+        playerIndex,
+        reversalInHand.name,
+        reversalInHand.requiresReversalDiscard,
+        { afterReversalDiscard: true }
+      );
+      return !!paused;
+    }
+
+    if (this.pendingReversalAfterDiscard?.instanceId === instanceId) {
+      this.pendingReversalAfterDiscard = null;
+    }
+
+    const {
+      player: attacker,
+      played,
+      kind = 'maneuver',
+      attackerIndex,
+      defenderIndex,
+    } = this.reversalWindow;
     const handIndex = player.hand.findIndex((c) => c.instanceId === instanceId);
     const reversal = player.hand.splice(handIndex, 1)[0];
+
+    if (kind === 'opponentReversal') {
+      player.ring.reversals.push(reversal);
+      this._syncFortitude(player);
+      this.pendingOpponentReversal = null;
+      this.reversalWindow = null;
+      this._applyDisqualificationWin(playerIndex, reversal.name);
+      return true;
+    }
 
     if (kind === 'action') {
       player.ringside.push(reversal);
@@ -3046,6 +3191,33 @@ window.RawDeal.GameEngine = class GameEngine {
       return true;
     }
 
+    if (
+      kind === 'maneuver' &&
+      window.RawDeal.CardUtils.isHeelCard(reversal) &&
+      reversal.id !== 'disqualification'
+    ) {
+      const pendingDamage = this.reversalWindow.damage;
+      this.pendingOpponentReversal = {
+        reversalPlayer: player,
+        reversalPlayerIndex: playerIndex,
+        attacker,
+        played,
+        damage: pendingDamage,
+        reversal,
+      };
+      this.reversalWindow = {
+        kind: 'opponentReversal',
+        attackerIndex,
+        defenderIndex,
+        player: attacker,
+        opponent: player,
+        played: reversal,
+        damage: pendingDamage,
+      };
+      this._notify();
+      return true;
+    }
+
     player.ring.reversals.push(reversal);
     this._syncFortitude(player);
     this._sendReversedManeuverToRingside(attacker, played);
@@ -3063,6 +3235,11 @@ window.RawDeal.GameEngine = class GameEngine {
     this.reversedManeuverDamage = this.reversalWindow.damage;
     this.reversedManeuverHandReversalDamageBonus = played.handReversalDamageBonus || 0;
     this.reversalWindow = null;
+
+    if (reversal.disqualifiesOpponent || reversal.id === 'disqualification') {
+      this._applyDisqualificationWin(this._playerIndex(player), reversal.name);
+      return true;
+    }
 
     if (reversal.reversalEffects?.length) {
       const paused = await this._startEffectPipeline(
@@ -3085,6 +3262,49 @@ window.RawDeal.GameEngine = class GameEngine {
     this.stateMachine.transition(window.RawDeal.EVENTS.PLAY_REVERSAL);
     this._notify();
     await this._runAutoPhases();
+  }
+
+  async _completePendingOpponentReversal() {
+    const pending = this.pendingOpponentReversal;
+    if (!pending) return;
+
+    const { reversalPlayer, attacker, played, damage, reversal } = pending;
+    this.pendingOpponentReversal = null;
+
+    reversalPlayer.ring.reversals.push(reversal);
+    this._syncFortitude(reversalPlayer);
+    this._sendReversedManeuverToRingside(attacker, played);
+
+    this.actionLog.push({
+      message: this._gc().log.reversalFromHand(reversal.name, played.name),
+    });
+
+    if (played.subtype === 'grapple') {
+      this._clearGrappleJockeyingTax(attacker);
+    }
+    this._clearNextManeuverReversalTax(attacker);
+
+    this._applyStunValueDraw(attacker, played);
+    this.reversedManeuverDamage = damage;
+    this.reversedManeuverHandReversalDamageBonus = played.handReversalDamageBonus || 0;
+
+    if (reversal.disqualifiesOpponent || reversal.id === 'disqualification') {
+      this._applyDisqualificationWin(this._playerIndex(reversalPlayer), reversal.name);
+      return;
+    }
+
+    if (reversal.reversalEffects?.length) {
+      await this._startEffectPipeline(
+        reversalPlayer,
+        reversal.name,
+        reversal.reversalEffects,
+        'reversal',
+        reversal
+      );
+      return;
+    }
+
+    await this._finishHandReversalTurn();
   }
 
   async _applyReversalFromHandDamage(reversalPlayer, attacker, reversal, damage) {
@@ -3116,9 +3336,30 @@ window.RawDeal.GameEngine = class GameEngine {
 
   async passPriority(playerIndex) {
     if (this.stateMachine.phase !== window.RawDeal.PHASES.REVERSAL_PRIORITY) return false;
-    if (!this.reversalWindow || this.reversalWindow.defenderIndex !== playerIndex) return false;
+    if (!this.reversalWindow) return false;
 
-    const { player, opponent, played, damage, kind = 'maneuver' } = this.reversalWindow;
+    const {
+      player,
+      opponent,
+      played,
+      damage,
+      kind = 'maneuver',
+      attackerIndex,
+      defenderIndex,
+    } = this.reversalWindow;
+    const responderIndex = this._reversalWindowResponderIndex(
+      kind,
+      attackerIndex,
+      defenderIndex
+    );
+    if (responderIndex !== playerIndex) return false;
+
+    if (kind === 'opponentReversal') {
+      this.reversalWindow = null;
+      await this._completePendingOpponentReversal();
+      return true;
+    }
+
     this.reversalWindow = null;
 
     if (kind === 'action') {
@@ -3221,6 +3462,15 @@ window.RawDeal.GameEngine = class GameEngine {
       this.actionLog.push({
         message: this._gc().log.discardedToRingside(flow.sourceName, names),
       });
+      if (flow.meta?.afterReversalDiscard) {
+        const pending = this.pendingReversalAfterDiscard;
+        this.cardEffectFlow = null;
+        this._notify();
+        if (pending) {
+          return this.playReversalFromHand(pending.playerIndex, pending.instanceId);
+        }
+        return true;
+      }
       if (flow.meta?.discardAllHands && flow.meta.phase === 'active') {
         this.cardEffectFlow = null;
         this._notify();
@@ -3438,6 +3688,22 @@ window.RawDeal.GameEngine = class GameEngine {
         },
       });
 
+      if (overturned.id === 'disqualification') {
+        const dqWinner = this._checkDisqualificationRingsideTrigger(
+          opponent,
+          attacker,
+          maneuver
+        );
+        if (dqWinner != null) {
+          this._applyDisqualificationWin(dqWinner, overturned.name);
+          return {
+            result: 'disqualified',
+            reversedBy: overturned,
+            cardsOverturned,
+          };
+        }
+      }
+
       if (reversed) {
         this._applyStunValueDraw(attacker, maneuver);
         return { result: 'reversed', reversedBy: overturned, cardsOverturned };
@@ -3498,7 +3764,11 @@ window.RawDeal.GameEngine = class GameEngine {
       maneuver,
       opponent.fortitude,
       damage,
-      { afterIrishWhip: playedAfterIrishWhip, reversalFortitudeTax: tax }
+      {
+        afterIrishWhip: playedAfterIrishWhip,
+        reversalFortitudeTax: tax,
+        attacker,
+      }
     );
   }
 

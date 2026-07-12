@@ -29,6 +29,7 @@ window.RawDeal.EVENTS = {
 window.RawDeal.WIN_REASONS = {
   PINFALL: 'pinfall',
   COUNT_OUT: 'countOut',
+  DISQUALIFICATION: 'disqualification',
 };
 
 window.RawDeal.CARD_COLORS = {

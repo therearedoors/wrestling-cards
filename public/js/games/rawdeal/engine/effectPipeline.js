@@ -316,6 +316,14 @@ window.RawDeal.EffectPipeline = {
           sourceName
         );
 
+      case 'searchArsenalOrRingsideForCard':
+        return engine._beginSearchArsenalOrRingsideForCardPrompt(
+          player,
+          pipeline.playerIndex,
+          sourceName,
+          { cardId: step.cardId || null }
+        );
+
       case 'turnOpponentReversalTax': {
         const value = step.value || 0;
         if (!player.turnState) player.turnState = engine._emptyTurnState();
