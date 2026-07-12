@@ -144,6 +144,11 @@ window.RawDeal.EffectPipeline = {
       engine.stateMachine.phase !== window.RawDeal.PHASES.GAME_OVER
     ) {
       await engine._finishHandReversalTurn();
+    } else if (
+      timing === 'postActionReversal' &&
+      engine.stateMachine.phase !== window.RawDeal.PHASES.GAME_OVER
+    ) {
+      await engine._runAutoPhases();
     }
 
     return false;
