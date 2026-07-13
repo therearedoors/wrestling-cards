@@ -13,12 +13,6 @@ A web app for playing **Raw Deal** — the classic WWE trading card game — wit
 
 Inspired by platforms like Jinteki.net for Netrunner—functional first, expansions later.
 
-## Screenshots
-
-![Lobby](public/assets/screenshots/lobby.png)
-![Gameplay](public/assets/screenshots/game.png)
-*(Add actual images here)*
-
 ## Prerequisites
 - Node.js 18+
 - MySQL 8+
