@@ -73,14 +73,6 @@ io.on('connection', (socket) => {
     sendRoomAndUserCounts(socket);
   });
 
-  socket.on('send-message', (message, user, roomId = null) => {
-    if (roomId) {
-      socket.to(roomId).emit('receive-message', message, user);
-    } else {
-      socket.broadcast.emit('receive-message', message, user, true);
-    }
-  });
-
   socket.on('disconnect', () => {
     handleRawDealDisconnect(io, socket, redisClient, sendRoomAndUserCounts);
     removeUser(socket.id);
